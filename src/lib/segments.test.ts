@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { branch, join, profile, ride, road } from "@/test/ride-fixtures";
-import { autoSegments, findAttempts, haversine, samePath, segmentFromRange, segmentSummary, segmentTrace, trackFromStreams, type Segment, type TrackLike } from "./segments";
+import { findAttempts, haversine, samePath, segmentFromRange, segmentSummary, trackFromStreams, type Segment, type TrackLike } from "./segments";
+import { autoSegments, traceOf } from "./segment-index";
 
 // Straight line north, 1 point per ~11 m (0.0001° lat), 1 m/s.
 function line(id: string, n = 300, speed = 1): TrackLike {
@@ -32,7 +33,7 @@ describe("segment helpers", () => {
     expect(a!.gain).toBeCloseTo(seg.length * 0.05, -1);
     expect(a!.vam).toBeCloseTo(5 * 0.05 * 3600, -1); // 5 m/s × 5% = 0.25 m/s up = 900 m/h
     expect(a!.avgCad).toBe(85);
-    const tr = segmentTrace([t], seg)!;
+    const tr = traceOf(t, a!);
     expect(tr.dist[0]).toBe(0);
     expect(tr.dist.at(-1)).toBeCloseTo(seg.length, -2);
     expect(tr.lat[0]).toBeCloseTo(45.005, 3);
@@ -59,7 +60,8 @@ describe("segment helpers", () => {
     expect(segs).toHaveLength(1);
     expect(segs[0]!.rides).toBe(2);
     const c = hill("c");
-    expect(samePath(segmentTrace([c], segs[0]!)!, segmentTrace([c], segmentFromRange(c, 1.0, 3.0, "custom"))!)).toBe(true);
+    const on = (x: Segment) => traceOf(c, findAttempts(c, x)[0]!);
+    expect(samePath(on(segs[0]!), on(segmentFromRange(c, 1.0, 3.0, "custom")))).toBe(true);
   });
 });
 

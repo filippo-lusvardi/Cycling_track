@@ -12,7 +12,7 @@ import { readinessFor, recommendation, type Component } from "@/lib/readiness";
 import { computeForm, formatDuration, formZone, isoDate } from "@/lib/training";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Today — Cadence" }] }),
+  head: () => ({ meta: [{ title: "Today — Ora" }] }),
   loader: ({ context }) =>
     Promise.all([
       context.queryClient.ensureQueryData(wellnessQuery(14)),
@@ -21,7 +21,12 @@ export const Route = createFileRoute("/")({
   component: Today,
 });
 
-const TONE = { pine: "var(--pine)", fitness: "var(--fitness)", birch: "var(--birch)", lingon: "var(--lingon)" } as const;
+const TONE = {
+  pine: "var(--pine)",
+  fitness: "var(--fitness)",
+  birch: "var(--birch)",
+  lingon: "var(--lingon)",
+} as const;
 
 const STRESS = ["Low", "Average", "High", "Extreme"];
 
@@ -44,7 +49,10 @@ function Today() {
       <CheckInBanner row={row} />
 
       <section className="grid items-center gap-6 rounded-xl border border-border bg-card p-5 sm:grid-cols-[auto_1fr]">
-        <ReadinessRing score={r.score} color={r.advice ? TONE[r.advice.tone] : "var(--muted-foreground)"} />
+        <ReadinessRing
+          score={r.score}
+          color={r.advice ? TONE[r.advice.tone] : "var(--muted-foreground)"}
+        />
         <div className="space-y-3">
           {r.advice ? (
             <>
@@ -73,39 +81,43 @@ function Today() {
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Not enough data for a readiness score yet. Do the check-in, or wait for the watch to sync sleep and HRV.
+              Not enough data for a readiness score yet. Do the check-in, or wait for the watch to
+              sync sleep and HRV.
             </p>
           )}
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard
-          label="HRV"
-          tone="fitness"
-          value={row?.hrv != null ? Math.round(row.hrv) : "–"}
-          unit="ms"
-          hint={comp("hrv")?.detail.split(" · ")[1] ?? "no 7-day baseline yet"}
-        />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard
           label="Sleep"
           tone="weight"
           value={row?.sleepSecs ? formatDuration(row.sleepSecs) : "–"}
           hint={comp("sleep") ? `score ${Math.round(comp("sleep")!.score)}` : "not synced yet"}
         />
-        <StatCard label="Form" tone="form" value={tsb != null ? Math.round(tsb) : "–"} hint={tsb != null ? formZone(tsb) : undefined} />
         <StatCard
-          label="Feel"
-          tone="fatigue"
-          value={comp("feel") ? Math.round(comp("feel")!.score) : "–"}
-          hint={
-            row?.fatigue != null || row?.stress != null
-              ? [row.fatigue != null && `fatigue ${STRESS[row.fatigue - 1]?.toLowerCase()}`, row.stress != null && `stress ${STRESS[row.stress - 1]?.toLowerCase()}`]
-                  .filter(Boolean)
-                  .join(" · ")
-              : "check in to add"
-          }
+          label="Form"
+          tone="form"
+          value={tsb != null ? Math.round(tsb) : "–"}
+          hint={tsb != null ? formZone(tsb) : undefined}
         />
+        <div className="col-span-2 md:col-span-1">
+          <StatCard
+            label="Feel"
+            tone="fatigue"
+            value={comp("feel") ? Math.round(comp("feel")!.score) : "–"}
+            hint={
+              row?.fatigue != null || row?.stress != null
+                ? [
+                    row.fatigue != null && `fatigue ${STRESS[row.fatigue - 1]?.toLowerCase()}`,
+                    row.stress != null && `stress ${STRESS[row.stress - 1]?.toLowerCase()}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : "check in to add"
+            }
+          />
+        </div>
       </div>
 
       <Schedule today={today} />
@@ -117,29 +129,39 @@ function Schedule({ today }: { today: string }) {
   const { data: acts } = useSuspenseQuery(activitiesQuery(1));
   const { data: events } = useQuery(eventsQuery({ oldest: today, newest: today }));
   const done = acts.filter((a) => a.start_date_local.startsWith(today));
-  const planned = (events ?? []).filter((e) => e.category === "WORKOUT" || e.category.startsWith("RACE") || e.category === "NOTE");
+  const planned = (events ?? []).filter(
+    (e) => e.category === "WORKOUT" || e.category.startsWith("RACE") || e.category === "NOTE",
+  );
 
   return (
     <Panel
       title="Today's schedule"
       action={
-        <Link to="/fitness" className="text-xs text-primary">
-          Fitness & form →
+        <Link to="/calendar" className="text-xs text-primary">
+          Calendar →
         </Link>
       }
     >
       {planned.length === 0 && done.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted-foreground">Nothing planned or recorded yet today.</p>
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          Nothing planned or recorded yet today.
+        </p>
       ) : (
         <div className="-mx-3">
           {planned.map((e) => (
-            <div key={e.id} className="flex items-center justify-between gap-3 rounded-lg px-3 py-3">
+            <div
+              key={e.id}
+              className="flex items-center justify-between gap-3 rounded-lg px-3 py-3"
+            >
               <div className="flex min-w-0 items-center gap-3">
                 <CalendarClock className="h-4 w-4 shrink-0 text-birch" />
                 <div className="min-w-0">
                   <div className="truncate font-medium">{e.name ?? e.category}</div>
                   <div className="text-xs text-muted-foreground">
-                    Planned · {e.category === "WORKOUT" ? (e.type ?? "Workout") : e.category.replace("_", " ").toLowerCase()}
+                    Planned ·{" "}
+                    {e.category === "WORKOUT"
+                      ? (e.type ?? "Workout")
+                      : e.category.replace("_", " ").toLowerCase()}
                   </div>
                 </div>
               </div>

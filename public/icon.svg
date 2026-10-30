@@ -1,6 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- The road coloured like Ora's gradient scale: easy at the foot, steepest at the summit. -->
+    <linearGradient id="road" gradientUnits="userSpaceOnUse" x1="0" y1="440" x2="0" y2="226">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="0.3" stop-color="#38bdf8"/>
+      <stop offset="0.6" stop-color="#fbbf24"/>
+      <stop offset="0.8" stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#f87171"/>
+    </linearGradient>
+  </defs>
   <rect width="512" height="512" rx="112" fill="#0b1220"/>
-  <circle cx="256" cy="256" r="150" fill="none" stroke="#162238" stroke-width="44"/>
-  <path d="M256 106 A150 150 0 1 1 112 298" fill="none" stroke="#38bdf8" stroke-width="44" stroke-linecap="round"/>
-  <path d="M168 318 L226 238 L258 280 L296 214 L352 318 Z" fill="#34d399"/>
+  <!-- Monte Bondone from Trento: a broad, rounded massif — Palon, Dos d'Abramo and Cornetto, the high point. -->
+  <path d="M36 470 L104 336 Q124 300 150 314 Q176 262 206 282 Q234 238 262 254 Q290 194 322 212 Q354 232 372 270 Q392 254 412 276 L476 470 Z" fill="#162238"/>
+  <path d="M104 336 Q124 300 150 314 Q176 262 206 282 Q234 238 262 254 Q290 194 322 212 Q354 232 372 270 Q392 254 412 276" fill="none" stroke="#2a3d5c" stroke-width="6" stroke-linejoin="round"/>
+  <!-- The road: hairpins up the face to Cornetto. -->
+  <path d="M168 440 L344 410 L184 372 L334 340 L204 306 L322 276 L240 250 L300 226" fill="none" stroke="url(#road)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="304" cy="206" r="12" fill="#ffffff"/>
 </svg>

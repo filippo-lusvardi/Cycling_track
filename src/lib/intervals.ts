@@ -1,9 +1,9 @@
 // intervals.icu API, called straight from the browser (the API allows CORS).
-import { get as idbGet, set as idbSet } from "idb-keyval";
+import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { z } from "zod";
 import { API_KEY, readSetting } from "./settings";
+import type { RideRef } from "./segment-engine";
 import { trackFromStreams, type TrackLike } from "./segments";
-import { isoDate } from "./training";
 
 /** Missing or rejected API key: the UI sends the user to Settings. */
 export class AuthError extends Error {
@@ -72,6 +72,8 @@ export type Activity = {
   zoneTimes: number[];
   decoupling: number | null;
   efficiency: number | null;
+  /** Recorded on a home trainer (indoor), even when the type says Ride. */
+  trainer: boolean;
 };
 
 export type ActivityDetail = Activity & {
@@ -140,6 +142,7 @@ const pickActivity = (a: Record<string, unknown>): Activity => ({
   zoneTimes: zoneSecs(a),
   decoupling: (a["decoupling"] as number) ?? null,
   efficiency: (a["icu_efficiency_factor"] as number) ?? null,
+  trainer: !!a["trainer"],
 });
 
 function zoneSecs(a: Record<string, unknown>): number[] {
@@ -228,18 +231,33 @@ type StreamRow = { type: string; data?: (number | null)[]; data2?: (number | nul
 
 export type RideStreams = Awaited<ReturnType<typeof downloadStreams>>;
 
-/** Streams of a finished activity never change, so they are kept in IndexedDB for good. */
+// Full-resolution streams are big (~400 KB a ride), so only the most recently opened rides keep them.
+const STREAMS_KEPT = 50;
+const LRU = "streams-lru";
+
 async function fetchStreams(id: string): Promise<RideStreams> {
-  const key = `streams:v1:${id}`;
+  const key = `streams:v2:${id}`;
   try {
     const hit = await idbGet<RideStreams>(key);
-    if (hit) return hit;
+    if (hit) {
+      void touchStreams(id);
+      return hit;
+    }
   } catch {
     /* IndexedDB unavailable: fall through to the network */
   }
   const s = await downloadStreams(id);
-  idbSet(key, s).catch(() => {});
+  idbSet(key, s)
+    .then(() => touchStreams(id))
+    .catch(() => {});
   return s;
+}
+
+/** Mark a ride's streams as just used, dropping the least recently used beyond the limit. */
+async function touchStreams(id: string) {
+  const order = [id, ...((await idbGet<string[]>(LRU)) ?? []).filter((x) => x !== id)];
+  for (const old of order.slice(STREAMS_KEPT)) await idbDel(`streams:v2:${old}`);
+  await idbSet(LRU, order.slice(0, STREAMS_KEPT));
 }
 
 async function downloadStreams(id: string) {
@@ -264,41 +282,22 @@ export async function getStreams(id: string) {
   return fetchStreams(idSchema.parse(id));
 }
 
-/** One ride's 20 m track, kept in IDB: ~20× smaller than its streams, so the segment pages open quickly. 0 = no GPS. */
-async function fetchTrack(a: Record<string, unknown>): Promise<Track | null> {
-  const id = String(a["id"]);
-  const key = `track:v1:${id}`;
-  const hit = await idbGet<Track | 0>(key).catch(() => undefined);
-  if (hit !== undefined) return hit || null;
-  const s = await fetchStreams(id);
-  const t = s.lat.length ? trackFromStreams({ id, name: (a["name"] as string) ?? null, date: String(a["start_date_local"] ?? "") }, s) : null;
-  idbSet(key, t ?? 0).catch(() => {});
-  return t;
+/** Outdoor rides (GPS, not trainer or virtual) in a date range, for the segment engine. */
+export async function listOutdoorRides(from: string, to: string): Promise<RideRef[]> {
+  const { oldest, newest } = rangeSchema.parse({ oldest: from, newest: to });
+  const acts = await icu<Record<string, unknown>[]>(`/athlete/0/activities?oldest=${oldest}&newest=${newest}`);
+  return acts
+    .filter((a) => {
+      const type = String(a["type"] ?? "");
+      return type.includes("Ride") && !type.startsWith("Virtual") && !a["trainer"] && Number(a["distance"]) > 3000;
+    })
+    .map((a) => ({ id: String(a["id"]), name: (a["name"] as string) ?? null, date: String(a["start_date_local"] ?? "") }));
 }
 
-/** Down-sampled GPS tracks (~every 20 m) of recent outdoor rides, for segment matching. */
-export async function getTracks(days: number) {
-  z.number().int().min(7).max(365).parse(days);
-  const newest = isoDate(new Date());
-  const oldest = isoDate(new Date(Date.now() - days * 86400000));
-  const acts = await icu<Record<string, unknown>[]>(`/athlete/0/activities?oldest=${oldest}&newest=${newest}`);
-  const rides = acts
-    .filter((a) => String(a["type"] ?? "").includes("Ride") && !a["trainer"] && (a["distance"] as number) > 3000)
-    .slice(0, 60);
-  const out: Track[] = [];
-  for (let i = 0; i < rides.length; i += 6) {
-    const batch = await Promise.all(
-      rides.slice(i, i + 6).map(async (a) => {
-        try {
-          return await fetchTrack(a);
-        } catch {
-          return null;
-        }
-      }),
-    );
-    for (const b of batch) if (b) out.push(b);
-  }
-  return out;
+/** A ride's 20 m track straight from its streams (not kept in the streams cache), or null without GPS. */
+export async function downloadRideTrack(ref: RideRef): Promise<Track | null> {
+  const s = await downloadStreams(idSchema.parse(ref.id));
+  return s.lat.length ? trackFromStreams(ref, s) : null;
 }
 
 export type PowerCurve = { id: string; label: string; secs: number[]; watts: number[] };

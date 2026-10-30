@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { FitnessSection } from "@/components/FitnessSection";
 import { Panel, StatCard } from "@/components/StatCard";
 import { ZoneBar } from "@/components/ZoneBar";
 import { distributionLabel, fitCriticalPower, mmp, polarizationIndex, threeZone } from "@/lib/analysis";
@@ -24,7 +25,8 @@ import { addDays, formatClock, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/analysis")({
-  head: () => ({ meta: [{ title: "Analysis — Cadence" }] }),
+  head: () => ({ meta: [{ title: "Analysis — Ora" }] }),
+  loader: ({ context }) => context.queryClient.ensureQueryData(wellnessQuery(90)),
   component: Analysis,
 });
 
@@ -48,6 +50,7 @@ function Analysis() {
         <div className="eyebrow">Performance</div>
         <h1 className="text-3xl font-bold tracking-tight">Analysis</h1>
       </div>
+      <FitnessSection />
       <PowerSection />
       <EftpSection />
       <DecouplingSection />

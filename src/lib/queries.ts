@@ -5,7 +5,6 @@ import {
   getEvents,
   getPowerCurves,
   getStreams,
-  getTracks,
   getWellness,
   type Range,
 } from "./intervals";
@@ -37,6 +36,14 @@ export const activitiesQuery = (days: number) =>
     staleTime: 5 * 60_000,
   });
 
+/** Every activity on intervals.icu (the list rows are small; the Rides page shows them a page at a time). */
+export const allActivitiesQuery = () =>
+  queryOptions({
+    queryKey: ["activities", "all"],
+    queryFn: () => getActivities({ oldest: "2000-01-01", newest: isoDate(new Date()) }),
+    staleTime: 5 * 60_000,
+  });
+
 export const activitiesRangeQuery = (r: Range) =>
   queryOptions({
     queryKey: ["activities", r.oldest, r.newest],
@@ -63,13 +70,6 @@ export const streamsQuery = (id: string) =>
     queryKey: ["streams", id],
     queryFn: () => getStreams(id),
     staleTime: Infinity,
-  });
-
-export const tracksQuery = (days: number) =>
-  queryOptions({
-    queryKey: ["tracks", days],
-    queryFn: () => getTracks(days),
-    staleTime: 30 * 60_000,
   });
 
 export const powerCurvesQuery = () =>

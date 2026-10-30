@@ -1,5 +1,5 @@
 // GPS segment detection & matching across rides. Pure and browser-safe.
-import { climbCategory, detectClimbs } from "./climbs";
+import { climbCategory } from "./climbs";
 
 export type Segment = {
   id: string;
@@ -166,35 +166,6 @@ export function trackFromStreams(meta: { id: string; name: string | null; date: 
   return t;
 }
 
-/**
- * Recurring climbs across rides. Detected climbs are grouped when they share ≥ 70% of their road (`samePath`),
- * so different approach roads, lead-ins or run-outs don't split them. Each group's segment covers only the
- * stretch every member shares, and `rides` counts the rides that pass through that segment, the same check
- * the segment page uses, so the two always agree.
- */
-export function autoSegments(tracks: TrackLike[]): (Segment & { rides: number })[] {
-  const groups: { track: TrackLike; path: Path; i0: number; core: [number, number] }[] = [];
-  for (const t of tracks) {
-    for (const c of detectClimbs({ distance: t.dist, altitude: t.alt, time: t.time })) {
-      const i0 = indexAtKm(t, c.startKm), i1 = indexAtKm(t, c.endKm);
-      const path = slice(t, i0, i1);
-      const g = groups.find((x) => samePath(x.path, path));
-      if (!g) {
-        groups.push({ track: t, path, i0, core: [i0, i1] });
-        continue;
-      }
-      const cov = coverage(g.path, path);
-      g.core = [Math.max(g.core[0], g.i0 + cov.first), Math.min(g.core[1], g.i0 + cov.last)];
-    }
-  }
-  return groups.flatMap((g) => {
-    if (g.core[1] <= g.core[0]) return [];
-    const seg = segmentFromRange(g.track, g.track.dist[g.core[0]]! / 1000, g.track.dist[g.core[1]]! / 1000, "auto");
-    const rides = tracks.filter((t) => findAttempts(t, seg).length > 0).length;
-    return [{ ...seg, rides }];
-  });
-}
-
 /** Whether a saved segment is the climb found at [startKm, endKm] on this track. */
 export function isClimbOnTrack(t: TrackLike, s: Segment, startKm: number, endKm: number): boolean {
   const a = findAttempts(t, s)[0];
@@ -202,24 +173,6 @@ export function isClimbOnTrack(t: TrackLike, s: Segment, startKm: number, endKm:
 }
 
 export type Trace = { lat: number[]; lng: number[]; dist: number[]; alt: number[] };
-
-/** The segment's path and profile, cut from the first ride (or the given effort) that covers it. Distances start at 0. */
-export function segmentTrace(tracks: TrackLike[], s: Segment, effort?: Pick<Attempt, "trackId" | "i0" | "i1">): Trace | null {
-  let t = effort && tracks.find((x) => x.id === effort.trackId);
-  let i0 = effort?.i0 ?? 0, i1 = effort?.i1 ?? 0;
-  if (!t) {
-    for (const x of tracks) {
-      const a = findAttempts(x, s)[0];
-      if (a) { t = x; i0 = a.i0; i1 = a.i1; break; }
-    }
-  }
-  if (!t) return null;
-  const d0 = t.dist[i0]!;
-  return {
-    lat: t.lat.slice(i0, i1 + 1), lng: t.lng.slice(i0, i1 + 1),
-    dist: t.dist.slice(i0, i1 + 1).map((d) => d - d0), alt: t.alt.slice(i0, i1 + 1),
-  };
-}
 
 /** "3.7 km · 5.0% · 188 m · Cat 3": the stats line shown under a segment's name. */
 export function segmentSummary(s: Pick<Segment, "length" | "grade" | "gain">): string {

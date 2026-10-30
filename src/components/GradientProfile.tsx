@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GRADE_LEGEND, gradeChunks, gradeColor } from "@/lib/profile";
+import { GRADE_LEGEND, gradeChunks, gradeColor, type Chunk } from "@/lib/profile";
 
 const H = 220;
 const PAD = { l: 40, r: 8, t: 12, b: 24 };
@@ -13,11 +13,14 @@ export function GradientProfile({
   alt,
   hover,
   onHover,
+  markers,
 }: {
   dist: number[];
   alt: number[];
   hover?: number | null;
   onHover?: (i: number | null) => void;
+  /** Dots on the altitude line at these distances (m), e.g. the riders of a ghost race. */
+  markers?: { dist: number; color: string }[];
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(600);
@@ -120,6 +123,15 @@ export function GradientProfile({
             {k} km
           </text>
         ))}
+        {markers?.map((mk, i) => {
+          const a = lineAlt(chunks, mk.dist);
+          return (
+            <g key={i} pointerEvents="none">
+              <line x1={x(mk.dist)} x2={x(mk.dist)} y1={y(a)} y2={bottom} stroke={mk.color} strokeWidth={1.5} />
+              <circle cx={x(mk.dist)} cy={y(a)} r={6} fill={mk.color} stroke="#0b1220" strokeWidth={2} />
+            </g>
+          );
+        })}
         {hover != null && dist[hover] != null && (
           <g pointerEvents="none">
             <line x1={x(dist[hover]!)} x2={x(dist[hover]!)} y1={PAD.t} y2={bottom} stroke="var(--foreground)" strokeDasharray="3 3" />
@@ -144,6 +156,13 @@ export function GradientProfile({
       </div>
     </div>
   );
+}
+
+/** Altitude of the drawn (smoothed, per-chunk) profile line at a distance, so markers sit on the line. */
+function lineAlt(chunks: Chunk[], d: number): number {
+  const c = chunks.find((k) => d <= k.to) ?? chunks.at(-1)!;
+  const f = c.to > c.from ? Math.min(1, Math.max(0, (d - c.from) / (c.to - c.from))) : 0;
+  return c.altFrom + (c.altTo - c.altFrom) * f;
 }
 
 /** Map polylines for a path, one per 100 m chunk, coloured by gradient like the profile. */

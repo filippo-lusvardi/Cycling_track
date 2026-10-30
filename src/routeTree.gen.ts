@@ -13,8 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as BodyRouteImport } from './routes/body'
 import { Route as CalendarRouteImport } from './routes/calendar'
-import { Route as FitnessRouteImport } from './routes/fitness'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
 import { Route as RidesIdRouteImport } from './routes/rides.$id'
 import { Route as SegmentsIndexRouteImport } from './routes/segments.index'
@@ -40,14 +40,14 @@ const CalendarRoute = CalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FitnessRoute = FitnessRouteImport.update({
-  id: '/fitness',
-  path: '/fitness',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RidesIndexRoute = RidesIndexRouteImport.update({
@@ -76,8 +76,8 @@ export interface FileRoutesByFullPath {
   '/analysis': typeof AnalysisRoute
   '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
-  '/fitness': typeof FitnessRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/rides/': typeof RidesIndexRoute
@@ -88,8 +88,8 @@ export interface FileRoutesByTo {
   '/analysis': typeof AnalysisRoute
   '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
-  '/fitness': typeof FitnessRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/rides': typeof RidesIndexRoute
@@ -101,8 +101,8 @@ export interface FileRoutesById {
   '/analysis': typeof AnalysisRoute
   '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
-  '/fitness': typeof FitnessRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/rides/': typeof RidesIndexRoute
@@ -115,8 +115,8 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/body'
     | '/calendar'
-    | '/fitness'
     | '/settings'
+    | '/setup'
     | '/rides/$id'
     | '/segments/$id'
     | '/rides/'
@@ -127,8 +127,8 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/body'
     | '/calendar'
-    | '/fitness'
     | '/settings'
+    | '/setup'
     | '/rides/$id'
     | '/segments/$id'
     | '/rides'
@@ -139,8 +139,8 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/body'
     | '/calendar'
-    | '/fitness'
     | '/settings'
+    | '/setup'
     | '/rides/$id'
     | '/segments/$id'
     | '/rides/'
@@ -152,8 +152,8 @@ export interface RootRouteChildren {
   AnalysisRoute: typeof AnalysisRoute
   BodyRoute: typeof BodyRoute
   CalendarRoute: typeof CalendarRoute
-  FitnessRoute: typeof FitnessRoute
   SettingsRoute: typeof SettingsRoute
+  SetupRoute: typeof SetupRoute
   RidesIdRoute: typeof RidesIdRoute
   SegmentsIdRoute: typeof SegmentsIdRoute
   RidesIndexRoute: typeof RidesIndexRoute
@@ -190,18 +190,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/fitness': {
-      id: '/fitness'
-      path: '/fitness'
-      fullPath: '/fitness'
-      preLoaderRoute: typeof FitnessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/settings': {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rides/': {
@@ -240,8 +240,8 @@ const rootRouteChildren: RootRouteChildren = {
   AnalysisRoute: AnalysisRoute,
   BodyRoute: BodyRoute,
   CalendarRoute: CalendarRoute,
-  FitnessRoute: FitnessRoute,
   SettingsRoute: SettingsRoute,
+  SetupRoute: SetupRoute,
   RidesIdRoute: RidesIdRoute,
   SegmentsIdRoute: SegmentsIdRoute,
   RidesIndexRoute: RidesIndexRoute,

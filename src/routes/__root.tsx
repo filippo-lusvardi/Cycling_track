@@ -8,7 +8,17 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Activity, Bike, CalendarDays, ChartSpline, CloudOff, Ellipsis, Gauge, Mountain, Scale, Settings } from "lucide-react";
+import {
+  Bike,
+  CalendarDays,
+  ChartSpline,
+  CloudOff,
+  Ellipsis,
+  Gauge,
+  Mountain,
+  Scale,
+  Settings,
+} from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -93,10 +103,12 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
-    meta: [{ title: "Cadence — Cycling Training" }],
+    meta: [{ title: "Ora — Cycling Training" }],
   }),
   beforeLoad: ({ location }) => {
-    if (location.pathname !== "/settings" && !hasApiKey()) throw redirect({ to: "/settings" });
+    // Settings and the QR setup page must open before a key exists.
+    if (location.pathname !== "/settings" && location.pathname !== "/setup" && !hasApiKey())
+      throw redirect({ to: "/settings" });
   },
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -106,12 +118,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 /** `bar: true` items sit in the Android bottom bar; the rest go under "More". */
 const NAV = [
   { to: "/", label: "Today", icon: Gauge, bar: true },
-  { to: "/rides", label: "Rides", icon: Bike, bar: true },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, bar: true },
   { to: "/analysis", label: "Analysis", icon: ChartSpline, bar: true },
-  { to: "/segments", label: "Segments", icon: Mountain, bar: false },
-  { to: "/fitness", label: "Fitness", icon: Activity, bar: false },
+  { to: "/segments", label: "Segments", icon: Mountain, bar: true },
   { to: "/body", label: "Body", icon: Scale, bar: false },
+  { to: "/rides", label: "Rides", icon: Bike, bar: false },
   { to: "/settings", label: "Settings", icon: Settings, bar: false },
 ] as const;
 
@@ -132,7 +143,7 @@ function RootComponent() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
             <img src="/icon.svg" alt="" width={24} height={24} className="rounded" />
-            Cadence
+            Ora
           </Link>
           {!online && (
             <span className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
@@ -176,14 +187,20 @@ function RootComponent() {
         ))}
         <button
           onClick={() => setMore(true)}
-          className={cn("flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground", more && "text-primary")}
+          className={cn(
+            "flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground",
+            more && "text-primary",
+          )}
         >
           <Ellipsis className="h-5 w-5" />
           More
         </button>
       </nav>
       <Sheet open={more} onOpenChange={setMore}>
-        <SheetContent side="bottom" className="rounded-t-2xl pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        >
           <SheetHeader>
             <SheetTitle>More</SheetTitle>
           </SheetHeader>

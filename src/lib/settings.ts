@@ -4,6 +4,8 @@ export const API_KEY = "cadence_api_key";
 export const GITHUB_TOKEN = "cadence_github_token";
 export const GIST_ID = "cadence_gist_id";
 export const SEGMENTS = "cadence_segments";
+/** How many years of rides the segment analysis covers (0 = all). */
+export const SEGMENT_HISTORY = "cadence_segment_history";
 
 export function readSetting<T>(key: string): T | null {
   try {

@@ -1,8 +1,10 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useLocalStore } from "./use-local-store";
 import { readGist, writeGist } from "@/lib/gist";
 import { liveSegments, mergeSegments, type SavedSegment } from "@/lib/segment-store";
-import { autoSegments, findAttempts, samePath, segmentTrace, type Segment, type TrackLike } from "@/lib/segments";
+import { segmentEngine, startSegments } from "@/lib/segment-app";
+import { groupSegment, groupTrace, ridesIn } from "@/lib/segment-index";
+import type { Segment, Trace } from "@/lib/segments";
 import { GITHUB_TOKEN, SEGMENTS, readSetting, writeSetting } from "@/lib/settings";
 
 /** Merge this device's segments with the gist and write the result to both. No-op without a token. */
@@ -28,7 +30,12 @@ export function useSegments() {
     (s: Segment, patch: Partial<Pick<SavedSegment, "starred" | "name" | "deleted" | "renamed">> = {}) => {
       setAll((prev) => {
         const cur = prev.find((p) => p.id === s.id);
-        const next: SavedSegment = { starred: false, ...cur, ...s, ...patch, updatedAt: Date.now() };
+        // Only the segment's own fields: list items also carry traces and counts that mustn't reach storage or the gist.
+        const { id, name, source, lat1, lng1, lat2, lng2, length, gain, grade } = s;
+        const own: Segment = { id, name, source, lat1, lng1, lat2, lng2, length };
+        if (gain != null) own.gain = gain;
+        if (grade != null) own.grade = grade;
+        const next: SavedSegment = { starred: false, ...cur, ...own, ...patch, updatedAt: Date.now() };
         if (!patch.deleted) delete next.deleted;
         return mergeSegments(prev, [next]);
       });
@@ -51,27 +58,66 @@ export function useSegments() {
   };
 }
 
-export type LibrarySegment = Segment & { starred: boolean; saved: boolean; rides: number | null; renamed?: boolean };
+export type LibrarySegment = Segment & {
+  starred: boolean;
+  saved: boolean;
+  /** Rides through it (from the cached efforts; detections while those are still being computed). */
+  rides: number | null;
+  renamed?: boolean;
+  /** Where its efforts live: the group it follows, or its own id. */
+  effortsKey: string;
+  /** Path and profile of its fastest effort (or of the climb itself), for maps and altimetry. */
+  trace: Trace | null;
+};
 
-/** Saved segments plus climbs auto-detected in ≥ 2 rides; starred first, then by how often ridden. */
-export function useSegmentLibrary(tracks: TrackLike[] | undefined) {
+/**
+ * Saved segments plus climbs found on ≥ 2 rides, from the on-device segment index; starred first, then by
+ * how often ridden. Climbs starred from auto-detection follow their group's shared stretch. With `sync`,
+ * opening the page also fetches and analyses new rides in the background.
+ */
+export function useSegmentLibrary({ sync = true }: { sync?: boolean } = {}) {
   const store = useSegments();
-  const auto = useMemo(() => (tracks ? autoSegments(tracks).filter((s) => s.rides >= 2) : []), [tracks]);
+  const idx = useSyncExternalStore(segmentEngine.subscribe, segmentEngine.getSnapshot);
+  useEffect(() => void startSegments(sync), [sync]);
+  useEffect(() => segmentEngine.setSaved(store.segments), [store.segments]);
+
   const list = useMemo<LibrarySegment[]>(() => {
-    // Rides are counted with the same pass-through check the segment page uses, so the numbers always match.
-    const ridesOf = (s: Segment) => (tracks ? tracks.filter((t) => findAttempts(t, s).length > 0).length : null);
-    const traceOf = (s: Segment) => (tracks ? segmentTrace(tracks, s) : null);
-    const savedTraces = store.segments.map(traceOf);
-    const saved = store.segments.map((s) => ({ ...s, saved: true, rides: ridesOf(s) }));
-    const extra = auto
-      .filter((a) => {
-        const ta = traceOf(a);
-        return !store.segments.some((s, i) => (ta && savedTraces[i] ? samePath(ta, savedTraces[i]!) : false));
+    const groups = new Map(idx.groups.map((g) => [g.id, g]));
+    const followed = new Set(Object.values(idx.links));
+    const saved = store.segments.map((s) => {
+      const g = groups.get(idx.links[s.id] ?? "");
+      const rec = idx.efforts[g?.id ?? s.id];
+      return {
+        ...(g ? groupSegment(g) : s),
+        id: s.id,
+        name: s.name,
+        source: s.source,
+        starred: s.starred,
+        ...(s.renamed ? { renamed: true } : {}),
+        saved: true,
+        effortsKey: g?.id ?? s.id,
+        rides: rec ? ridesIn(rec) : null,
+        trace: rec?.trace ?? (g ? groupTrace(g) : null),
+      };
+    });
+    const auto = idx.groups
+      .filter((g) => !followed.has(g.id))
+      .map((g) => {
+        const rec = idx.efforts[g.id];
+        return {
+          ...groupSegment(g),
+          starred: false,
+          saved: false,
+          effortsKey: g.id,
+          rides: rec ? ridesIn(rec) : g.members.length,
+          trace: rec?.trace ?? groupTrace(g),
+        };
       })
-      .map((a) => ({ ...a, starred: false, saved: false }));
-    return [...saved, ...extra].sort(
+      .filter((a) => a.rides >= 2);
+    return [...saved, ...auto].sort(
       (a, b) => Number(b.starred) - Number(a.starred) || (b.rides ?? 0) - (a.rides ?? 0) || a.name.localeCompare(b.name),
     );
-  }, [store.segments, auto, tracks]);
-  return { ...store, list };
+  }, [store.segments, idx]);
+
+  return { ...store, list, efforts: idx.efforts, status: idx.status, ridesAnalysed: idx.rides, lastSync: idx.lastSync };
 }

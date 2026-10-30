@@ -36,8 +36,8 @@ const persister = createAsyncStoragePersister({
   storage: { getItem: get, setItem: set, removeItem: del },
 });
 
-// Streams have their own permanent cache and tracks are large, so neither goes in the snapshot.
-const NOT_PERSISTED = new Set(["streams", "tracks"]);
+// Streams have their own cache and race tracks come from the segment store, so neither goes in the snapshot.
+const NOT_PERSISTED = new Set(["streams", "effort-track"]);
 
 navigator.storage?.persist?.().catch(() => {});
 

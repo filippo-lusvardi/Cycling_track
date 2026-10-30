@@ -16,9 +16,9 @@ import { Textarea } from "@/components/ui/textarea";
 export const Route = createFileRoute("/body")({
   head: () => ({
     meta: [
-      { title: "Body & Weight — Cadence" },
+      { title: "Body & Weight — Ora" },
       { name: "description", content: "Weight, body fat and lean mass trends, plus manual logging." },
-      { property: "og:title", content: "Body & Weight — Cadence" },
+      { property: "og:title", content: "Body & Weight — Ora" },
       { property: "og:description", content: "Track weight and body composition alongside training." },
     ],
   }),

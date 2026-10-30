@@ -54,19 +54,28 @@ export function RouteMap({
   pins = [],
   cursor,
   fitKey,
+  focus,
+  markers,
   className,
 }: {
   lines: MapLine[];
   pins?: MapPin[];
   cursor?: { lat: number; lng: number } | null;
   fitKey: string;
+  /** Fly to this path; when it goes back to null, fly back out to everything. */
+  focus?: { key: string; lat: number[]; lng: number[] } | null;
+  /** Moving dots (e.g. the two riders of a ghost race); updated in place, never re-fitting the view. */
+  markers?: MapPin[];
   className?: string;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const drawn = useRef<L.LayerGroup | null>(null);
   const dot = useRef<L.CircleMarker | null>(null);
+  const moving = useRef<L.CircleMarker[]>([]);
   const fitted = useRef<string | null>(null);
+  const all = useRef<L.LatLngBounds | null>(null);
+  const focused = useRef<string | null>(null);
 
   useEffect(() => {
     if (!el.current) return;
@@ -123,11 +132,29 @@ export function RouteMap({
         .addTo(g);
       bounds.extend([p.lat, p.lng]);
     }
-    if (fitted.current !== fitKey && bounds.isValid()) {
+    if (bounds.isValid()) all.current = bounds;
+    if (fitted.current !== fitKey && bounds.isValid() && !focused.current) {
       m.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 });
       fitted.current = fitKey;
     }
   }, [lines, pins, fitKey]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    if (focus && focus.lat.length > 1) {
+      m.flyToBounds(L.latLngBounds(focus.lat.map((la, i) => L.latLng(la, focus.lng[i]!))), {
+        padding: [40, 40],
+        maxZoom: 15,
+        duration: 0.6,
+      });
+      focused.current = focus.key;
+    } else if (focused.current) {
+      focused.current = null;
+      if (all.current) m.flyToBounds(all.current, { padding: [24, 24], maxZoom: 16, duration: 0.6 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.key]);
 
   useEffect(() => {
     const m = map.current;
@@ -148,6 +175,28 @@ export function RouteMap({
       }).addTo(m);
     else dot.current.setLatLng([cursor.lat, cursor.lng]);
   }, [cursor]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    const want = markers ?? [];
+    while (moving.current.length > want.length) moving.current.pop()!.remove();
+    want.forEach((p, i) => {
+      const cur = moving.current[i];
+      if (cur) cur.setLatLng([p.lat, p.lng]).setStyle({ fillColor: p.color });
+      else
+        moving.current[i] = L.circleMarker([p.lat, p.lng], {
+          radius: 8,
+          color: "#0b1220",
+          weight: 2,
+          fillColor: p.color,
+          fillOpacity: 1,
+          interactive: false,
+        })
+          .bindTooltip(p.label, { permanent: false })
+          .addTo(m);
+    });
+  }, [markers]);
 
   // `isolate` keeps Leaflet's high z-indexes below the app's header, bottom bar and dialogs.
   return <div ref={el} className={cn("isolate z-0 h-72 w-full overflow-hidden rounded-lg bg-background", className)} />;

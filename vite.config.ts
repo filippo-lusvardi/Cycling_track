@@ -16,8 +16,8 @@ export default defineConfig({
       registerType: "prompt",
       includeAssets: ["favicon.ico", "icon.svg", "apple-touch-icon-180x180.png"],
       manifest: {
-        name: "Cadence — Cycling Training",
-        short_name: "Cadence",
+        name: "Ora — Cycling Training",
+        short_name: "Ora",
         description: "Personal cycling training, form and body tracker.",
         start_url: "/",
         scope: "/",

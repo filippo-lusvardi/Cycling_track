@@ -1,5 +1,5 @@
 // Daily readiness score. Pure and browser-safe.
-// Owner's rule: resting heart rate is not used anywhere in Cadence.
+// Owner's rule: resting heart rate is not used anywhere in Ora.
 import { addDays } from "./training";
 
 export type ReadinessInput = {
