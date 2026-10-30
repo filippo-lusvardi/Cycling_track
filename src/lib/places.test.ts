@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanName, composeName, dedupeNames, nearestNamed, pickTown } from "./places";
+import { cleanName, composeName, dedupeNames, mergeNames, nearestNamed, pickTown, placeKey } from "./places";
 
 describe("segment naming", () => {
   it("keeps the first of bilingual names", () => {
@@ -36,5 +36,18 @@ describe("segment naming", () => {
     ]);
     expect(m.get("a")).toBe("Avio → Ala · 3.7 km");
     expect(m.get("c")).toBe("Passo Coe");
+  });
+  it("keys names by where the segment runs, to ~10 m", () => {
+    const a = { lat1: 45.889912, lng1: 11.040081, lat2: 45.93031, lng2: 11.00544 };
+    expect(placeKey(a)).toBe("45.8899,11.0401,45.9303,11.0054");
+    expect(placeKey({ ...a, lat1: 45.889934 })).toBe(placeKey(a));
+  });
+  it("merges names from two devices, keeping found names over nulls", () => {
+    expect(mergeNames({ a: "Mine", b: null, c: null }, { a: "Theirs", b: "Found", d: "Other" })).toEqual({
+      a: "Mine",
+      b: "Found",
+      c: null,
+      d: "Other",
+    });
   });
 });

@@ -45,6 +45,17 @@ export function dedupeNames(items: { id: string; name: string; length: number }[
   return new Map(items.map((i) => [i.id, count.get(i.name)! > 1 ? `${i.name} · ${(i.length / 1000).toFixed(1)} km` : i.name]));
 }
 
+/** Where a segment runs, as its name's key: the same climb gets the same key on every device, whatever its id. */
+export const placeKey = (s: Pick<Segment, "lat1" | "lng1" | "lat2" | "lng2">) =>
+  [s.lat1, s.lng1, s.lat2, s.lng2].map((v) => v.toFixed(4)).join(",");
+
+/** Two devices' name lists: `mine` wins, except that a found name beats "OSM had nothing" (null). */
+export function mergeNames(mine: Record<string, string | null>, theirs: Record<string, string | null>) {
+  const out = { ...theirs, ...mine };
+  for (const [k, v] of Object.entries(theirs)) if (v && !out[k]) out[k] = v;
+  return out;
+}
+
 // --- Nominatim lookups (max 1 request per second, as its usage policy asks) ---
 
 const API = "https://nominatim.openstreetmap.org";

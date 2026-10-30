@@ -2,6 +2,8 @@
 import { GIST_ID, GITHUB_TOKEN, readSetting, writeSetting } from "./settings";
 
 const FILE = "cadence-segments.json";
+/** OpenStreetMap segment names, shared so each climb is looked up once across devices. */
+export const NAMES_FILE = "ora-names.json";
 
 async function gh<T>(path: string, init?: RequestInit): Promise<T> {
   const token = readSetting<string>(GITHUB_TOKEN);
@@ -38,18 +40,18 @@ async function gistId(): Promise<string> {
   return id;
 }
 
-export async function readGist<T>(): Promise<T | null> {
+export async function readGist<T>(file = FILE): Promise<T | null> {
   const g = await gh<Gist>(`/gists/${await gistId()}`);
-  const f = g.files[FILE];
+  const f = g.files[file];
   if (!f) return null;
   const text = f.truncated && f.raw_url ? await (await fetch(f.raw_url)).text() : (f.content ?? "");
   return text ? (JSON.parse(text) as T) : null;
 }
 
-export async function writeGist(data: unknown) {
+export async function writeGist(data: unknown, file = FILE) {
   await gh(`/gists/${await gistId()}`, {
     method: "PATCH",
-    body: JSON.stringify({ files: { [FILE]: { content: JSON.stringify(data) } } }),
+    body: JSON.stringify({ files: { [file]: { content: JSON.stringify(data) } } }),
   });
 }
 

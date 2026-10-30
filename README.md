@@ -115,8 +115,9 @@ account. It's free, and the token can only touch gists.
    "Connected as *your-username*".
 6. On your other devices, paste the **same token**. Ora finds the existing gist, so all devices share one list.
 
-You can see the gist at [gist.github.com](https://gist.github.com): one file, `cadence-segments.json`, holding only
-segment names and start/finish coordinates. Secret gists are unlisted, but anyone with the exact link can open one.
+You can see the gist at [gist.github.com](https://gist.github.com). It has two files: `cadence-segments.json` (your
+saved segments: names and start/finish coordinates) and `ora-names.json` (the place names Ora looked up on
+OpenStreetMap, so each device doesn't have to look them up again). Secret gists are unlisted, but anyone with the exact link can open one.
 
 **When the token expires**, sync stops and Ora keeps working with what each device has. Create a new token
 (steps 2–4) and paste it on each device; the existing gist is reused.
@@ -128,7 +129,7 @@ segment names and start/finish coordinates. Secret gists are unlisted, but anyon
 | What | Where |
 |---|---|
 | Rides, wellness, check-ins, manual workouts | **intervals.icu**: the single source of truth. Ora reads it and writes check-ins and manual workouts there. |
-| Saved segments (stars, manual segments, your names) | The browser on each device, **backed up to your private GitHub gist** when sync is on |
+| Saved segments (stars, manual segments, your names) and OpenStreetMap place names | The browser on each device, **backed up to your private GitHub gist** when sync is on |
 | Segment analysis, downloaded rides, offline copy of recent data | The browser on each device (IndexedDB), about 15 MB per year of riding plus about 20 MB of cache |
 | API key and GitHub token | The browser on each device. They are never sent anywhere except intervals.icu and GitHub. |
 
@@ -200,6 +201,9 @@ public/         icons, _redirects
   Open that page once while online.
 - **Segments list is empty**: open Segments while online and wait for the analysis progress bar to finish.
   Auto-detected climbs need at least two rides through them.
+- **Segments show numbers instead of place names** (e.g. on a new device or address): Ora looks names up on
+  OpenStreetMap about one segment every few seconds, while it's open; the Segments page shows how many are left. With
+  segment sync on, names found on one device appear on the others the next time they open Ora.
 - **Saved segments differ between devices**: check that both devices use a GitHub token (Settings → Segment sync)
   and press **Save & sync**.
 - **Install option missing on the phone**: the site must be opened over `https://`; a local `http://` address can't be

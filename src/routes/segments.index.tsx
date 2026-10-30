@@ -5,7 +5,7 @@ import { gradientLines } from "@/components/GradientProfile";
 import { RouteMap, type MapLine } from "@/components/RouteMap";
 import { Panel } from "@/components/StatCard";
 import { Input } from "@/components/ui/input";
-import { useSegmentNames } from "@/hooks/use-segment-names";
+import { useNamesPending, useSegmentNames } from "@/hooks/use-segment-names";
 import { useSegmentLibrary } from "@/hooks/use-segments";
 import { historyYears } from "@/lib/segment-app";
 import type { Status } from "@/lib/segment-engine";
@@ -156,6 +156,7 @@ function Segments() {
       </div>
 
       <SyncStatus status={lib.status} />
+      <NamingStatus />
 
       <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:grid-rows-1">
         <Panel title="Map" className="flex min-h-0 flex-col">
@@ -315,6 +316,16 @@ const PHASE: Record<Status["phase"], string> = {
 };
 
 /** Progress of the background analysis; hidden when idle. */
+function NamingStatus() {
+  const left = useNamesPending();
+  if (!left) return null;
+  return (
+    <p className="shrink-0 text-xs text-muted-foreground">
+      Naming {left} segment{left === 1 ? "" : "s"} from OpenStreetMap… (keep Ora open)
+    </p>
+  );
+}
+
 function SyncStatus({ status }: { status: Status }) {
   if (status.phase === "idle") return null;
   if (status.phase === "error")
