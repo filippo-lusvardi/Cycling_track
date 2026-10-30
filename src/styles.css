@@ -1,0 +1,164 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-fitness: var(--fitness);
+  --color-fatigue: var(--fatigue);
+  --color-form: var(--form);
+  --color-weight: var(--weight);
+  --color-pine: var(--pine);
+  --color-birch: var(--birch);
+  --color-lingon: var(--lingon);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Nordic palette: deep fjord slate, frost cyan, pine, birch gold, lingonberry. */
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.18 0.025 255);
+  --foreground: oklch(0.95 0.01 230);
+  --card: oklch(0.22 0.03 255);
+  --card-foreground: oklch(0.95 0.01 230);
+  --popover: oklch(0.22 0.03 255);
+  --popover-foreground: oklch(0.95 0.01 230);
+  --primary: oklch(0.82 0.1 210);
+  --primary-foreground: oklch(0.18 0.03 250);
+  --secondary: oklch(0.27 0.03 255);
+  --secondary-foreground: oklch(0.95 0.01 230);
+  --muted: oklch(0.27 0.03 255);
+  --muted-foreground: oklch(0.7 0.025 240);
+  --accent: oklch(0.29 0.035 250);
+  --accent-foreground: oklch(0.95 0.01 230);
+  --destructive: oklch(0.6 0.17 18);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.31 0.03 255);
+  --input: oklch(0.33 0.03 255);
+  --ring: oklch(0.82 0.1 210);
+  --fitness: oklch(0.75 0.11 225);
+  --fatigue: oklch(0.65 0.15 15);
+  --form: oklch(0.82 0.12 85);
+  --weight: oklch(0.75 0.1 165);
+  --pine: oklch(0.72 0.1 160);
+  --birch: oklch(0.82 0.12 85);
+  --lingon: oklch(0.62 0.17 15);
+  --z1: oklch(0.6 0.03 240);
+  --z2: oklch(0.72 0.1 160);
+  --z3: oklch(0.78 0.1 210);
+  --z4: oklch(0.82 0.12 85);
+  --z5: oklch(0.72 0.14 50);
+  --z6: oklch(0.62 0.17 15);
+  --z7: oklch(0.55 0.17 350);
+  --chart-1: var(--fitness);
+  --chart-2: var(--fatigue);
+  --chart-3: var(--form);
+  --chart-4: var(--weight);
+  --chart-5: var(--pine);
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --gradient-glow: radial-gradient(70% 50% at 50% 0%, color-mix(in oklab, var(--primary) 12%, transparent), transparent);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    background-image: var(--gradient-glow);
+    background-repeat: no-repeat;
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+}
+
+@utility stat-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+@utility eyebrow {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-muted-foreground);
+}
+
+/* Leaflet controls in the Nordic palette. */
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: var(--background);
+}
+.leaflet-bar a,
+.leaflet-control-layers {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-bar a:hover {
+  background: var(--secondary) !important;
+}
+.leaflet-control-layers-expanded {
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.leaflet-control-attribution {
+  background: color-mix(in oklab, var(--background) 75%, transparent) !important;
+  color: var(--muted-foreground) !important;
+}
+.leaflet-control-attribution a {
+  color: var(--fitness) !important;
+}
+.leaflet-tooltip {
+  background: var(--popover);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
