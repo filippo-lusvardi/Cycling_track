@@ -166,7 +166,8 @@ function RootComponent() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 pb-32 pt-6 lg:pb-12">
+      {/* Clip anything too wide, so a stray long line never makes the phone zoom the whole page out. */}
+      <main className="mx-auto max-w-5xl overflow-x-clip px-4 pb-32 pt-6 lg:pb-12">
         <Outlet />
       </main>
       <nav

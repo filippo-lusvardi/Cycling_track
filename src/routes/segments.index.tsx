@@ -159,7 +159,7 @@ function Segments() {
       <SyncStatus status={lib.status} />
       <NamingStatus />
 
-      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <Panel
           title="Map"
           className="sticky top-[49px] z-10 flex flex-col p-2 shadow-lg shadow-background lg:static lg:min-h-0 lg:p-4 lg:shadow-none [&>div:first-child]:hidden lg:[&>div:first-child]:flex"

@@ -222,7 +222,7 @@ function CalendarPage() {
             key={w.days[0]!.date}
             className="overflow-hidden rounded-xl border border-border bg-card"
           >
-            <div className="stat-num flex justify-between bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
+            <div className="stat-num flex flex-wrap justify-between gap-x-3 bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
               <span className="font-sans">
                 {format(parseISO(w.days[0]!.date), "d MMM")} –{" "}
                 {format(parseISO(w.days[6]!.date), "d MMM")}
