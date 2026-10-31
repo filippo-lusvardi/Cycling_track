@@ -111,6 +111,38 @@ describe("segment engine", () => {
     expect(env.tracks.gets).toBeLessThanOrEqual(4);
   });
 
+  it("a ride uploaded late (dated well before the last sync) is still picked up", async () => {
+    // "half" is dated 20 Oct but only reaches intervals.icu after a sync on 31 Oct, e.g. from a second device.
+    const { engine, env } = setup(["today", "sunday"]);
+    await engine.sync();
+    env.listed.add("half");
+    await engine.sync();
+    expect(env.downloads).toBe(3);
+    const firstHalf = autos(engine).sort((x, y) => x.seg.length - y.seg.length)[0]!;
+    expect(firstHalf.rides).toBe(3);
+  });
+
+  it("a ride opened on screen but missing from the index is analysed on the spot", async () => {
+    const { engine, env } = setup(["today", "sunday"]);
+    await engine.sync();
+    // "half" never shows up in the listing (filtered out or missed), but its page is open.
+    const h = RIDES.half;
+    await engine.ensureRide({ id: h.id, name: h.name, date: h.date });
+    expect(env.downloads).toBe(3);
+    const firstHalf = autos(engine).sort((x, y) => x.seg.length - y.seg.length)[0]!;
+    expect(firstHalf.rides).toBe(3);
+    // already indexed: nothing more to do
+    await engine.ensureRide({ id: h.id, name: h.name, date: h.date });
+    expect(env.downloads).toBe(3);
+  });
+
+  it("opening a ride doesn't start the first full analysis", async () => {
+    const { engine, env } = setup(["today", "sunday"]);
+    const h = RIDES.half;
+    await engine.ensureRide({ id: h.id, name: h.name, date: h.date });
+    expect(env.downloads).toBe(0);
+  });
+
   it("a climb starred before grouping follows the group, so every ride counts", async () => {
     const { engine } = setup(["today", "sunday"]);
     // Old-style star: pins from Sunday's own detection, starting on its side road (only Sunday passes that start).

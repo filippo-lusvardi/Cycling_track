@@ -15,6 +15,9 @@ import {
 } from "./segment-index";
 import { findAttempts, type Segment, type TrackLike } from "./segments";
 
+/** How far back each sync re-lists rides, to catch late uploads (one request; known rides aren't re-downloaded). */
+const RELIST_DAYS = 60;
+
 /** Bump when the analysis changes: the index is rebuilt from stored tracks (no downloads). */
 export const ANALYSIS_VERSION = 1;
 
@@ -229,7 +232,9 @@ export function createSegmentEngine(deps: EngineDeps) {
     if (!s.listed) ranges.push(...yearChunks(from, to));
     else {
       if (from < s.listed.from) ranges.push(...yearChunks(from, s.listed.from));
-      ranges.push([s.listed.to < to ? backDays(s.listed.to, 3) : backDays(to, 3), to]);
+      // Re-check a wide recent window: rides often reach intervals.icu days after they were ridden (a second
+      // device, a delayed upload), and one listed only by date would otherwise be skipped for good.
+      ranges.push([backDays(s.listed.to < to ? s.listed.to : to, RELIST_DAYS), to]);
     }
     setStatus({ phase: "listing", done: 0, total: ranges.length });
     for (const [a, b] of ranges) {
@@ -299,6 +304,17 @@ export function createSegmentEngine(deps: EngineDeps) {
   return {
     /** List new rides, download and analyse them, refresh efforts. Calls while running share the same run. */
     sync,
+    /**
+     * Make sure one ride is in the index (it's open on screen): if it was never analysed, analyse it now, so the
+     * ride page and the segment standings always agree. Does nothing until the index exists (first sync done).
+     */
+    async ensureRide(ref: RideRef) {
+      const s = await load();
+      if (!s.listed || s.rides.has(ref.id)) return;
+      s.pending.set(ref.id, ref);
+      await running; // a run already past its queue won't see it: run again
+      if (!s.rides.has(ref.id)) await sync();
+    },
     /** Saved segments (stars, manual ones). Their efforts are computed in the background. */
     setSaved(list: Segment[]) {
       saved = list;

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { ArrowLeft, ChevronDown, Plus, Star, Trophy } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CAT_COLOR, ElevationProfile } from "@/components/ElevationProfile";
 import { RideCharts } from "@/components/RideCharts";
@@ -19,6 +19,7 @@ import { decoupling } from "@/lib/analysis";
 import { detectClimbs } from "@/lib/climbs";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { activityQuery, streamsQuery, wellnessRangeQuery } from "@/lib/queries";
+import { segmentEngine } from "@/lib/segment-app";
 import { cellOf, mayPass } from "@/lib/segment-index";
 import {
   findAttempts,
@@ -338,6 +339,15 @@ function Climbs({
       )
       .sort((x, y) => x.at.i0 - y.at.i0);
   }, [track, store.list, store.efforts]);
+  // An outdoor ride missing from the segment index (e.g. uploaded late) is analysed now, so its efforts also
+  // count in each segment's standings and the rank shown here is against every effort.
+  const outdoor = !!track && (a.type ?? "").includes("Ride") && !(a.type ?? "").startsWith("Virtual") && !a.trainer;
+  useEffect(() => {
+    if (outdoor)
+      void segmentEngine.ensureRide({ id: a.id, name: a.name, date: a.start_date_local }).catch((e) =>
+        console.warn("Couldn't add the ride to the segment index", e),
+      );
+  }, [outdoor, a.id, a.name, a.start_date_local]);
   const totalKm = (streams.distance.at(-1) ?? 0) / 1000;
 
   // Map: the ride, its climbs by category, and the segment being marked with the slider.

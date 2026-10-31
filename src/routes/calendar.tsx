@@ -92,9 +92,9 @@ function CalendarPage() {
     () => (month ? parseISO(`${month}-01`) : startOfMonth(parseISO(week ?? today))),
     [month, week, today],
   );
-  // Phone: one week at a time by default (it opens on today), or a compact month grid.
+  // Phone: the month grid by default (today highlighted), or one week at a time.
   const mobile = useIsMobile();
-  const [view, setView] = useLocalStore<View>("cadence_calendar_view", "week");
+  const [view, setView] = useLocalStore<View>("cadence_calendar_view", "month");
   const weekView = mobile && view === "week";
   const weekStart = isoDate(
     startOfWeek(week ? parseISO(week) : month ? anchor : parseISO(today), { weekStartsOn: 1 }),
