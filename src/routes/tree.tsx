@@ -6,7 +6,6 @@ import { Buds, CrownView, Rings } from "@/components/tree/Crown";
 import { dayHeight, MONTH_H, restHeight, WEEK_H } from "@/components/tree/geometry";
 import { DayRow, MonthRow, RestRow, Roots, WeekRow } from "@/components/tree/TreeRows";
 import { TreeSheet, type Sheet } from "@/components/tree/TreeSheets";
-import { useLocalStore } from "@/hooks/use-local-store";
 import { allActivitiesQuery, eventsQuery, wellnessRangeQuery } from "@/lib/queries";
 import { addDays, isoDate } from "@/lib/training";
 import {
@@ -60,8 +59,8 @@ function TreePage() {
     : addDays(today, -365);
   const { data: wellness } = useSuspenseQuery(wellnessRangeQuery({ oldest, newest: today }));
   const { data: events } = useQuery(eventsQuery({ oldest: today, newest: today }));
-  const [stored, setZoom] = useLocalStore<Zoom>("cadence_tree_zoom", "tree");
-  const zoom: Zoom = stored === "years" ? "years" : "tree"; // older builds stored "days"/"seasons"
+  // Not remembered: the home page always opens on the tree, Years is a look you take from there.
+  const [zoom, setZoom] = useState<Zoom>("tree");
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [ref, w] = useWidth();
 

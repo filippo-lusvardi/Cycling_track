@@ -337,12 +337,13 @@ function SegmentPage() {
             {/* Phone: one compact row per effort instead of a table wider than the screen. */}
             <div className="-mx-4 divide-y divide-border md:hidden">
               {efforts.map((e, i) => {
-                const stats = [
+                // Two short lines that fit a phone: effort (power, heart rate), then pace (VAM, speed).
+                const effort = [
                   e.avgWatts != null && `${Math.round(e.avgWatts)} W`,
-                  e.wkg && `${e.wkg.toFixed(2)} W/kg`,
-                  e.vam != null && `VAM ${Math.round(e.vam)}`,
                   e.avgHr != null && `${Math.round(e.avgHr)} bpm`,
-                  e.avgCad != null && `${Math.round(e.avgCad)} rpm`,
+                ].filter(Boolean);
+                const pace = [
+                  e.vam != null && `VAM ${Math.round(e.vam)}`,
                   `${e.speed.toFixed(1)} km/h`,
                 ].filter(Boolean);
                 return (
@@ -364,8 +365,13 @@ function SegmentPage() {
                             </span>
                           )}
                         </span>
-                        <span className="stat-num block truncate text-xs text-muted-foreground">
-                          {stats.join(" · ")}
+                        {effort.length > 0 && (
+                          <span className="stat-num block text-xs text-muted-foreground">
+                            {effort.join(" · ")}
+                          </span>
+                        )}
+                        <span className="stat-num block text-xs text-muted-foreground">
+                          {pace.join(" · ")}
                         </span>
                       </span>
                       <span className="stat-num shrink-0 text-right">
