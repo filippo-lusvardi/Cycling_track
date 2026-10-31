@@ -6,5 +6,5 @@ export default defineConfig({
     maskable: { ...minimal2023Preset.maskable, resizeOptions: { background: "#0b1220" } },
     apple: { ...minimal2023Preset.apple, resizeOptions: { background: "#0b1220" } },
   },
-  images: ["public/icon-source.png"],
+  images: ["assets/icon-source.png"],
 });
