@@ -123,9 +123,10 @@ function Segments() {
     return t && focused ? { key: focused, lat: t.lat, lng: t.lng } : null;
   }, [shown, focused]);
 
-  // Fills the screen below the header (and above the phone's bottom bar): the page stays put, only the list scrolls.
+  // Desktop: fills the screen below the header and only the list scrolls. Phone: the page scrolls and the map stays
+  // pinned under the header, so a tapped segment is always in view.
   return (
-    <div className="-mb-12 flex h-[calc(100dvh-165px-env(safe-area-inset-bottom))] flex-col gap-4 lg:mb-0 lg:h-[calc(100dvh-129px)]">
+    <div className="flex flex-col gap-4 lg:h-[calc(100dvh-129px)]">
       <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">
@@ -158,21 +159,24 @@ function Segments() {
       <SyncStatus status={lib.status} />
       <NamingStatus />
 
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:grid-rows-1">
-        <Panel title="Map" className="flex min-h-0 flex-col">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+        <Panel
+          title="Map"
+          className="sticky top-[49px] z-10 flex flex-col p-2 shadow-lg shadow-background lg:static lg:min-h-0 lg:p-4 lg:shadow-none [&>div:first-child]:hidden lg:[&>div:first-child]:flex"
+        >
           {lines.length > 0 ? (
             <RouteMap
               fitKey={`${filter}-${lines.length}`}
               lines={lines}
               focus={focusPath}
-              className="h-auto min-h-0 flex-1"
+              className="h-[34dvh] min-h-48 lg:h-auto lg:min-h-0 lg:flex-1"
             />
           ) : (
-            <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg bg-background/50 text-sm text-muted-foreground">
+            <div className="flex h-[34dvh] min-h-48 items-center justify-center rounded-lg bg-background/50 text-sm text-muted-foreground lg:h-auto lg:min-h-0 lg:flex-1">
               {isLoading ? "Loading rides…" : "No segments to show"}
             </div>
           )}
-          <div className="mt-2 flex shrink-0 gap-4 text-[11px] text-muted-foreground">
+          <div className="mt-2 hidden shrink-0 gap-4 text-[11px] text-muted-foreground lg:flex">
             <span className="flex items-center gap-1">
               <span className="h-1 w-4 rounded bg-birch" /> Starred
             </span>
@@ -185,7 +189,7 @@ function Segments() {
           </div>
         </Panel>
 
-        <Panel title={`${shown.length} segments`} className="flex min-h-0 flex-col">
+        <Panel title={`${shown.length} segments`} className="flex flex-col lg:min-h-0">
           <div className="relative mb-2 shrink-0">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -217,7 +221,7 @@ function Segments() {
             )}
           </div>
           <div
-            className="-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4"
+            className="-mx-4 px-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain"
             onMouseEnter={() => clearTimeout(dwell.current)}
             onMouseLeave={() => {
               clearTimeout(dwell.current);
@@ -246,7 +250,8 @@ function Segments() {
                     else rows.current.delete(s.id);
                   }}
                   className={cn(
-                    "flex items-center gap-2 px-3 transition-colors",
+                    // Phone: brought into view below the pinned map, not under it.
+                    "flex scroll-mt-[calc(max(34dvh,12rem)+5rem)] scroll-mb-20 items-center gap-2 px-3 transition-colors lg:scroll-m-0",
                     highlight === s.id && "bg-secondary/60",
                   )}
                   onMouseEnter={() => {

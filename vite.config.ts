@@ -18,6 +18,7 @@ export default defineConfig({
       manifest: {
         name: "Ora — Cycling Training",
         short_name: "Ora",
+        id: "/",
         description: "Personal cycling training, form and body tracker.",
         start_url: "/",
         scope: "/",

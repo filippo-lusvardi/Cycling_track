@@ -5,6 +5,7 @@ import { ArrowLeft, ChevronDown, Plus, Star, Trophy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CAT_COLOR, ElevationProfile } from "@/components/ElevationProfile";
+import { RideCharts } from "@/components/RideCharts";
 import { RouteMap, type MapLine, type MapPin } from "@/components/RouteMap";
 import { Panel, StatCard } from "@/components/StatCard";
 import { WorkoutBlocks } from "@/components/WorkoutBlocks";
@@ -49,7 +50,8 @@ function RideDetail() {
   });
   const weight = wellness ? weightOn(wellness, date) : null;
   const intervals = (a.icu_intervals ?? []).filter((i) => i.type === "WORK" || i.label);
-  // Collapsed by default: the list is long and only occasionally needed.
+  // Collapsed by default: long and only occasionally needed.
+  const [showCharts, setShowCharts] = useState(false);
   const [showIntervals, setShowIntervals] = useState(false);
   const decouple = a.decoupling ?? (streams ? decoupling(streams.watts, streams.heartrate) : null);
   const np = a.icu_weighted_avg_watts;
@@ -140,20 +142,22 @@ function RideDetail() {
         </Panel>
       )}
 
+      <Panel
+        title="Speed, power & heart rate"
+        action={<ShowHide open={showCharts} onToggle={() => setShowCharts((v) => !v)} />}
+      >
+        {showCharts &&
+          (streams ? (
+            <RideCharts a={a} streams={streams} />
+          ) : (
+            <p className="py-6 text-center text-sm text-muted-foreground">Loading ride streams…</p>
+          ))}
+      </Panel>
+
       {intervals.length > 0 && (
         <Panel
           title={`Intervals · ${intervals.length}`}
-          action={
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowIntervals((v) => !v)}
-              aria-expanded={showIntervals}
-            >
-              {showIntervals ? "Hide" : "Show"}
-              <ChevronDown className={cn("transition-transform", showIntervals && "rotate-180")} />
-            </Button>
-          }
+          action={<ShowHide open={showIntervals} onToggle={() => setShowIntervals((v) => !v)} />}
         >
           {showIntervals && (
             <div className="divide-y divide-border text-sm">
@@ -174,6 +178,15 @@ function RideDetail() {
         </Panel>
       )}
     </div>
+  );
+}
+
+function ShowHide({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <Button size="sm" variant="ghost" onClick={onToggle} aria-expanded={open}>
+      {open ? "Hide" : "Show"}
+      <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+    </Button>
   );
 }
 

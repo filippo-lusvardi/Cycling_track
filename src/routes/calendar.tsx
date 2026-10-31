@@ -11,7 +11,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityRow } from "@/components/ActivityRow";
 import { CheckInForm } from "@/components/CheckIn";
 import { LogWorkoutForm } from "@/components/LogWorkout";
@@ -117,6 +117,19 @@ function CalendarPage() {
     }
     return out;
   }, [acts, events, wellness, first, last, today, anchor]);
+
+  // Phone: open on today's row, not the 1st of the month (the desktop grid shows the whole month at once).
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (month) {
+      scrolled.current = false;
+      return;
+    }
+    const row = document.querySelector<HTMLElement>(`[data-day="${today}"]`);
+    if (scrolled.current || !acts || !wellness || !events || !row?.offsetParent) return;
+    scrolled.current = true;
+    row.scrollIntoView({ block: "center" });
+  }, [month, today, acts, wellness, events, weeks]);
 
   const monthKey = (offset: number) => format(addMonths(anchor, offset), "yyyy-MM");
   const selected = weeks.flatMap((w) => w.days).find((d) => d.date === open);
@@ -226,8 +239,9 @@ function CalendarPage() {
                 .map((d) => (
                   <button
                     key={d.date}
+                    data-day={d.date}
                     onClick={() => setOpen(d.date)}
-                    className="flex w-full items-start gap-3 px-3 py-2 text-left"
+                    className="flex w-full scroll-mt-16 items-start gap-3 px-3 py-2 text-left"
                     style={loadStyle(d.load, "left")}
                   >
                     <div className="w-20 shrink-0">

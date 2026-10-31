@@ -157,7 +157,9 @@ Ora is a static site. Any static host with HTTPS works; Cloudflare Pages is free
 4. **Save and Deploy**. You get an address like `https://ora-xxxx.pages.dev`. Every push to `main` redeploys
    automatically, and installed copies pick up the update.
 
-`public/_redirects` already sends every path to the app, so links like `/rides/123` work when opened directly.
+No redirect rules are needed: Cloudflare Pages serves the app for every path, so links like `/rides/123` work when
+opened directly. (Don't add a `/* /index.html 200` rule: it can make Pages return the page instead of the app's
+manifest and service worker, and then the app can't be installed.)
 
 ---
 

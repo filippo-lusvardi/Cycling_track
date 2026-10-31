@@ -15,7 +15,8 @@ export type MapLine = {
 };
 export type MapPin = { lat: number; lng: number; color: string; label: string };
 
-const BASE_KEY = "cadence_map_base";
+// Renamed when Satellite became the default, so every device starts on it once.
+const BASE_KEY = "ora_map_base";
 
 // Free tile sources, no API key. Viewed tiles are cached by the service worker for offline use.
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
@@ -33,15 +34,17 @@ const BASES = {
       attribution: `${OSM_ATTR}, &copy; <a href="https://opentopomap.org">OpenTopoMap</a>`,
     }),
   Streets: () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: OSM_ATTR }),
-  Satellite: () => esri("World_Imagery", 18),
+  // Imagery with Esri's place names and boundaries on top.
+  Satellite: () =>
+    L.layerGroup([esri("World_Imagery", 18), esri("Reference/World_Boundaries_and_Places", 18)]),
 };
 
 const savedBase = (): keyof typeof BASES => {
   try {
     const v = localStorage.getItem(BASE_KEY);
-    return v && v in BASES ? (v as keyof typeof BASES) : "Dark";
+    return v && v in BASES ? (v as keyof typeof BASES) : "Satellite";
   } catch {
-    return "Dark";
+    return "Satellite";
   }
 };
 
