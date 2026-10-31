@@ -25,9 +25,29 @@ type Metric = {
 const peak = (xs: (number | null)[]) =>
   xs.reduce<number | null>((m, x) => (x != null && (m == null || x > m) ? x : m), null);
 
-/** Speed, power and heart rate along the ride, stacked on one distance axis; hovering one shows the same spot on all. */
-export function RideCharts({ a, streams }: { a: ActivityDetail; streams: RideStreams }) {
-  const data = useMemo(() => rideSeries(streams), [streams]);
+const avgOf = (xs: (number | null)[]) => {
+  const v = xs.filter((x): x is number => x != null);
+  return v.length ? v.reduce((t, x) => t + x, 0) / v.length : null;
+};
+
+/**
+ * Speed, power and heart rate along the ride, stacked on one distance axis; hovering one shows the same spot on all.
+ * With a `work` selected, the charts zoom to that stretch and the averages are the work's own.
+ */
+export function RideCharts({
+  a,
+  streams,
+  work,
+}: {
+  a: ActivityDetail;
+  streams: RideStreams;
+  work?: { startKm: number; endKm: number } | null;
+}) {
+  const all = useMemo(() => rideSeries(streams), [streams]);
+  const data = useMemo(
+    () => (work ? all.filter((p) => p.km >= work.startKm && p.km <= work.endKm) : all),
+    [all, work],
+  );
   const [idx, setIdx] = useState<number | null>(null);
   const at = idx != null ? data[idx] : undefined;
   const metrics = useMemo(
@@ -62,8 +82,14 @@ export function RideCharts({ a, streams }: { a: ActivityDetail; streams: RideStr
             digits: 0,
           },
         ] satisfies Metric[]
-      ).filter((m) => data.some((p) => p[m.key] != null)),
-    [a, streams, data],
+      )
+        .filter((m) => data.some((p) => p[m.key] != null))
+        .map((m) =>
+          work
+            ? { ...m, avg: avgOf(data.map((p) => p[m.key])), max: peak(data.map((p) => p[m.key])) }
+            : m,
+        ),
+    [a, streams, data, work],
   );
 
   if (!metrics.length)
@@ -96,7 +122,13 @@ export function RideCharts({ a, streams }: { a: ActivityDetail; streams: RideStr
               )}
             </span>
           </div>
-          <Chart data={data} m={m} xAxis={i === metrics.length - 1} onHover={setIdx} />
+          <Chart
+            data={data}
+            m={m}
+            xAxis={i === metrics.length - 1}
+            domain={work ? [work.startKm, work.endKm] : null}
+            onHover={setIdx}
+          />
         </div>
       ))}
     </div>
@@ -110,11 +142,13 @@ const Chart = memo(function Chart({
   data,
   m,
   xAxis,
+  domain,
   onHover,
 }: {
   data: SeriesPoint[];
   m: Metric;
   xAxis: boolean;
+  domain: [number, number] | null;
   onHover: (i: number | null) => void;
 }) {
   return (
@@ -131,9 +165,10 @@ const Chart = memo(function Chart({
           <XAxis
             dataKey="km"
             type="number"
-            domain={[0, "dataMax"]}
+            domain={domain ?? [0, "dataMax"]}
+            allowDataOverflow
             hide={!xAxis}
-            tickFormatter={(v: number) => `${Math.round(v)} km`}
+            tickFormatter={(v: number) => (domain ? `${v.toFixed(1)} km` : `${Math.round(v)} km`)}
             stroke="var(--muted-foreground)"
             fontSize={11}
             minTickGap={30}

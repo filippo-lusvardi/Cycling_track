@@ -1,5 +1,5 @@
 // Daily readiness score. Pure and browser-safe.
-// Owner's rule: resting heart rate is not used anywhere in Ora.
+// Owner's rule: resting heart rate is not used anywhere in Cirmolo.
 import { addDays } from "./training";
 
 export type ReadinessInput = {

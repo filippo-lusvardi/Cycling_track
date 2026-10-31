@@ -3,8 +3,9 @@ import { defineConfig, minimal2023Preset } from "@vite-pwa/assets-generator/conf
 export default defineConfig({
   preset: {
     ...minimal2023Preset,
-    maskable: { ...minimal2023Preset.maskable, resizeOptions: { background: "#0b1220" } },
-    apple: { ...minimal2023Preset.apple, resizeOptions: { background: "#0b1220" } },
+    // The icon is a full-bleed scene, so Android and iOS get it edge to edge and round the corners themselves.
+    maskable: { ...minimal2023Preset.maskable, padding: 0 },
+    apple: { ...minimal2023Preset.apple, padding: 0 },
   },
   images: ["assets/icon-source.png"],
 });

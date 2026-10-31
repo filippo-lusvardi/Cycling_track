@@ -74,6 +74,8 @@ export type Activity = {
   efficiency: number | null;
   /** Recorded on a home trainer (indoor), even when the type says Ride. */
   trainer: boolean;
+  /** How the ride felt, intervals.icu's 1–5 scale (1 strong … 5 weak); null when not rated. */
+  feel: number | null;
 };
 
 export type ActivityDetail = Activity & {
@@ -143,6 +145,7 @@ const pickActivity = (a: Record<string, unknown>): Activity => ({
   decoupling: (a["decoupling"] as number) ?? null,
   efficiency: (a["icu_efficiency_factor"] as number) ?? null,
   trainer: !!a["trainer"],
+  feel: (a["feel"] as number) ?? null,
 });
 
 function zoneSecs(a: Record<string, unknown>): number[] {

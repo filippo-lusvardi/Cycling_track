@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
+import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -17,6 +18,7 @@ import {
 } from "recharts";
 import { FitnessSection } from "@/components/FitnessSection";
 import { Panel, StatCard } from "@/components/StatCard";
+import { Button } from "@/components/ui/button";
 import { ZoneBar } from "@/components/ZoneBar";
 import { distributionLabel, fitCriticalPower, mmp, polarizationIndex, threeZone } from "@/lib/analysis";
 import type { PowerCurve } from "@/lib/intervals";
@@ -25,7 +27,7 @@ import { addDays, formatClock, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/analysis")({
-  head: () => ({ meta: [{ title: "Analysis — Ora" }] }),
+  head: () => ({ meta: [{ title: "Analysis — Cirmolo" }] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(wellnessQuery(90)),
   component: Analysis,
 });
@@ -175,6 +177,8 @@ function EftpSection() {
 
 function DecouplingSection() {
   const { data } = useQuery(activitiesQuery(180));
+  // The rides behind the average stay folded away until asked for.
+  const [showRides, setShowRides] = useState(false);
   const steady = useMemo(
     () =>
       (data ?? [])
@@ -211,7 +215,18 @@ function DecouplingSection() {
           </ScatterChart>
         </ResponsiveContainer>
       </div>
-      <div className="-mx-3 mt-3 divide-y divide-border text-sm">
+      <Button
+        size="sm"
+        variant="ghost"
+        className="-ml-3 mt-2"
+        onClick={() => setShowRides((v) => !v)}
+        aria-expanded={showRides}
+      >
+        {showRides ? "Hide" : "Show"} the {recent.length} rides
+        <ChevronDown className={cn("transition-transform", showRides && "rotate-180")} />
+      </Button>
+      {showRides && (
+      <div className="-mx-3 mt-1 divide-y divide-border text-sm">
         {recent.map((a) => (
           <Link key={a.id} to="/rides/$id" params={{ id: a.id }} className="stat-num flex justify-between gap-3 px-3 py-2 hover:bg-secondary">
             <span className="truncate font-sans">
@@ -221,6 +236,7 @@ function DecouplingSection() {
           </Link>
         ))}
       </div>
+      )}
     </Panel>
   );
 }

@@ -10,10 +10,11 @@ import { useSegmentLibrary } from "@/hooks/use-segments";
 import { historyYears } from "@/lib/segment-app";
 import type { Status } from "@/lib/segment-engine";
 import { segmentSummary } from "@/lib/segments";
+import { densestRegion } from "@/lib/density";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/segments/")({
-  head: () => ({ meta: [{ title: "Segments — Ora" }] }),
+  head: () => ({ meta: [{ title: "Segments — Cirmolo" }] }),
   component: Segments,
 });
 
@@ -116,17 +117,22 @@ function Segments() {
         });
     }
     return [...base, ...top];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, highlight, navigate, nameOf]);
+  // Open on the area with most segments, not on everything ever ridden (one trip far away zooms the map out).
+  const home = useMemo(
+    () => densestRegion(shown.flatMap((s) => (s.trace ? [s.trace] : []))),
+    [shown],
+  );
   const focusPath = useMemo(() => {
     const t = shown.find((s) => s.id === focused)?.trace;
     return t && focused ? { key: focused, lat: t.lat, lng: t.lng } : null;
   }, [shown, focused]);
 
-  // Desktop: fills the screen below the header and only the list scrolls. Phone: the page scrolls and the map stays
-  // pinned under the header, so a tapped segment is always in view.
+  // The page fills the screen exactly and only the list scrolls, on the phone as on the desktop: a swipe on the
+  // list never moves the page. On the phone the height leaves out the header, the main's top padding and the
+  // bottom bar; the negative margin cancels the main's bottom padding kept for the bar.
   return (
-    <div className="flex flex-col gap-4 lg:h-[calc(100dvh-129px)]">
+    <div className="-mb-32 flex h-[calc(100dvh-49px-1.5rem-4.25rem-env(safe-area-inset-bottom))] flex-col gap-4 lg:mb-0 lg:h-[calc(100dvh-129px)]">
       <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">
@@ -159,20 +165,21 @@ function Segments() {
       <SyncStatus status={lib.status} />
       <NamingStatus />
 
-      <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:grid-rows-1">
         <Panel
           title="Map"
-          className="sticky top-[49px] z-10 flex flex-col p-2 shadow-lg shadow-background lg:static lg:min-h-0 lg:p-4 lg:shadow-none [&>div:first-child]:hidden lg:[&>div:first-child]:flex"
+          className="flex flex-col p-2 lg:min-h-0 lg:p-4 [&>div:first-child]:hidden lg:[&>div:first-child]:flex"
         >
           {lines.length > 0 ? (
             <RouteMap
               fitKey={`${filter}-${lines.length}`}
+              home={home}
               lines={lines}
               focus={focusPath}
-              className="h-[34dvh] min-h-48 lg:h-auto lg:min-h-0 lg:flex-1"
+              className="h-[30dvh] min-h-40 lg:h-auto lg:min-h-0 lg:flex-1"
             />
           ) : (
-            <div className="flex h-[34dvh] min-h-48 items-center justify-center rounded-lg bg-background/50 text-sm text-muted-foreground lg:h-auto lg:min-h-0 lg:flex-1">
+            <div className="flex h-[30dvh] min-h-40 items-center justify-center rounded-lg bg-background/50 text-sm text-muted-foreground lg:h-auto lg:min-h-0 lg:flex-1">
               {isLoading ? "Loading rides…" : "No segments to show"}
             </div>
           )}
@@ -189,7 +196,7 @@ function Segments() {
           </div>
         </Panel>
 
-        <Panel title={`${shown.length} segments`} className="flex flex-col lg:min-h-0">
+        <Panel title={`${shown.length} segments`} className="flex min-h-0 flex-col">
           <div className="relative mb-2 shrink-0">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -221,7 +228,7 @@ function Segments() {
             )}
           </div>
           <div
-            className="-mx-4 px-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain"
+            className="-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4"
             onMouseEnter={() => clearTimeout(dwell.current)}
             onMouseLeave={() => {
               clearTimeout(dwell.current);
@@ -250,8 +257,7 @@ function Segments() {
                     else rows.current.delete(s.id);
                   }}
                   className={cn(
-                    // Phone: brought into view below the pinned map, not under it.
-                    "flex scroll-mt-[calc(max(34dvh,12rem)+5rem)] scroll-mb-20 items-center gap-2 px-3 transition-colors lg:scroll-m-0",
+                    "flex items-center gap-2 px-3 transition-colors",
                     highlight === s.id && "bg-secondary/60",
                   )}
                   onMouseEnter={() => {
@@ -326,7 +332,7 @@ function NamingStatus() {
   if (!left) return null;
   return (
     <p className="shrink-0 text-xs text-muted-foreground">
-      Naming {left} segment{left === 1 ? "" : "s"} from OpenStreetMap… (keep Ora open)
+      Naming {left} segment{left === 1 ? "" : "s"} from OpenStreetMap… (keep Cirmolo open)
     </p>
   );
 }

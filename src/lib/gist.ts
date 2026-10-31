@@ -22,7 +22,7 @@ async function gh<T>(path: string, init?: RequestInit): Promise<T> {
 
 type Gist = { id: string; files: Record<string, { content?: string; truncated?: boolean; raw_url?: string }> };
 
-/** The gist holding Ora data: remembered id, else found by file name, else created (secret). */
+/** The gist holding Cirmolo data: remembered id, else found by file name, else created (secret). */
 async function gistId(): Promise<string> {
   const known = readSetting<string>(GIST_ID);
   if (known) return known;
@@ -33,7 +33,7 @@ async function gistId(): Promise<string> {
     (
       await gh<Gist>(`/gists`, {
         method: "POST",
-        body: JSON.stringify({ public: false, description: "Ora — saved segments", files: { [FILE]: { content: "[]" } } }),
+        body: JSON.stringify({ public: false, description: "Cirmolo — saved segments", files: { [FILE]: { content: "[]" } } }),
       })
     ).id;
   writeSetting(GIST_ID, id);

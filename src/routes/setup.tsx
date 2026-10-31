@@ -11,7 +11,7 @@ import { API_KEY, GITHUB_TOKEN, SEGMENT_HISTORY, writeSetting } from "@/lib/sett
 import { parseSetupHash } from "@/lib/setup-link";
 
 export const Route = createFileRoute("/setup")({
-  head: () => ({ meta: [{ title: "Set up — Ora" }] }),
+  head: () => ({ meta: [{ title: "Set up — Cirmolo" }] }),
   component: SetupPage,
 });
 
@@ -82,7 +82,7 @@ function SetupPage() {
               <p className="text-muted-foreground">The GitHub token didn't work; add it later in Settings.</p>
             )}
             <p className="text-muted-foreground">
-              Install Ora from the browser menu: <b>Add to Home screen</b>. On iPhone, Home Screen apps keep their
+              Install Cirmolo from the browser menu: <b>Add to Home screen</b>. On iPhone, Home Screen apps keep their
               own storage: open the installed app and enter the keys in Settings there.
             </p>
             <Button asChild className="w-full">

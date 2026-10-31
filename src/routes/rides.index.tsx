@@ -26,12 +26,12 @@ function groupByMonth<T extends { start_date_local: string }>(acts: T[]): [strin
 export const Route = createFileRoute("/rides/")({
   head: () => ({
     meta: [
-      { title: "Rides — Ora" },
+      { title: "Rides — Cirmolo" },
       {
         name: "description",
         content: "All your rides and workouts synced from Garmin via intervals.icu.",
       },
-      { property: "og:title", content: "Rides — Ora" },
+      { property: "og:title", content: "Rides — Cirmolo" },
       {
         property: "og:description",
         content: "Ride history with distance, power and training load.",

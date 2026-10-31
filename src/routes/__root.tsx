@@ -14,10 +14,10 @@ import {
   ChartSpline,
   CloudOff,
   Ellipsis,
-  Gauge,
   Mountain,
   Scale,
   Settings,
+  TreeDeciduous,
 } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -103,7 +103,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
-    meta: [{ title: "Ora — Cycling Training" }],
+    meta: [{ title: "Cirmolo — Cycling Training" }],
   }),
   beforeLoad: ({ location }) => {
     // Settings and the QR setup page must open before a key exists.
@@ -117,10 +117,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 /** `bar: true` items sit in the Android bottom bar; the rest go under "More". */
 const NAV = [
-  { to: "/", label: "Today", icon: Gauge, bar: true },
+  { to: "/tree", label: "Tree", icon: TreeDeciduous, bar: true },
+  { to: "/segments", label: "Segments", icon: Mountain, bar: true },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, bar: true },
   { to: "/analysis", label: "Analysis", icon: ChartSpline, bar: true },
-  { to: "/segments", label: "Segments", icon: Mountain, bar: true },
   { to: "/body", label: "Body", icon: Scale, bar: false },
   { to: "/rides", label: "Rides", icon: Bike, bar: false },
   { to: "/settings", label: "Settings", icon: Settings, bar: false },
@@ -143,7 +143,7 @@ function RootComponent() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
             <img src="/icon.svg" alt="" width={24} height={24} className="rounded" />
-            Ora
+            Cirmolo
           </Link>
           {!online && (
             <span className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
@@ -156,7 +156,6 @@ function RootComponent() {
               <Link
                 key={n.to}
                 to={n.to}
-                activeOptions={{ exact: n.to === "/" }}
                 className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 activeProps={{ className: "bg-secondary text-foreground" }}
               >
@@ -178,7 +177,6 @@ function RootComponent() {
           <Link
             key={n.to}
             to={n.to}
-            activeOptions={{ exact: n.to === "/" }}
             className="flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground"
             activeProps={{ className: "text-primary" }}
           >

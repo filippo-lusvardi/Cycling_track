@@ -28,7 +28,7 @@ import { formatClock, isoDate, weightOn } from "@/lib/training";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/segments/$id")({
-  head: () => ({ meta: [{ title: "Segment — Ora" }] }),
+  head: () => ({ meta: [{ title: "Segment — Cirmolo" }] }),
   component: SegmentPage,
 });
 

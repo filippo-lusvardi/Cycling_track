@@ -31,7 +31,7 @@ import { addDays, formatClock, formatDuration, formatKm, weightOn } from "@/lib/
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/rides/$id")({
-  head: () => ({ meta: [{ title: "Ride details — Ora" }] }),
+  head: () => ({ meta: [{ title: "Ride details — Cirmolo" }] }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(activityQuery(params.id)),
   component: RideDetail,
 });
@@ -53,6 +53,17 @@ function RideDetail() {
   // Collapsed by default: long and only occasionally needed.
   const [showCharts, setShowCharts] = useState(false);
   const [showIntervals, setShowIntervals] = useState(false);
+  // The selected work: the map, elevation and charts all show just that stretch.
+  const [workId, setWorkId] = useState<number | null>(null);
+  const work = useMemo(() => workOf(a, streams, workId), [a, streams, workId]);
+  const select = (id: number | null, from: "blocks" | "list") => {
+    setWorkId(id);
+    if (id == null) return;
+    setShowCharts(true);
+    // From the list at the bottom, bring the map up into view to show the work.
+    if (from === "list")
+      document.getElementById("ride-map")?.scrollIntoView({ behavior: "smooth" });
+  };
   const decouple = a.decoupling ?? (streams ? decoupling(streams.watts, streams.heartrate) : null);
   const np = a.icu_weighted_avg_watts;
 
@@ -130,12 +141,28 @@ function RideDetail() {
 
       {a.icu_ftp && (a.icu_intervals?.length ?? 0) > 0 && (
         <Panel title="Workout blocks">
-          <WorkoutBlocks intervals={a.icu_intervals ?? []} ftp={a.icu_ftp} />
+          <WorkoutBlocks
+            intervals={a.icu_intervals ?? []}
+            ftp={a.icu_ftp}
+            selected={workId}
+            onSelect={(id) => select(id, "blocks")}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Tap a block to see just that work on the map and charts.
+          </p>
         </Panel>
       )}
 
       {streams ? (
-        <Climbs a={a} streams={streams} weight={weight} />
+        <div id="ride-map" className="scroll-mt-16">
+          <Climbs
+            a={a}
+            streams={streams}
+            weight={weight}
+            work={work}
+            onClear={() => setWorkId(null)}
+          />
+        </div>
       ) : (
         <Panel title="Elevation & climbs">
           <p className="py-6 text-center text-sm text-muted-foreground">Loading ride streams…</p>
@@ -146,9 +173,10 @@ function RideDetail() {
         title="Speed, power & heart rate"
         action={<ShowHide open={showCharts} onToggle={() => setShowCharts((v) => !v)} />}
       >
+        {showCharts && work && <WorkBar work={work} onClear={() => setWorkId(null)} />}
         {showCharts &&
           (streams ? (
-            <RideCharts a={a} streams={streams} />
+            <RideCharts a={a} streams={streams} work={work} />
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">Loading ride streams…</p>
           ))}
@@ -160,9 +188,18 @@ function RideDetail() {
           action={<ShowHide open={showIntervals} onToggle={() => setShowIntervals((v) => !v)} />}
         >
           {showIntervals && (
-            <div className="divide-y divide-border text-sm">
+            <div className="-mx-2 divide-y divide-border text-sm">
               {intervals.map((i) => (
-                <div key={i.id} className="stat-num flex justify-between py-2">
+                <button
+                  key={i.id}
+                  type="button"
+                  aria-pressed={workId === i.id}
+                  onClick={() => select(workId === i.id ? null : i.id, "list")}
+                  className={cn(
+                    "stat-num flex w-full justify-between rounded-md px-2 py-2.5 text-left transition-colors hover:bg-secondary/40",
+                    workId === i.id && "bg-secondary/60",
+                  )}
+                >
                   <span className="font-sans">{i.label ?? i.type}</span>
                   <span className="flex gap-4">
                     <span>{formatDuration(i.moving_time)}</span>
@@ -171,12 +208,62 @@ function RideDetail() {
                       {r(i.average_heartrate, " bpm")}
                     </span>
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </Panel>
       )}
+    </div>
+  );
+}
+
+type Work = {
+  id: number;
+  label: string;
+  startKm: number;
+  endKm: number;
+  secs: number;
+  watts: number | null;
+  hr: number | null;
+};
+
+/** Where an interval lies along the ride: its times matched to the streams' distance. */
+function workOf(
+  a: ActivityDetail,
+  streams: RideStreams | undefined,
+  id: number | null,
+): Work | null {
+  const iv = id != null ? a.icu_intervals?.find((i) => i.id === id) : undefined;
+  if (!iv || !streams || iv.start_time == null || iv.end_time == null) return null;
+  const at = (t: number) => {
+    const i = streams.time.findIndex((x) => x >= t);
+    return i < 0 ? streams.time.length - 1 : i;
+  };
+  const km = (i: number) => (streams.distance[i] ?? 0) / 1000;
+  return {
+    id: iv.id,
+    label: iv.label ?? iv.type ?? "Interval",
+    startKm: km(at(iv.start_time)),
+    endKm: km(at(iv.end_time)),
+    secs: iv.end_time - iv.start_time,
+    watts: iv.average_watts,
+    hr: iv.average_heartrate,
+  };
+}
+
+/** What's selected, and the way back to the whole ride. */
+function WorkBar({ work, onClear }: { work: Work; onClear: () => void }) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-secondary/60 px-3 py-2 text-sm">
+      <span className="stat-num min-w-0">
+        <span className="font-sans font-medium">{work.label}</span> · {formatDuration(work.secs)}
+        {work.watts != null && ` · ${Math.round(work.watts)} W`}
+        {work.hr != null && ` · ${Math.round(work.hr)} bpm`}
+      </span>
+      <Button size="sm" variant="ghost" onClick={onClear} className="shrink-0">
+        Whole ride
+      </Button>
     </div>
   );
 }
@@ -194,10 +281,14 @@ function Climbs({
   a,
   streams,
   weight,
+  work,
+  onClear,
 }: {
   a: ActivityDetail;
   streams: RideStreams;
   weight: number | null;
+  work: Work | null;
+  onClear: () => void;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const [hoverKm, setHoverKm] = useState<number | null>(null);
@@ -272,6 +363,7 @@ function Climbs({
       }),
     );
     if (range) ls.push({ ...cut(range[0], range[1]), color: "#ffffff", weight: 7 });
+    if (work && !range) ls.push({ ...cut(work.startKm, work.endKm), color: "#ffffff", weight: 8 });
     const sh = segHover != null ? onRide[segHover] : undefined;
     if (sh)
       ls.push({
@@ -282,7 +374,7 @@ function Climbs({
       });
     return ls;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [track, climbs, hover, range, segHover, onRide]);
+  }, [track, climbs, hover, range, segHover, onRide, work]);
   const mapPins = useMemo<MapPin[]>(() => {
     if (!track) return [];
     const p = (km: number) => ({ lat: track.lat[at(km)]!, lng: track.lng[at(km)]! });
@@ -333,12 +425,14 @@ function Climbs({
           ) : undefined
         }
       >
+        {work && <WorkBar work={work} onClear={onClear} />}
         {track && (
           <RouteMap
             fitKey={a.id}
             lines={mapLines}
             pins={mapPins}
             cursor={cursor}
+            focus={work ? { key: `work-${work.id}`, ...cut(work.startKm, work.endKm) } : null}
             className="mb-4"
           />
         )}
@@ -347,7 +441,7 @@ function Climbs({
           altitude={streams.altitude}
           climbs={climbs}
           highlight={hover}
-          selection={range}
+          selection={range ?? (work ? [work.startKm, work.endKm] : null)}
           onHoverKm={setHoverKm}
         />
 

@@ -23,7 +23,7 @@ import {
 } from "@/lib/settings";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "Settings — Ora" }] }),
+  head: () => ({ meta: [{ title: "Settings — Cirmolo" }] }),
   component: SettingsPage,
 });
 
@@ -240,7 +240,7 @@ function SegmentAnalysis() {
         </div>
         <p className="stat-num text-xs text-muted-foreground">
           {snap.rides} rides analysed · {snap.groups.length} climbs found
-          {usage != null && ` · ${(usage / 1e6).toFixed(0)} MB stored by Ora`}
+          {usage != null && ` · ${(usage / 1e6).toFixed(0)} MB stored by Cirmolo`}
           {snap.lastSync && ` · last sync ${new Date(snap.lastSync).toLocaleString()}`}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -308,12 +308,12 @@ function PhoneSetup() {
     <Panel title="Copy setup to phone">
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
-          Scan with the phone's camera to open Ora there with your intervals.icu key
+          Scan with the phone's camera to open Cirmolo there with your intervals.icu key
           {token ? ", GitHub token" : ""} and history setting already filled in.
         </p>
         {!shareable ? (
           <p className="rounded-lg bg-secondary/60 p-3 text-xs text-muted-foreground">
-            The phone can't open this page's address ({window.location.host}). Open Ora from its
+            The phone can't open this page's address ({window.location.host}). Open Cirmolo from its
             hosted https address, then come back here.
           </p>
         ) : !key ? (
@@ -376,7 +376,7 @@ function Storage() {
         >
           Clear cached data
         </Button>
-        <p className="stat-num text-xs text-muted-foreground">Ora v{__APP_VERSION__}</p>
+        <p className="stat-num text-xs text-muted-foreground">Cirmolo v{__APP_VERSION__}</p>
       </div>
     </Panel>
   );

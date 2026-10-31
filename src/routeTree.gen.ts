@@ -15,6 +15,7 @@ import { Route as BodyRouteImport } from './routes/body'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as TreeRouteImport } from './routes/tree'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
 import { Route as RidesIdRouteImport } from './routes/rides.$id'
 import { Route as SegmentsIndexRouteImport } from './routes/segments.index'
@@ -50,6 +51,11 @@ const SetupRoute = SetupRouteImport.update({
   path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TreeRoute = TreeRouteImport.update({
+  id: '/tree',
+  path: '/tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RidesIndexRoute = RidesIndexRouteImport.update({
   id: '/rides/',
   path: '/rides/',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/calendar': typeof CalendarRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
+  '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/rides/': typeof RidesIndexRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/calendar': typeof CalendarRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
+  '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/rides': typeof RidesIndexRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/calendar': typeof CalendarRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
+  '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/rides/': typeof RidesIndexRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/settings'
     | '/setup'
+    | '/tree'
     | '/rides/$id'
     | '/segments/$id'
     | '/rides/'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/settings'
     | '/setup'
+    | '/tree'
     | '/rides/$id'
     | '/segments/$id'
     | '/rides'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/settings'
     | '/setup'
+    | '/tree'
     | '/rides/$id'
     | '/segments/$id'
     | '/rides/'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   CalendarRoute: typeof CalendarRoute
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
+  TreeRoute: typeof TreeRoute
   RidesIdRoute: typeof RidesIdRoute
   SegmentsIdRoute: typeof SegmentsIdRoute
   RidesIndexRoute: typeof RidesIndexRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tree': {
+      id: '/tree'
+      path: '/tree'
+      fullPath: '/tree'
+      preLoaderRoute: typeof TreeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rides/': {
       id: '/rides/'
       path: '/rides'
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   CalendarRoute: CalendarRoute,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
+  TreeRoute: TreeRoute,
   RidesIdRoute: RidesIdRoute,
   SegmentsIdRoute: SegmentsIdRoute,
   RidesIndexRoute: RidesIndexRoute,

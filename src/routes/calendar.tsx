@@ -11,12 +11,14 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ActivityRow } from "@/components/ActivityRow";
 import { CheckInForm } from "@/components/CheckIn";
 import { LogWorkoutForm } from "@/components/LogWorkout";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useLocalStore } from "@/hooks/use-local-store";
 import { weeklyTotals, type WeekRow } from "@/lib/analysis";
 import type { Activity, PlannedEvent, Wellness } from "@/lib/intervals";
 import { activitiesRangeQuery, eventsQuery, wellnessRangeQuery } from "@/lib/queries";
@@ -26,10 +28,16 @@ import { addDays, formatDuration, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/calendar")({
-  head: () => ({ meta: [{ title: "Calendar — Ora" }] }),
-  validateSearch: (s: Record<string, unknown>): { month?: string | undefined } => ({
+  head: () => ({ meta: [{ title: "Calendar — Cirmolo" }] }),
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { month?: string | undefined; week?: string | undefined } => ({
     month:
       typeof s["month"] === "string" && /^\d{4}-\d{2}$/.test(s["month"]) ? s["month"] : undefined,
+    week:
+      typeof s["week"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s["week"])
+        ? s["week"]
+        : undefined,
   }),
   component: CalendarPage,
 });
@@ -63,23 +71,40 @@ const LOAD_BANDS: [number, string, string][] = [
 ];
 // Blended colours go muddy on the dark background, so the band shows as a vivid stripe over a faint wash.
 const tint = (color: string) => `color-mix(in oklab, ${color} 10%, transparent)`;
-const loadColor = (load: number) => (load > 0 ? [...LOAD_BANDS].reverse().find(([min]) => load >= min)?.[1] : undefined);
+const loadColor = (load: number) =>
+  load > 0 ? [...LOAD_BANDS].reverse().find(([min]) => load >= min)?.[1] : undefined;
 /** Day cell style for its total load: a stripe on `edge` plus a faint wash; nothing on rest days. */
 function loadStyle(load: number, edge: "top" | "left"): React.CSSProperties | undefined {
   const c = loadColor(load);
   if (!c) return undefined;
-  return { background: tint(c), boxShadow: edge === "top" ? `inset 0 4px 0 ${c}` : `inset 4px 0 0 ${c}` };
+  return {
+    background: tint(c),
+    boxShadow: edge === "top" ? `inset 0 4px 0 ${c}` : `inset 4px 0 0 ${c}`,
+  };
 }
 
+type View = "week" | "month";
+
 function CalendarPage() {
-  const { month } = Route.useSearch();
+  const { month, week } = Route.useSearch();
   const today = isoDate(new Date());
   const anchor = useMemo(
-    () => (month ? parseISO(`${month}-01`) : startOfMonth(new Date())),
-    [month],
+    () => (month ? parseISO(`${month}-01`) : startOfMonth(parseISO(week ?? today))),
+    [month, week, today],
   );
-  const first = isoDate(startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 }));
-  const last = isoDate(endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 }));
+  // Phone: one week at a time by default (it opens on today), or a compact month grid.
+  const mobile = useIsMobile();
+  const [view, setView] = useLocalStore<View>("cadence_calendar_view", "week");
+  const weekView = mobile && view === "week";
+  const weekStart = isoDate(
+    startOfWeek(week ? parseISO(week) : month ? anchor : parseISO(today), { weekStartsOn: 1 }),
+  );
+  const first = weekView
+    ? weekStart
+    : isoDate(startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 }));
+  const last = weekView
+    ? addDays(weekStart, 6)
+    : isoDate(endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 }));
   const range = { oldest: first, newest: last };
   const keep = { placeholderData: keepPreviousData };
   const { data: acts } = useQuery({ ...activitiesRangeQuery(range), ...keep });
@@ -97,7 +122,7 @@ function CalendarPage() {
         const date = isoDate(d);
         return {
           date,
-          inMonth: d.getMonth() === anchor.getMonth(),
+          inMonth: weekView || d.getMonth() === anchor.getMonth(),
           acts: (acts ?? []).filter((a) => a.start_date_local.startsWith(date)).reverse(),
           planned: (events ?? []).filter(
             (e) => e.date === date && (e.category === "WORKOUT" || e.category.startsWith("RACE")),
@@ -116,20 +141,7 @@ function CalendarPage() {
       out.push({ days: wk, totals: weeklyTotals(wk.flatMap((d) => d.acts))[0] });
     }
     return out;
-  }, [acts, events, wellness, first, last, today, anchor]);
-
-  // Phone: open on today's row, not the 1st of the month (the desktop grid shows the whole month at once).
-  const scrolled = useRef(false);
-  useEffect(() => {
-    if (month) {
-      scrolled.current = false;
-      return;
-    }
-    const row = document.querySelector<HTMLElement>(`[data-day="${today}"]`);
-    if (scrolled.current || !acts || !wellness || !events || !row?.offsetParent) return;
-    scrolled.current = true;
-    row.scrollIntoView({ block: "center" });
-  }, [month, today, acts, wellness, events, weeks]);
+  }, [acts, events, wellness, first, last, today, anchor, weekView]);
 
   const monthKey = (offset: number) => format(addMonths(anchor, offset), "yyyy-MM");
   const selected = weeks.flatMap((w) => w.days).find((d) => d.date === open);
@@ -139,26 +151,62 @@ function CalendarPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">Training & wellness</div>
-          <h1 className="text-3xl font-bold tracking-tight">{format(anchor, "MMMM yyyy")}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {weekView
+              ? `${format(parseISO(first), "d MMM")} – ${format(parseISO(last), "d MMM")}`
+              : format(anchor, "MMMM yyyy")}
+          </h1>
         </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" asChild aria-label="Previous month">
-            <Link to="/calendar" search={{ month: monthKey(-1) }}>
+        <div className="flex w-full items-center gap-1 md:w-auto">
+          <div className="mr-auto flex gap-1 rounded-lg bg-secondary p-1 md:hidden">
+            {(["week", "month"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(() => v)}
+                className={cn(
+                  "min-h-8 rounded-md px-3 text-xs capitalize",
+                  view === v ? "bg-background text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            aria-label={weekView ? "Previous week" : "Previous month"}
+          >
+            <Link
+              to="/calendar"
+              search={weekView ? { week: addDays(weekStart, -7) } : { month: monthKey(-1) }}
+            >
               <ChevronLeft />
             </Link>
           </Button>
           <Button variant="secondary" size="sm" asChild>
-            <Link to="/calendar" search={{ month: undefined }}>
+            <Link to="/calendar" search={{}}>
               Today
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" asChild aria-label="Next month">
-            <Link to="/calendar" search={{ month: monthKey(1) }}>
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            aria-label={weekView ? "Next week" : "Next month"}
+          >
+            <Link
+              to="/calendar"
+              search={weekView ? { week: addDays(weekStart, 7) } : { month: monthKey(1) }}
+            >
               <ChevronRight />
             </Link>
           </Button>
           <Button size="sm" className="ml-2" onClick={() => setLogging(true)}>
-            <Plus /> Log workout
+            <Plus />
+            <span className="hidden sm:inline">Log workout</span>
+            <span className="sm:hidden">Log</span>
           </Button>
         </div>
       </div>
@@ -206,42 +254,33 @@ function CalendarPage() {
         <span>Daily load:</span>
         {LOAD_BANDS.map(([, color, label]) => (
           <span key={label} className="flex items-center gap-1">
-            <span
-              className="h-1.5 w-5 rounded-full"
-              style={{ background: color }}
-            />{" "}
-            {label}
+            <span className="h-1.5 w-5 rounded-full" style={{ background: color }} /> {label}
           </span>
         ))}
       </div>
 
-      {/* Phone: one card per week, one row per day. */}
-      <div className="space-y-3 md:hidden">
-        {weeks.map((w) => (
-          <div
-            key={w.days[0]!.date}
-            className="overflow-hidden rounded-xl border border-border bg-card"
-          >
-            <div className="stat-num flex flex-wrap justify-between gap-x-3 bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
-              <span className="font-sans">
-                {format(parseISO(w.days[0]!.date), "d MMM")} –{" "}
-                {format(parseISO(w.days[6]!.date), "d MMM")}
-              </span>
-              <span>
-                {w.totals
-                  ? `${Math.round(w.totals.load)} TSS · ${w.totals.hours.toFixed(1)} h · ${Math.round(w.totals.km)} km · ${Math.round(w.totals.elevation)} m`
-                  : "rest week"}
-              </span>
-            </div>
-            <div className="divide-y divide-border">
-              {w.days
-                .filter((d) => d.inMonth)
-                .map((d) => (
+      {/* Phone, week view: the week's totals, then one row per day. */}
+      {weekView && (
+        <div className="space-y-3 md:hidden">
+          {weeks.map((w) => (
+            <div
+              key={w.days[0]!.date}
+              className="overflow-hidden rounded-xl border border-border bg-card"
+            >
+              <div className="stat-num flex flex-wrap justify-between gap-x-3 bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-sans">Week</span>
+                <span>
+                  {w.totals
+                    ? `${Math.round(w.totals.load)} TSS · ${w.totals.hours.toFixed(1)} h · ${Math.round(w.totals.km)} km · ${Math.round(w.totals.elevation)} m`
+                    : "rest week"}
+                </span>
+              </div>
+              <div className="divide-y divide-border">
+                {w.days.map((d) => (
                   <button
                     key={d.date}
-                    data-day={d.date}
                     onClick={() => setOpen(d.date)}
-                    className="flex w-full scroll-mt-16 items-start gap-3 px-3 py-2 text-left"
+                    className="flex min-h-14 w-full items-start gap-3 px-3 py-2.5 text-left"
                     style={loadStyle(d.load, "left")}
                   >
                     <div className="w-20 shrink-0">
@@ -257,10 +296,14 @@ function CalendarPage() {
                     </div>
                   </button>
                 ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* Phone, month view: a compact grid, one dot per activity. */}
+      {mobile && view === "month" && <MonthGrid weeks={weeks} today={today} onOpen={setOpen} />}
 
       <ResponsiveDialog
         open={!!selected}
@@ -277,6 +320,68 @@ function CalendarPage() {
       >
         <LogWorkoutForm date={today} onSaved={() => setLogging(false)} />
       </ResponsiveDialog>
+    </div>
+  );
+}
+
+function MonthGrid({
+  weeks,
+  today,
+  onOpen,
+}: {
+  weeks: { days: DayData[] }[];
+  today: string;
+  onOpen: (date: string) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card md:hidden">
+      <div className="grid grid-cols-7 border-b border-border">
+        {DOW.map((d) => (
+          <div key={d} className="eyebrow py-2 text-center">
+            {d.slice(0, 1)}
+          </div>
+        ))}
+      </div>
+      {weeks.map((w) => (
+        <div
+          key={w.days[0]!.date}
+          className="grid grid-cols-7 border-b border-border last:border-b-0"
+        >
+          {w.days.map((d) => (
+            <button
+              key={d.date}
+              onClick={() => onOpen(d.date)}
+              className={cn(
+                "flex h-16 flex-col items-center gap-1 border-r border-border pt-1.5 last:border-r-0",
+                !d.inMonth && "opacity-35",
+              )}
+              style={loadStyle(d.load, "top")}
+              aria-label={`${format(parseISO(d.date), "EEEE d MMMM")}: ${d.acts.length} activities`}
+            >
+              <span
+                className={cn(
+                  "stat-num flex h-6 w-6 items-center justify-center rounded-full text-xs",
+                  d.date === today ? "bg-primary text-primary-foreground" : "text-foreground",
+                )}
+              >
+                {Number(d.date.slice(8))}
+              </span>
+              <span className="flex flex-wrap justify-center gap-0.5 px-0.5">
+                {d.acts.slice(0, 3).map((a) => (
+                  <span
+                    key={a.id}
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: KINDS[activityKind(a)].color }}
+                  />
+                ))}
+                {d.planned.length > 0 && (
+                  <span className="h-1.5 w-1.5 rounded-full border border-birch" />
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

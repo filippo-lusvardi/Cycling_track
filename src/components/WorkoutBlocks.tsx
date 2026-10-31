@@ -1,6 +1,14 @@
 import { formatDuration } from "@/lib/training";
 
-type Iv = { id: number; type: string | null; label: string | null; start_time: number | null; end_time: number | null; average_watts: number | null; moving_time: number | null };
+type Iv = {
+  id: number;
+  type: string | null;
+  label: string | null;
+  start_time: number | null;
+  end_time: number | null;
+  average_watts: number | null;
+  moving_time: number | null;
+};
 
 /** Power zone (1–7) from % of FTP, Coggan-style like intervals.icu. */
 export function powerZone(watts: number, ftp: number): number {
@@ -14,33 +22,73 @@ export function powerZone(watts: number, ftp: number): number {
   return 7;
 }
 
-/** Interval blocks like the intervals.icu calendar: width = duration, height = power, colour = zone. */
-export function WorkoutBlocks({ intervals, ftp }: { intervals: Iv[]; ftp: number }) {
-  const ivs = intervals.filter((i) => i.start_time != null && i.end_time != null && i.end_time > i.start_time && i.average_watts != null);
-  if (!ivs.length) return <p className="text-sm text-muted-foreground">No interval data for this ride.</p>;
-  const total = Math.max(...ivs.map((i) => i.end_time!)) - Math.min(...ivs.map((i) => i.start_time!));
+/**
+ * Interval blocks like the intervals.icu calendar: width = duration, height = power, colour = zone.
+ * Tapping a block selects it (again to clear), so the map and charts can show just that work.
+ */
+export function WorkoutBlocks({
+  intervals,
+  ftp,
+  selected,
+  onSelect,
+}: {
+  intervals: Iv[];
+  ftp: number;
+  selected?: number | null;
+  onSelect?: (id: number | null) => void;
+}) {
+  const ivs = intervals.filter(
+    (i) =>
+      i.start_time != null &&
+      i.end_time != null &&
+      i.end_time > i.start_time &&
+      i.average_watts != null,
+  );
+  if (!ivs.length)
+    return <p className="text-sm text-muted-foreground">No interval data for this ride.</p>;
+  const total =
+    Math.max(...ivs.map((i) => i.end_time!)) - Math.min(...ivs.map((i) => i.start_time!));
   const t0 = Math.min(...ivs.map((i) => i.start_time!));
   const maxW = Math.max(ftp * 1.3, ...ivs.map((i) => i.average_watts!));
   return (
     <div>
       <div className="relative h-36 w-full rounded-md bg-background/60">
-        <div className="absolute inset-x-0 border-t border-dashed border-muted-foreground/40" style={{ bottom: `${(ftp / maxW) * 100}%` }}>
-          <span className="stat-num absolute -top-4 right-1 text-[10px] text-muted-foreground">FTP {ftp}W</span>
+        <div
+          className="absolute inset-x-0 border-t border-dashed border-muted-foreground/40"
+          style={{ bottom: `${(ftp / maxW) * 100}%` }}
+        >
+          <span className="stat-num absolute -top-4 right-1 text-[10px] text-muted-foreground">
+            FTP {ftp}W
+          </span>
         </div>
         {ivs.map((i) => {
           const z = powerZone(i.average_watts!, ftp);
+          const label = `${i.label ?? i.type ?? "Interval"} · ${formatDuration(i.end_time! - i.start_time!)} · ${Math.round(i.average_watts!)}W · Z${z}`;
+          // The whole column is the tap target, so even a short, easy block is easy to hit.
           return (
-            <div
+            <button
               key={i.id}
-              title={`${i.label ?? i.type ?? "Interval"} · ${formatDuration(i.end_time! - i.start_time!)} · ${Math.round(i.average_watts!)}W · Z${z}`}
-              className="absolute bottom-0 rounded-t-sm border-r border-background/70"
+              type="button"
+              title={label}
+              aria-label={label}
+              aria-pressed={selected === i.id}
+              onClick={() => onSelect?.(selected === i.id ? null : i.id)}
+              className="absolute inset-y-0 border-r border-background/70"
               style={{
                 left: `${((i.start_time! - t0) / total) * 100}%`,
                 width: `${((i.end_time! - i.start_time!) / total) * 100}%`,
-                height: `${Math.max(4, (i.average_watts! / maxW) * 100)}%`,
-                background: `var(--z${z})`,
+                opacity: selected != null && selected !== i.id ? 0.35 : 1,
               }}
-            />
+            >
+              <span
+                className="absolute inset-x-0 bottom-0 rounded-t-sm"
+                style={{
+                  height: `${Math.max(4, (i.average_watts! / maxW) * 100)}%`,
+                  background: `var(--z${z})`,
+                  boxShadow: selected === i.id ? "inset 0 0 0 2px var(--foreground)" : undefined,
+                }}
+              />
+            </button>
           );
         })}
       </div>

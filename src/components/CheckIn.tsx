@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ClipboardCheck, Minus, Plus } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -177,23 +177,5 @@ export function DailyCheckIn() {
     >
       <CheckInForm key={row?.id ?? "none"} date={today} row={row} onSaved={() => setState("done")} />
     </ResponsiveDialog>
-  );
-}
-
-/** Compact reminder after the check-in was dismissed. */
-export function CheckInBanner({ row }: { row: Wellness | undefined }) {
-  const today = isoDate(new Date());
-  const [state, setState] = useCheckInState(today);
-  if (isCheckedIn(row) || state === "done") return null;
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card/60 px-4 py-3">
-      <span className="flex items-center gap-2 text-sm">
-        <ClipboardCheck className="h-4 w-4 text-primary" />
-        Morning check-in pending
-      </span>
-      <Button size="sm" variant="secondary" onClick={() => setState("open")}>
-        Check in
-      </Button>
-    </div>
   );
 }

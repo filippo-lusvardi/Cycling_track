@@ -83,6 +83,13 @@
   --pine: oklch(0.72 0.1 160);
   --birch: oklch(0.82 0.12 85);
   --lingon: oklch(0.62 0.17 15);
+  --bark: oklch(0.47 0.035 60);
+  /* The crown's seasons. */
+  --summer: oklch(0.6 0.12 150);
+  --spring: oklch(0.83 0.14 130);
+  --blossom: oklch(0.85 0.08 350);
+  --autumn: oklch(0.72 0.15 50);
+  --snow: oklch(0.96 0.015 230);
   --z1: oklch(0.6 0.03 240);
   --z2: oklch(0.72 0.1 160);
   --z3: oklch(0.78 0.1 210);
@@ -116,6 +123,33 @@
     background-repeat: no-repeat;
     color: var(--color-foreground);
     font-family: var(--font-sans);
+  }
+}
+
+/* The tree: a one-off growth when it appears, and clouds drifting slowly over the crown. */
+@keyframes tree-grow {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes tree-fall {
+  from { transform: translateY(-5px) rotate(-10deg); }
+  to { transform: translateY(5px) rotate(10deg); }
+}
+@keyframes tree-drift {
+  from { transform: translateX(-4px); }
+  to { transform: translateX(4px); }
+}
+.tree-grow {
+  transform-box: view-box;
+  transform-origin: 50% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tree-grow { animation: tree-grow 1.4s ease-out both; }
+  .tree-drift { animation: tree-drift 14s ease-in-out infinite alternate; }
+  .tree-fall {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: tree-fall 6s ease-in-out infinite alternate;
   }
 }
 

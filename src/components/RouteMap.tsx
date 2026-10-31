@@ -59,6 +59,7 @@ export function RouteMap({
   fitKey,
   focus,
   markers,
+  home,
   className,
 }: {
   lines: MapLine[];
@@ -69,6 +70,8 @@ export function RouteMap({
   focus?: { key: string; lat: number[]; lng: number[] } | null;
   /** Moving dots (e.g. the two riders of a ghost race); updated in place, never re-fitting the view. */
   markers?: MapPin[];
+  /** Where the map opens (and returns after a focus) instead of fitting everything drawn. */
+  home?: [[number, number], [number, number]] | null;
   className?: string;
 }) {
   const el = useRef<HTMLDivElement>(null);
@@ -135,11 +138,13 @@ export function RouteMap({
         .addTo(g);
       bounds.extend([p.lat, p.lng]);
     }
-    if (bounds.isValid()) all.current = bounds;
-    if (fitted.current !== fitKey && bounds.isValid() && !focused.current) {
-      m.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 });
+    const target = home ? L.latLngBounds(home) : bounds;
+    if (target.isValid()) all.current = target;
+    if (fitted.current !== fitKey && target.isValid() && !focused.current) {
+      m.fitBounds(target, { padding: [24, 24], maxZoom: 16 });
       fitted.current = fitKey;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, pins, fitKey]);
 
   useEffect(() => {
