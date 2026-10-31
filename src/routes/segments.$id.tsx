@@ -333,64 +333,126 @@ function SegmentPage() {
             No efforts found in the analysed rides.
           </p>
         ) : (
-          <div className="-mx-4 overflow-x-auto px-4">
-            <table className="stat-num w-full min-w-[660px] text-sm">
-              <thead>
-                <tr className="eyebrow text-left">
-                  <th className="py-2 font-normal">#</th>
-                  <th className="font-normal">Date</th>
-                  <th className="text-right font-normal">Time</th>
-                  <th className="text-right font-normal">Power</th>
-                  <th className="text-right font-normal">W/kg</th>
-                  <th className="text-right font-normal">VAM</th>
-                  <th className="text-right font-normal">HR</th>
-                  <th className="text-right font-normal">Cad</th>
-                  <th className="text-right font-normal">km/h</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {efforts.map((e, i) => (
-                  <tr key={`${e.trackId}-${i}`}>
-                    <td className="py-2 text-muted-foreground">{i + 1}</td>
-                    <td className="font-sans">
-                      <Link
-                        to="/rides/$id"
-                        params={{ id: e.trackId }}
-                        className="hover:text-primary"
-                      >
-                        {format(parseISO(e.date), "d MMM yyyy")}
-                      </Link>
-                      {i === 0 && (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                          <Trophy className="h-3 w-3" /> PR
+          <>
+            {/* Phone: one compact row per effort instead of a table wider than the screen. */}
+            <div className="-mx-4 divide-y divide-border md:hidden">
+              {efforts.map((e, i) => {
+                const stats = [
+                  e.avgWatts != null && `${Math.round(e.avgWatts)} W`,
+                  e.wkg && `${e.wkg.toFixed(2)} W/kg`,
+                  e.vam != null && `VAM ${Math.round(e.vam)}`,
+                  e.avgHr != null && `${Math.round(e.avgHr)} bpm`,
+                  e.avgCad != null && `${Math.round(e.avgCad)} rpm`,
+                  `${e.speed.toFixed(1)} km/h`,
+                ].filter(Boolean);
+                return (
+                  <div key={`${e.trackId}-${i}`} className="flex items-center gap-1 pr-2">
+                    <Link
+                      to="/rides/$id"
+                      params={{ id: e.trackId }}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 active:bg-secondary/40"
+                    >
+                      <span className="stat-num w-5 shrink-0 text-sm text-muted-foreground">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2 text-sm">
+                          {format(parseISO(e.date), "d MMM yyyy")}
+                          {i === 0 && (
+                            <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
+                              <Trophy className="h-3 w-3" /> PR
+                            </span>
+                          )}
                         </span>
-                      )}
-                    </td>
-                    <td className="text-right">{formatClock(e.duration)}</td>
-                    <td className="text-right">{r(e.avgWatts, "W")}</td>
-                    <td className="text-right">{e.wkg ? e.wkg.toFixed(2) : "–"}</td>
-                    <td className="text-right">{r(e.vam)}</td>
-                    <td className="text-right text-fatigue">{r(e.avgHr)}</td>
-                    <td className="text-right">{r(e.avgCad)}</td>
-                    <td className="text-right">{e.speed.toFixed(1)}</td>
-                    <td className="text-right">
-                      {i > 0 && (
-                        <button
-                          aria-label="Race against the PR"
-                          title="Race against the PR"
-                          onClick={() => startRace(effortKey(e))}
-                          className="p-1 text-muted-foreground hover:text-primary"
-                        >
-                          <Swords className="h-4 w-4" />
-                        </button>
-                      )}
-                    </td>
+                        <span className="stat-num block truncate text-xs text-muted-foreground">
+                          {stats.join(" · ")}
+                        </span>
+                      </span>
+                      <span className="stat-num shrink-0 text-right">
+                        <span className="block text-base font-semibold">
+                          {formatClock(e.duration)}
+                        </span>
+                        {i > 0 && (
+                          <span className="block text-xs text-muted-foreground">
+                            +{formatClock(e.duration - efforts[0]!.duration)}
+                          </span>
+                        )}
+                      </span>
+                    </Link>
+                    {i > 0 ? (
+                      <button
+                        aria-label="Race against the PR"
+                        onClick={() => startRace(effortKey(e))}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground active:bg-secondary/60"
+                      >
+                        <Swords className="h-5 w-5" />
+                      </button>
+                    ) : (
+                      <span className="w-11 shrink-0" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="-mx-4 hidden overflow-x-auto px-4 md:block">
+              <table className="stat-num w-full min-w-[660px] text-sm">
+                <thead>
+                  <tr className="eyebrow text-left">
+                    <th className="py-2 font-normal">#</th>
+                    <th className="font-normal">Date</th>
+                    <th className="text-right font-normal">Time</th>
+                    <th className="text-right font-normal">Power</th>
+                    <th className="text-right font-normal">W/kg</th>
+                    <th className="text-right font-normal">VAM</th>
+                    <th className="text-right font-normal">HR</th>
+                    <th className="text-right font-normal">Cad</th>
+                    <th className="text-right font-normal">km/h</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {efforts.map((e, i) => (
+                    <tr key={`${e.trackId}-${i}`}>
+                      <td className="py-2 text-muted-foreground">{i + 1}</td>
+                      <td className="font-sans">
+                        <Link
+                          to="/rides/$id"
+                          params={{ id: e.trackId }}
+                          className="hover:text-primary"
+                        >
+                          {format(parseISO(e.date), "d MMM yyyy")}
+                        </Link>
+                        {i === 0 && (
+                          <span className="ml-2 inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
+                            <Trophy className="h-3 w-3" /> PR
+                          </span>
+                        )}
+                      </td>
+                      <td className="text-right">{formatClock(e.duration)}</td>
+                      <td className="text-right">{r(e.avgWatts, "W")}</td>
+                      <td className="text-right">{e.wkg ? e.wkg.toFixed(2) : "–"}</td>
+                      <td className="text-right">{r(e.vam)}</td>
+                      <td className="text-right text-fatigue">{r(e.avgHr)}</td>
+                      <td className="text-right">{r(e.avgCad)}</td>
+                      <td className="text-right">{e.speed.toFixed(1)}</td>
+                      <td className="text-right">
+                        {i > 0 && (
+                          <button
+                            aria-label="Race against the PR"
+                            title="Race against the PR"
+                            onClick={() => startRace(effortKey(e))}
+                            className="p-1 text-muted-foreground hover:text-primary"
+                          >
+                            <Swords className="h-4 w-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Panel>
     </div>
