@@ -5,6 +5,8 @@ type Streams = {
   distance: number[];
   watts: (number | null)[];
   heartrate: (number | null)[];
+  /** W′ balance per sample (% of W′), when CP is known. */
+  wbal?: number[] | undefined;
 };
 
 export type SeriesPoint = {
@@ -12,6 +14,8 @@ export type SeriesPoint = {
   speed: number | null;
   watts: number | null;
   hr: number | null;
+  /** Lowest W′ balance in the bucket (% of W′): the deepest point of an effort must not be averaged away. */
+  wbal: number | null;
 };
 
 const mean = (xs: (number | null | undefined)[]) => {
@@ -42,6 +46,7 @@ export function rideSeries(s: Streams, points = 500): SeriesPoint[] {
       speed: dt > 0 ? (dd / dt) * 3.6 : null,
       watts: mean(s.watts.slice(i, j)),
       hr: mean(s.heartrate.slice(i, j)),
+      wbal: s.wbal?.length ? Math.min(...s.wbal.slice(i, j)) : null,
     });
   }
   return out;

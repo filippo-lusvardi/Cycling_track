@@ -6,9 +6,17 @@ const TOKEN = "github_pat_11ABCDEFG0123456789_abcdefXYZ";
 
 describe("setup link", () => {
   it("round-trips the key, token and history through the fragment", () => {
-    const link = setupLink("https://cadence.pages.dev/", { apiKey: KEY, githubToken: TOKEN, history: 5 });
+    const link = setupLink("https://cadence.pages.dev/", {
+      apiKey: KEY,
+      githubToken: TOKEN,
+      history: 5,
+    });
     expect(link.startsWith("https://cadence.pages.dev/setup#")).toBe(true);
-    expect(parseSetupHash(new URL(link).hash)).toEqual({ apiKey: KEY, githubToken: TOKEN, history: 5 });
+    expect(parseSetupHash(new URL(link).hash)).toEqual({
+      apiKey: KEY,
+      githubToken: TOKEN,
+      history: 5,
+    });
   });
   it("leaves out what isn't set", () => {
     const link = setupLink("https://x.dev", { apiKey: KEY });

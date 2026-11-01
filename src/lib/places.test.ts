@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { cleanName, composeName, dedupeNames, mergeNames, nearestNamed, pickTown, placeKey } from "./places";
+import {
+  cleanName,
+  composeName,
+  dedupeNames,
+  mergeNames,
+  nearestNamed,
+  pickTown,
+  placeKey,
+} from "./places";
 
 describe("segment naming", () => {
   it("keeps the first of bilingual names", () => {
@@ -17,13 +25,23 @@ describe("segment naming", () => {
       { lat: 46.5308, lon: 10.4531, name: "Cima Garibaldi", type: "peak" },
     ];
     expect(nearestNamed(places, 46.5287, 10.4531)).toBe("Passo dello Stelvio");
-    expect(nearestNamed([{ lat: 46.086, lon: 10.33, name: "Valle Camonica", type: "valley" }], 46.2589, 10.5838)).toBeNull();
+    expect(
+      nearestNamed(
+        [{ lat: 46.086, lon: 10.33, name: "Valle Camonica", type: "valley" }],
+        46.2589,
+        10.5838,
+      ),
+    ).toBeNull();
     expect(nearestNamed(places, 46.5287, 10.4531, 400, ["peak"])).toBe("Cima Garibaldi");
   });
   it("composes landmark, towns, or a single-town name", () => {
-    expect(composeName({ landmark: "Passo Coe", from: "Folgaria", to: "Folgaria" }, "auto")).toBe("Passo Coe");
+    expect(composeName({ landmark: "Passo Coe", from: "Folgaria", to: "Folgaria" }, "auto")).toBe(
+      "Passo Coe",
+    );
     expect(composeName({ from: "Avio", to: "Ala" }, "auto")).toBe("Avio → Ala");
-    expect(composeName({ from: "Ala", to: "Ala", toLocal: "Brustolotti" }, "auto")).toBe("Ala → Brustolotti");
+    expect(composeName({ from: "Ala", to: "Ala", toLocal: "Brustolotti" }, "auto")).toBe(
+      "Ala → Brustolotti",
+    );
     expect(composeName({ from: "Ala", to: "Ala", toLocal: "Ala" }, "auto")).toBe("Ala climb");
     expect(composeName({ from: "Ala", to: null }, "custom")).toBe("Ala segment");
     expect(composeName({}, "auto")).toBeNull();
@@ -43,7 +61,9 @@ describe("segment naming", () => {
     expect(placeKey({ ...a, lat1: 45.889934 })).toBe(placeKey(a));
   });
   it("merges names from two devices, keeping found names over nulls", () => {
-    expect(mergeNames({ a: "Mine", b: null, c: null }, { a: "Theirs", b: "Found", d: "Other" })).toEqual({
+    expect(
+      mergeNames({ a: "Mine", b: null, c: null }, { a: "Theirs", b: "Found", d: "Other" }),
+    ).toEqual({
       a: "Mine",
       b: "Found",
       c: null,

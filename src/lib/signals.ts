@@ -4,10 +4,18 @@ import { t } from "./i18n";
 import type { Wellness } from "./intervals";
 import { addDays } from "./training";
 
-export type Signal = { key: "load" | "hrv" | "fatigue" | "stress" | "mood" | "sleep"; text: string };
+export type Signal = {
+  key: "load" | "hrv" | "fatigue" | "stress" | "mood" | "sleep";
+  text: string;
+};
 
-/** HRV: the last week's mean this far under the four weeks before. */
-const HRV_DROP = 0.08;
+/**
+ * HRV: the last week's median ln(HRV) under your normal band, half an SD below the mean of the 60 days before it
+ * (the smallest worthwhile change HRV-guided training uses).
+ */
+const HRV_SWC = 0.5;
+const HRV_MIN_LN_SD = 0.03;
+const HRV_BASE_DAYS = 60;
 const HRV_MIN_WEEK = 5;
 const HRV_MIN_BASE = 14;
 /** Check-in answers at or above this (high / poor) on this many of the last answered days. */
@@ -19,6 +27,10 @@ const SLEEP_SHORT_SECS = 45 * 60;
 const SLEEP_MIN_NIGHTS = 10;
 
 const mean = (v: number[]) => v.reduce((a, b) => a + b, 0) / v.length;
+const sd = (v: number[]) => {
+  const m = mean(v);
+  return Math.sqrt(v.reduce((s, x) => s + (x - m) ** 2, 0) / (v.length - 1));
+};
 const median = (v: number[]) => {
   const s = [...v].sort((a, b) => a - b);
   const m = s.length >> 1;
@@ -30,17 +42,19 @@ type Row = Pick<Wellness, "id" | "atl" | "hrv" | "sleepSecs" | "fatigue" | "stre
 /** Signals for `today`, from the rows up to and including it. Each needs several days; one bad morning never counts. */
 export function earlySignals(rows: Row[], today: string): Signal[] {
   const past = rows
-    .filter((r) => r.id <= today && r.id > addDays(today, -35))
+    .filter((r) => r.id <= today && r.id > addDays(today, -7 - HRV_BASE_DAYS))
     .sort((a, b) => b.id.localeCompare(a.id));
   const inWeek = (r: Row) => r.id > addDays(today, -7);
   const signals: Signal[] = [];
 
-  const week = past.filter((r) => inWeek(r) && r.hrv != null).map((r) => r.hrv!);
-  const base = past.filter((r) => !inWeek(r) && r.hrv != null).map((r) => r.hrv!);
+  const ln = (r: Row) => Math.log(r.hrv!);
+  const week = past.filter((r) => inWeek(r) && r.hrv != null && r.hrv > 0).map(ln);
+  const base = past.filter((r) => !inWeek(r) && r.hrv != null && r.hrv > 0).map(ln);
   if (
     week.length >= HRV_MIN_WEEK &&
     base.length >= HRV_MIN_BASE &&
-    mean(week) < mean(base) * (1 - HRV_DROP)
+    // The week's median, so one odd reading can't raise or hide the signal.
+    median(week) < mean(base) - HRV_SWC * Math.max(sd(base), HRV_MIN_LN_SD)
   ) {
     const atlNow = past.find((r) => r.id === today)?.atl ?? past[0]?.atl;
     const atlBefore = past.find((r) => r.id === addDays(today, -7))?.atl;
@@ -52,34 +66,22 @@ export function earlySignals(rows: Row[], today: string): Signal[] {
             "HRV below your usual for a week, while load went up.",
             "HRV sotto il tuo solito da una settimana, mentre il carico è salito.",
           )
-        : t(
-            "HRV below your usual for a week.",
-            "HRV sotto il tuo solito da una settimana.",
-          ),
+        : t("HRV below your usual for a week.", "HRV sotto il tuo solito da una settimana."),
     });
   }
 
   const feel: ["fatigue" | "stress" | "mood", string][] = [
     [
       "fatigue",
-      t(
-        "Fatigue high in 3 of the last 4 check-ins.",
-        "Fatica alta in 3 degli ultimi 4 check-in.",
-      ),
+      t("Fatigue high in 3 of the last 4 check-ins.", "Fatica alta in 3 degli ultimi 4 check-in."),
     ],
     [
       "stress",
-      t(
-        "Stress high in 3 of the last 4 check-ins.",
-        "Stress alto in 3 degli ultimi 4 check-in.",
-      ),
+      t("Stress high in 3 of the last 4 check-ins.", "Stress alto in 3 degli ultimi 4 check-in."),
     ],
     [
       "mood",
-      t(
-        "Mood low in 3 of the last 4 check-ins.",
-        "Umore basso in 3 degli ultimi 4 check-in.",
-      ),
+      t("Mood low in 3 of the last 4 check-ins.", "Umore basso in 3 degli ultimi 4 check-in."),
     ],
   ];
   for (const [key, text] of feel) {

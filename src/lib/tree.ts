@@ -3,7 +3,15 @@ import { parseISO } from "date-fns";
 import { format, t } from "./i18n";
 import { activityKind, type Kind } from "./activity-kind";
 import type { Activity, OffKind, PlannedEvent, Wellness } from "./intervals";
-import { advice, capForLoad, formScore, readinessFor, type LoadCheck } from "./readiness";
+import {
+  advice,
+  capForLoad,
+  formPercent,
+  formScore,
+  readinessFor,
+  type Confidence,
+  type LoadCheck,
+} from "./readiness";
 import { earlySignals, type Signal } from "./signals";
 import { addDays, computeForm, formZone } from "./training";
 
@@ -109,8 +117,10 @@ export type Weather = "sun" | "partly" | "clouds" | "rain";
 
 export type Crown = {
   score: number | null;
-  /** True until today's check-in is done: the score comes from HRV, sleep and form only. */
+  /** True until today's check-in is done (the score comes from HRV, sleep and form only), or with too little data. */
   estimated: boolean;
+  /** How much the score has behind it: inputs present and how well each knows your normal. */
+  confidence: Confidence;
   season: Season | null;
   /** How far through its season the crown is, 0 → 1 from the worse neighbour to the better (see seasonPhase). */
   seasonPhase: number;
@@ -122,6 +132,8 @@ export type Crown = {
   ctl: number | null;
   atl: number | null;
   form: number | null;
+  /** Form as % of fitness, which the sky follows. */
+  formPct: number | null;
   weather: Weather | null;
   /** How fair the weather is within its kind, 0 → 1 toward the next better sky (see weatherPhase). */
   weatherPhase: number;
@@ -250,7 +262,14 @@ export function buildDays(
         brioches: a.brioches ?? 0, // older cached rows have no count
       };
     });
-    days.push({ date: d, ctl, trunk: 0, branches, budSide: turn % 2 ? -1 : 1, off: off.get(d) ?? null });
+    days.push({
+      date: d,
+      ctl,
+      trunk: 0,
+      branches,
+      budSide: turn % 2 ? -1 : 1,
+      off: off.get(d) ?? null,
+    });
   }
   // Widths need the whole history first: each day is ranked against every other day.
   const sorted = days.flatMap((d) => (d.ctl != null ? [d.ctl] : [])).sort((a, b) => a - b);
@@ -265,7 +284,9 @@ const weekStart = (date: string) => {
 
 const offOf = (ds: TreeDay[]): TreeWeek["off"] => {
   const off = ds.flatMap((d) => (d.off ? [d.off] : []));
-  return off.length ? { days: off.length, kind: off.includes("INJURED") ? "INJURED" : "SICK" } : null;
+  return off.length
+    ? { days: off.length, kind: off.includes("INJURED") ? "INJURED" : "SICK" }
+    : null;
 };
 
 /** Days folded into Monday–Sunday weeks, newest first, with build/rest chapters from the load trend. */
@@ -442,7 +463,7 @@ const leavesFor = (season: Season, phase: number) => {
   return Math.round(a + (b - a) * phase);
 };
 
-/** Form → the sky above the crown, on intervals.icu's form zones. */
+/** Form (% of fitness) → the sky above the crown, on intervals.icu's form zones. */
 export function weatherOf(form: number): Weather {
   const zone = formZone(form);
   return zone === "High risk"
@@ -454,7 +475,7 @@ export function weatherOf(form: number): Weather {
         : "sun";
 }
 
-/** Form span of each sky, on intervals.icu's form zones (the open ends are cut at a plausible extreme). */
+/** Form span (% of fitness) of each sky, on intervals.icu's form zones (the open ends cut at a plausible extreme). */
 const WEATHER_SPAN: Record<Weather, [number, number]> = {
   rain: [-50, -30],
   clouds: [-30, -10],
@@ -521,7 +542,11 @@ const BREAK_DAYS = 14;
  * Coming back from injury, illness or a long break: a sick/injured stretch that ended in the last six weeks, or two
  * weeks or more without training in the last eight. The load limits are stricter then.
  */
-export function returningFromBreak(acts: Activity[], offEvents: PlannedEvent[], today: string): boolean {
+export function returningFromBreak(
+  acts: Activity[],
+  offEvents: PlannedEvent[],
+  today: string,
+): boolean {
   const since = addDays(today, -RETURN_DAYS);
   if (offEvents.some((e) => (e.end ?? e.date) >= since && e.date <= today)) return true;
   const days = new Set(acts.map(dayOf));
@@ -542,15 +567,18 @@ export function crownFor(
   const wellness = morningWellness(allWellness, acts, today);
   const row = wellness.find((w) => w.id === today);
   const form = row?.ctl != null && row.atl != null ? computeForm(row.ctl, row.atl) : null;
+  const formPct = row?.ctl != null && row.atl != null ? formPercent(row.ctl, row.atl) : null;
   const checkedIn = !!row && (row.sleepQuality ?? row.fatigue ?? row.stress ?? row.mood) != null;
   const r = readinessFor(wellness, today, returningFromBreak(acts, offEvents, today));
   // Without readiness inputs the score comes from form alone, still under the load cap.
-  const score = r.score ?? (form != null ? capForLoad(Math.round(formScore(form)), r.load) : null);
+  const score =
+    r.score ?? (formPct != null ? capForLoad(Math.round(formScore(formPct)), r.load) : null);
   const season = score != null ? seasonOf(score) : null;
   const phase = score != null ? seasonPhase(score) : 0;
   return {
     score,
-    estimated: !checkedIn,
+    estimated: !checkedIn || r.confidence === "low",
+    confidence: r.confidence,
     season,
     seasonPhase: phase,
     seasonLabel: season ? seasonLabel(season, phase) : null,
@@ -559,8 +587,9 @@ export function crownFor(
     ctl: row?.ctl ?? null,
     atl: row?.atl ?? null,
     form,
-    weather: form != null ? weatherOf(form) : null,
-    weatherPhase: form != null ? weatherPhase(form) : 0,
+    formPct,
+    weather: formPct != null ? weatherOf(formPct) : null,
+    weatherPhase: formPct != null ? weatherPhase(formPct) : 0,
     // Load first: it's the one that already holds readiness down.
     signals: [
       ...r.load.reasons.map((text) => ({ key: "load" as const, text })),
@@ -627,7 +656,13 @@ export const leafSpots = (leaves: number, from: number) =>
  * the leaves on top of the branch and from each other, never against the trunk or past the tip. Greedy max–min over
  * a fine grid, so a single bird on a flat ride lands on bare wood, and many birds spread out.
  */
-export function perchSpots(n: number, leaves: number, from: number, length: number, bird: number): number[] {
+export function perchSpots(
+  n: number,
+  leaves: number,
+  from: number,
+  length: number,
+  bird: number,
+): number[] {
   if (n <= 0 || length <= 0) return [];
   const lo = Math.min(0.5, (bird * 0.8) / length);
   const hi = Math.max(lo, 1 - (bird * 0.5) / length);
@@ -643,7 +678,10 @@ export function perchSpots(n: number, leaves: number, from: number, length: numb
     let best = { t: (lo + hi) / 2, score: -Infinity };
     for (let t = lo; t <= hi + 1e-9; t += 0.005) {
       const px = t * length;
-      const fromLeaves = Math.min(Infinity, ...blocks.map((b) => Math.abs(b.t * length - px) - b.room));
+      const fromLeaves = Math.min(
+        Infinity,
+        ...blocks.map((b) => Math.abs(b.t * length - px) - b.room),
+      );
       const fromBirds = Math.min(Infinity, ...spots.map((s) => Math.abs(s * length - px) - bird));
       // Room from other birds comes first: when a branch is crowded a bird may half-cover a leaf, never a bird.
       // Ties go outward, where a bird reads as sitting on the branch rather than on the trunk.

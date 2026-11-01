@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { clear as clearIdb } from "idb-keyval";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Panel } from "@/components/StatCard";
@@ -14,6 +14,9 @@ import { syncSegments } from "@/hooks/use-segments";
 import { githubUser } from "@/lib/gist";
 import { format, lang, setLang, t } from "@/lib/i18n";
 import { getAthlete } from "@/lib/intervals";
+import { activitiesQuery, wellnessQuery } from "@/lib/queries";
+import { ACCURACY_MIN_RIDES, HRV_BAND_DAYS, readinessAccuracy } from "@/lib/readiness";
+import { addDays, isoDate } from "@/lib/training";
 import QRCode from "qrcode";
 import { historyYears, segmentEngine, startSegments } from "@/lib/segment-app";
 import { canShareSetup, setupLink } from "@/lib/setup-link";
@@ -93,7 +96,10 @@ function IntervalsKey() {
             autoComplete="off"
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder={t("From intervals.icu → Settings → Developer", "Da intervals.icu → Settings → Developer")}
+            placeholder={t(
+              "From intervals.icu → Settings → Developer",
+              "Da intervals.icu → Settings → Developer",
+            )}
             required
           />
         </div>
@@ -148,7 +154,12 @@ function GithubSync() {
       const u = await githubUser();
       setUser(u.login);
       await syncSegments();
-      toast.success(t("Segments synced with your private gist", "Segmenti sincronizzati con il tuo gist privato"));
+      toast.success(
+        t(
+          "Segments synced with your private gist",
+          "Segmenti sincronizzati con il tuo gist privato",
+        ),
+      );
     } catch {
       toast.error(
         t(
@@ -210,7 +221,11 @@ function GithubSync() {
               {t("Disconnect", "Disconnetti")}
             </Button>
           )}
-          {user && <span className="text-xs text-muted-foreground">{t("Connected as", "Connesso come")} {user}</span>}
+          {user && (
+            <span className="text-xs text-muted-foreground">
+              {t("Connected as", "Connesso come")} {user}
+            </span>
+          )}
         </div>
       </form>
     </Panel>
@@ -245,8 +260,8 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
   {
     term: t("Crown", "Chioma"),
     text: t(
-      "Today's readiness (HRV, sleep, form and check-in) as a season. Tap it for today's advice and the check-in.",
-      "La prontezza di oggi (HRV, sonno, forma e check-in) come stagione. Toccala per il consiglio del giorno e il check-in.",
+      "Today's readiness (HRV, sleep, form and check-in) as a season, each measured against your own normal: HRV against its 60-day range, sleep against your usual, answers against how you usually answer. Tap it for today's advice and the check-in.",
+      "La prontezza di oggi (HRV, sonno, forma e check-in) come stagione, ognuno misurato rispetto al tuo normale: HRV sul suo intervallo di 60 giorni, sonno sul tuo solito, risposte su come rispondi di solito. Toccala per il consiglio del giorno e il check-in.",
     ),
     points: [
       t("Summer (≥ 75): ready for intensity", "Estate (≥ 75): pronto per l'intensità"),
@@ -261,12 +276,15 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
   },
   {
     term: t("Sky", "Cielo"),
-    text: t("Form (TSB):", "Forma (TSB):"),
+    text: t(
+      "Form (TSB) as a share of fitness, like intervals.icu: −20 means more at fitness 40 than at 100.",
+      "Forma (TSB) in percentuale della forma fisica, come intervals.icu: −20 pesa di più a forma fisica 40 che a 100.",
+    ),
     points: [
-      t("Sun: fresh", "Sole: fresco"),
-      t("Sun and clouds: neutral", "Sole e nuvole: neutro"),
-      t("Clouds: training hard", "Nuvole: carico intenso"),
-      t("Rain: overreached", "Pioggia: sovraccarico"),
+      t("Sun (over +5%): fresh", "Sole (oltre +5%): fresco"),
+      t("Sun and clouds (−10% to +5%): neutral", "Sole e nuvole (da −10% a +5%): neutro"),
+      t("Clouds (−30% to −10%): training hard", "Nuvole (da −30% a −10%): carico intenso"),
+      t("Rain (under −30%): overreached", "Pioggia (sotto −30%): sovraccarico"),
     ],
   },
   {
@@ -303,8 +321,8 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
         "La tua potenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: la mancanza più grande che serve alle gare",
       ),
       t(
-        "Base first when steady rides decouple, Z2 time drops or fitness is well below your usual",
-        "Prima la base se le uscite regolari si disaccoppiano, il tempo in Z2 cala o la forma fisica è molto sotto il solito",
+        "Base first when steady rides decouple, Z2 time drops, fitness is well below your usual, or your 20 min power fades over 15% after 30 kJ/kg (Analysis → Durability)",
+        "Prima la base se le uscite regolari si disaccoppiano, il tempo in Z2 cala, la forma fisica è molto sotto il solito o la potenza sui 20 min cala oltre il 15% dopo 30 kJ/kg (Analisi → Resistenza alla fatica)",
       ),
       t(
         "A block lasts at least two weeks; around races: taper 10 days before an A, easy 3 days before a B, recovery the day after",
@@ -314,7 +332,10 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
   },
   {
     term: t("Buds above the crown", "Gemme sopra la chioma"),
-    text: t("Workouts planned for today in intervals.icu.", "Allenamenti pianificati per oggi su intervals.icu."),
+    text: t(
+      "Workouts planned for today in intervals.icu.",
+      "Allenamenti pianificati per oggi su intervals.icu.",
+    ),
   },
   {
     term: t("Trunk", "Tronco"),
@@ -368,7 +389,10 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
   },
   {
     term: t("Weeks", "Settimane"),
-    text: t("Older history folds into one bough per week:", "Lo storico più vecchio si raccoglie in un ramo per settimana:"),
+    text: t(
+      "Older history folds into one bough per week:",
+      "Lo storico più vecchio si raccoglie in un ramo per settimana:",
+    ),
     points: [
       t(
         "Golden bark: building (load above the last 4 weeks)",
@@ -379,13 +403,19 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
   },
   {
     term: t("Roots", "Radici"),
-    text: t("Where your intervals.icu history begins.", "Dove inizia il tuo storico su intervals.icu."),
+    text: t(
+      "Where your intervals.icu history begins.",
+      "Dove inizia il tuo storico su intervals.icu.",
+    ),
   },
   {
     term: t("Years", "Anni"),
     text: t("The trunk cut across:", "Il tronco in sezione:"),
     points: [
-      t("One ring per year, the inner ones older", "Un anello per anno, i più interni sono i più vecchi"),
+      t(
+        "One ring per year, the inner ones older",
+        "Un anello per anno, i più interni sono i più vecchi",
+      ),
       t("A wider ring is a bigger year", "Un anello più largo è un anno più intenso"),
       t("Darker grain is a heavier week", "Le venature scure sono le settimane più pesanti"),
       t(
@@ -454,7 +484,57 @@ function TreeGuide() {
           ))}
         </dl>
       )}
+      {open && <ReadinessCheck />}
     </Panel>
+  );
+}
+
+/** Days of rides the accuracy check looks back over. */
+const CHECK_DAYS = 90;
+
+/** Has readiness matched how your rides felt? The score's accuracy measured on your own history, not assumed. */
+function ReadinessCheck() {
+  // Readiness for 90 days back needs the 60 days of HRV before them.
+  const { data: wellness } = useQuery(wellnessQuery(CHECK_DAYS + HRV_BAND_DAYS));
+  const { data: acts } = useQuery(activitiesQuery(CHECK_DAYS));
+  const acc = useMemo(
+    () =>
+      wellness && acts
+        ? readinessAccuracy(wellness, acts, addDays(isoDate(new Date()), -CHECK_DAYS))
+        : null,
+    [wellness, acts],
+  );
+  if (!acc) return null;
+  const verdict =
+    acc.r == null
+      ? null
+      : acc.r >= 0.4
+        ? t("strong: trust it", "forte: fidati")
+        : acc.r >= 0.2
+          ? t("moderate: a useful guide", "moderata: una guida utile")
+          : acc.r >= 0
+            ? t("weak: listen to your legs too", "debole: ascolta anche le gambe")
+            : t(
+                "not matching: check HRV and sleep data",
+                "non corrisponde: controlla i dati di HRV e sonno",
+              );
+  return (
+    <div className="mt-4 rounded-lg bg-secondary/60 p-3 text-sm">
+      <div className="font-medium">
+        {t("Is readiness right for you?", "La prontezza funziona per te?")}
+      </div>
+      <p className="mt-1 text-muted-foreground">
+        {acc.r == null
+          ? t(
+              `Rate how your rides felt on intervals.icu: after ${ACCURACY_MIN_RIDES} rated rides (${acc.rides} so far) this compares them with that morning's readiness.`,
+              `Valuta come sono andate le uscite su intervals.icu: dopo ${ACCURACY_MIN_RIDES} uscite valutate (finora ${acc.rides}) qui si confrontano con la prontezza di quella mattina.`,
+            )
+          : t(
+              `Over ${acc.rides} rated rides in the last ${CHECK_DAYS} days, readiness and how the ride felt match with a correlation of ${acc.r.toFixed(2)}: ${verdict}.`,
+              `Su ${acc.rides} uscite valutate negli ultimi ${CHECK_DAYS} giorni, prontezza e sensazioni dell'uscita corrispondono con una correlazione di ${acc.r.toFixed(2)}: ${verdict}.`,
+            )}
+      </p>
+    </div>
   );
 }
 
@@ -510,9 +590,13 @@ function SegmentAnalysis() {
             `${snap.rides} attività analizzate · ${snap.groups.length} salite trovate`,
           )}
           {usage != null &&
-            t(` · ${(usage / 1e6).toFixed(0)} MB stored by Cirmolo`, ` · ${(usage / 1e6).toFixed(0)} MB salvati da Cirmolo`)}
+            t(
+              ` · ${(usage / 1e6).toFixed(0)} MB stored by Cirmolo`,
+              ` · ${(usage / 1e6).toFixed(0)} MB salvati da Cirmolo`,
+            )}
           {snap.lastSync &&
-            t(" · last sync ", " · ultima sincronizzazione ") + format(snap.lastSync, "d MMM yyyy HH:mm")}
+            t(" · last sync ", " · ultima sincronizzazione ") +
+              format(snap.lastSync, "d MMM yyyy HH:mm")}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button disabled={busy} onClick={() => void segmentEngine.sync()}>
@@ -602,7 +686,9 @@ function PhoneSetup() {
             )}
           </p>
         ) : !key ? (
-          <p className="text-xs text-muted-foreground">{t("Connect intervals.icu above first.", "Prima collega intervals.icu qui sopra.")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("Connect intervals.icu above first.", "Prima collega intervals.icu qui sopra.")}
+          </p>
         ) : svg ? (
           <div className="space-y-2">
             <div
@@ -614,7 +700,10 @@ function PhoneSetup() {
             <p className="text-center text-xs text-muted-foreground">
               {t("Contains: intervals.icu key", "Contiene: chiave intervals.icu")}
               {token ? t(" · GitHub token", " · token GitHub") : ""}
-              {t(` · history setting. Hides in ${left} s.`, ` · storico. Si nasconde tra ${left} s.`)}
+              {t(
+                ` · history setting. Hides in ${left} s.`,
+                ` · storico. Si nasconde tra ${left} s.`,
+              )}
             </p>
             <Button variant="outline" className="w-full" onClick={() => setSvg(null)}>
               {t("Hide", "Nascondi")}
@@ -655,7 +744,11 @@ function Storage() {
         <p>
           {t("Protected from browser clean-up:", "Protetto dalla pulizia del browser:")}{" "}
           <span className="stat-num">
-            {persisted == null ? t("unknown", "sconosciuto") : persisted ? t("yes", "sì") : t("no", "no")}
+            {persisted == null
+              ? t("unknown", "sconosciuto")
+              : persisted
+                ? t("yes", "sì")
+                : t("no", "no")}
           </span>
         </p>
         <Button

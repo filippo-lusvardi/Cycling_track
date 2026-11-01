@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Minus, Plus } from "lucide-react";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLocalStore } from "@/hooks/use-local-store";
 import type { Wellness, WellnessEntry } from "@/lib/intervals";
@@ -53,18 +54,36 @@ export function useCheckInState(date: string) {
   return [state, (s: CheckInState) => setState(() => s)] as const;
 }
 
-/** Sleep and how you feel for one day, written to intervals.icu wellness. */
-export function CheckInForm({ date, row, onSaved }: { date: string; row: Wellness | undefined; onSaved?: () => void }) {
+/**
+ * Sleep and how you feel for one day, written to intervals.icu wellness. "Add weight" logs the day's weight with it
+ * (or alone); with `onSkip`, a Skip button closes the check-in for the day without saving anything.
+ */
+export function CheckInForm({
+  date,
+  row,
+  onSaved,
+  onSkip,
+}: {
+  date: string;
+  row: Wellness | undefined;
+  onSaved?: () => void;
+  onSkip?: () => void;
+}) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   // Sleep in half-hours; null until set. Only sent back if changed, so the watch's exact value isn't rounded away.
-  const [halves, setHalves] = useState<number | null>(() => (row?.sleepSecs ? Math.round(row.sleepSecs / 1800) : null));
+  const [halves, setHalves] = useState<number | null>(() =>
+    row?.sleepSecs ? Math.round(row.sleepSecs / 1800) : null,
+  );
   const [sleepTouched, setSleepTouched] = useState(false);
   const [vals, setVals] = useState<Partial<Record<ScaleKey, number>>>(() => {
     const v: Partial<Record<ScaleKey, number>> = {};
     for (const s of SCALES) if (row?.[s.key] != null) v[s.key] = row[s.key]!;
     return v;
   });
+  // The day's weight, shown once asked for (or already logged); kept as typed, "," or ".".
+  const [weight, setWeight] = useState(() => (row?.weight != null ? String(row.weight) : ""));
+  const [showWeight, setShowWeight] = useState(row?.weight != null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,6 +92,14 @@ export function CheckInForm({ date, row, onSaved }: { date: string; row: Wellnes
     for (const s of SCALES) {
       const v = vals[s.key];
       if (v != null) entry[s.key] = v;
+    }
+    const kg = Number(weight.replace(",", ".").trim());
+    if (showWeight && weight.trim()) {
+      if (!(kg >= 20 && kg <= 300)) {
+        toast.error(t("Enter a weight between 20 and 300 kg", "Inserisci un peso tra 20 e 300 kg"));
+        return;
+      }
+      entry.weight = kg;
     }
     if (Object.keys(entry).length === 1) {
       toast.error(t("Answer at least one question", "Rispondi ad almeno una domanda"));
@@ -92,7 +119,12 @@ export function CheckInForm({ date, row, onSaved }: { date: string; row: Wellnes
       await qc.invalidateQueries({ queryKey: ["wellness"] });
       onSaved?.();
     } catch {
-      toast.error(t("Couldn't save. Check the values and try again", "Salvataggio non riuscito. Controlla i valori e riprova"));
+      toast.error(
+        t(
+          "Couldn't save. Check the values and try again",
+          "Salvataggio non riuscito. Controlla i valori e riprova",
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -124,11 +156,16 @@ export function CheckInForm({ date, row, onSaved }: { date: string; row: Wellnes
                   onClick={() => setVals((v) => ({ ...v, [s.key]: on ? undefined : level }))}
                   className={cn(
                     "flex items-center justify-center gap-1.5 rounded-md border px-2 py-2 text-xs transition-colors",
-                    on ? "border-transparent bg-secondary text-foreground" : "border-border text-muted-foreground hover:text-foreground",
+                    on
+                      ? "border-transparent bg-secondary text-foreground"
+                      : "border-border text-muted-foreground hover:text-foreground",
                   )}
                   style={on ? { boxShadow: `inset 0 0 0 1.5px ${LEVEL_TONE[i]}` } : undefined}
                 >
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: LEVEL_TONE[i] }} />
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: LEVEL_TONE[i] }}
+                  />
                   {o}
                 </button>
               );
@@ -136,9 +173,42 @@ export function CheckInForm({ date, row, onSaved }: { date: string; row: Wellnes
           </div>
         </div>
       ))}
+      {showWeight && (
+        <div className="space-y-1">
+          <Label htmlFor="checkin-weight">{t("Weight (kg)", "Peso (kg)")}</Label>
+          <Input
+            id="checkin-weight"
+            inputMode="decimal"
+            placeholder="72.4"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            autoFocus={row?.weight == null}
+          />
+        </div>
+      )}
       <Button type="submit" className="w-full" disabled={busy}>
         {busy ? t("Saving…", "Salvataggio…") : t("Save check-in", "Salva check-in")}
       </Button>
+      {(!showWeight || onSkip) && (
+        <div className="grid grid-cols-2 gap-2">
+          {!showWeight && (
+            <Button type="button" variant="secondary" onClick={() => setShowWeight(true)}>
+              {t("Add weight", "Aggiungi peso")}
+            </Button>
+          )}
+          {onSkip && (
+            <Button
+              type="button"
+              variant="ghost"
+              className={cn(showWeight && "col-span-2")}
+              onClick={onSkip}
+              disabled={busy}
+            >
+              {t("Skip today", "Salta oggi")}
+            </Button>
+          )}
+        </div>
+      )}
     </form>
   );
 }
@@ -147,22 +217,50 @@ const MIN_HALVES = 6; // 3 h
 const MAX_HALVES = 24; // 12 h
 
 /** Hours slept with − / + buttons, 30 minutes per tap. Starts at 7 h when nothing is synced yet. */
-function SleepStepper({ halves, onChange }: { halves: number | null; onChange: (h: number) => void }) {
-  const step = (d: number) => onChange(Math.min(MAX_HALVES, Math.max(MIN_HALVES, (halves ?? 14) + (halves == null ? 0 : d))));
+function SleepStepper({
+  halves,
+  onChange,
+}: {
+  halves: number | null;
+  onChange: (h: number) => void;
+}) {
+  const step = (d: number) =>
+    onChange(Math.min(MAX_HALVES, Math.max(MIN_HALVES, (halves ?? 14) + (halves == null ? 0 : d))));
   const h = halves != null ? Math.floor(halves / 2) : null;
   return (
     <div className="flex items-center gap-3">
-      <Button type="button" variant="secondary" size="icon" className="h-11 w-11" aria-label={t("30 minutes less", "30 minuti in meno")} disabled={halves != null && halves <= MIN_HALVES} onClick={() => step(-1)}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon"
+        className="h-11 w-11"
+        aria-label={t("30 minutes less", "30 minuti in meno")}
+        disabled={halves != null && halves <= MIN_HALVES}
+        onClick={() => step(-1)}
+      >
         <Minus />
       </Button>
       <button
         type="button"
         onClick={() => halves == null && step(0)}
-        className={cn("stat-num w-28 text-center text-2xl font-semibold", halves == null && "text-base font-normal text-muted-foreground")}
+        className={cn(
+          "stat-num w-28 text-center text-2xl font-semibold",
+          halves == null && "text-base font-normal text-muted-foreground",
+        )}
       >
-        {halves == null ? t("tap to set", "tocca per impostare") : `${h} h ${halves % 2 ? "30" : "00"}`}
+        {halves == null
+          ? t("tap to set", "tocca per impostare")
+          : `${h} h ${halves % 2 ? "30" : "00"}`}
       </button>
-      <Button type="button" variant="secondary" size="icon" className="h-11 w-11" aria-label={t("30 minutes more", "30 minuti in più")} disabled={halves != null && halves >= MAX_HALVES} onClick={() => step(1)}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon"
+        className="h-11 w-11"
+        aria-label={t("30 minutes more", "30 minuti in più")}
+        disabled={halves != null && halves >= MAX_HALVES}
+        onClick={() => step(1)}
+      >
         <Plus />
       </Button>
     </div>
@@ -183,7 +281,12 @@ export function DailyCheckIn() {
     const flush = () =>
       flushWellnessQueue().then((n) => {
         if (n) {
-          toast.success(t("Offline check-in synced to intervals.icu", "Check-in offline sincronizzato su intervals.icu"));
+          toast.success(
+            t(
+              "Offline check-in synced to intervals.icu",
+              "Check-in offline sincronizzato su intervals.icu",
+            ),
+          );
           void qc.invalidateQueries({ queryKey: ["wellness"] });
         }
       });
@@ -202,7 +305,14 @@ export function DailyCheckIn() {
         "Come hai dormito e come ti senti? Alimenta la prontezza di oggi.",
       )}
     >
-      <CheckInForm key={row?.id ?? "none"} date={today} row={row} onSaved={() => setState("done")} />
+      <CheckInForm
+        key={row?.id ?? "none"}
+        date={today}
+        row={row}
+        onSaved={() => setState("done")}
+        // Closes it for today on this device; it can still be done from the Tree.
+        onSkip={() => setState("dismissed")}
+      />
     </ResponsiveDialog>
   );
 }

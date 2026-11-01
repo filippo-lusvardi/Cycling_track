@@ -1,6 +1,7 @@
 // What to train: the focus for the current block, from your upcoming races and your own power, compared only
 // with yourself. Readiness still decides when; this decides what. Pure.
 import { parseISO } from "date-fns";
+import type { DurabilityProfile } from "./durability";
 import { t } from "./i18n";
 import type { Activity, PowerCurve, RideZones, Wellness } from "./intervals";
 import {
@@ -131,7 +132,12 @@ const median = (v: number[]) => {
 };
 
 /** Reasons the base comes first, whatever the races: no crown without a trunk. Empty when the base is solid. */
-export function baseGate(acts: Activity[], wellness: Wellness[], today: string): string[] {
+export function baseGate(
+  acts: Activity[],
+  wellness: Wellness[],
+  today: string,
+  durability?: DurabilityProfile | null,
+): string[] {
   const reasons: string[] = [];
   const steady = acts
     .filter(
@@ -188,8 +194,21 @@ export function baseGate(acts: Activity[], wellness: Wellness[], today: string):
         `La forma fisica ${Math.round(now)} è molto sotto il tuo solito ${Math.round(median(year))}.`,
       ),
     );
+
+  // Durability: 20 min power after 30 kJ/kg, from at least 3 long rides. Amateurs commonly lose 10–15% there.
+  const fade = (durability?.reached?.[30] ?? 0) >= 3 ? durability!.drop[30][2] : null;
+  if (fade != null && fade > DURABILITY_FADE)
+    reasons.push(
+      t(
+        `Your 20 min power drops ${fade.toFixed(0)}% after 30 kJ/kg of work (over ${DURABILITY_FADE}%).`,
+        `La tua potenza sui 20 min cala del ${fade.toFixed(0)}% dopo 30 kJ/kg di lavoro (oltre il ${DURABILITY_FADE}%).`,
+      ),
+    );
   return reasons;
 }
+
+/** Fade (%) of 20 min power after 30 kJ/kg beyond which base comes first. */
+const DURABILITY_FADE = 15;
 
 export type FocusResult = {
   focus: Focus;
@@ -207,6 +226,7 @@ export function computeFocus(input: {
   wellness: Wellness[];
   c42: PowerCurve | undefined;
   c1y: PowerCurve | undefined;
+  durability?: DurabilityProfile | null;
 }): FocusResult {
   const demand = seasonDemand(input.races, input.today);
   const { gap, ratio } = powerGaps(input.c42, input.c1y);
@@ -217,7 +237,7 @@ export function computeFocus(input: {
       demand[f] * (gap[f] + GAP_FLOOR + (lazy.includes(f) ? NEGLECT_BONUS : 0)),
     ]),
   ) as Profile;
-  const base = baseGate(input.acts, input.wellness, input.today);
+  const base = baseGate(input.acts, input.wellness, input.today, input.durability);
   const focus = base.length ? "base" : FOCUSES.reduce((a, b) => (score[b] > score[a] ? b : a));
   return { focus, demand, ratio, score, base, neglected: lazy };
 }
@@ -304,7 +324,9 @@ export function focusSession(input: {
   const timed = lead?.info && KINDS[lead.info.kind].timed ? lead : undefined;
   // Race pace only when the block trains what that effort is mostly made of (its two biggest focuses).
   const main = timed
-    ? [...FOCUSES].sort((a, b) => profileFor(timed.info!)[b] - profileFor(timed.info!)[a]).slice(0, 2)
+    ? [...FOCUSES]
+        .sort((a, b) => profileFor(timed.info!)[b] - profileFor(timed.info!)[a])
+        .slice(0, 2)
     : [];
   if (timed && input.focus !== "base" && main.includes(input.focus)) {
     // Race-specific: efforts close to the race's length at the power you hold for that long.

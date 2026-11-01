@@ -8,7 +8,7 @@ export function computeForm(ctl: number, atl: number): number {
   return Math.round((ctl - atl) * 10) / 10;
 }
 
-/** Form zones as used by intervals.icu. */
+/** Form zones as used by intervals.icu: Cirmolo passes form as % of fitness (see readiness formPercent). */
 export function formZone(form: number): FormZone {
   if (form < -30) return "High risk";
   if (form < -10) return "Optimal";
@@ -62,11 +62,27 @@ export function addDays(date: string, days: number): string {
   return isoDate(d);
 }
 
-/** Latest weight logged on or before a date (rows sorted by date, as intervals.icu returns them). */
-export function weightOn(rows: { id: string; weight: number | null }[], date: string): number | null {
-  let w: number | null = null;
-  for (const r of rows) if (r.id <= date.slice(0, 10) && r.weight != null) w = r.weight;
-  return w;
+/** Days before a ride whose weigh-ins stand in when there is none on the day. */
+const WEIGHT_DAYS = 3;
+
+/**
+ * Weight for per-kg numbers of a ride on `date`: the weigh-in of that day, else the mean of those in the 3 days
+ * before it, else `fallback` (the weight in the intervals.icu profile).
+ */
+export function weightFor(
+  rows: { id: string; weight: number | null }[],
+  date: string,
+  fallback: number | null = null,
+): number | null {
+  const day = date.slice(0, 10);
+  const same = rows.find((r) => r.id === day && r.weight != null);
+  if (same) return same.weight;
+  const from = addDays(day, -WEIGHT_DAYS);
+  const near = rows
+    .filter((r) => r.id >= from && r.id < day && r.weight != null)
+    .map((r) => r.weight!);
+  if (near.length) return near.reduce((a, b) => a + b, 0) / near.length;
+  return fallback;
 }
 
 // Typical intensity factor for each session RPE (CR-10); load = hours × IF² × 100, like TSS.

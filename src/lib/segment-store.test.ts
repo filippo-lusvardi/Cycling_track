@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 import { liveSegments, mergeSegments, type SavedSegment } from "./segment-store";
 
 const seg = (id: string, updatedAt: number, extra: Partial<SavedSegment> = {}): SavedSegment => ({
-  id, name: id, source: "custom", lat1: 0, lng1: 0, lat2: 0, lng2: 0, length: 1000, starred: false, updatedAt, ...extra,
+  id,
+  name: id,
+  source: "custom",
+  lat1: 0,
+  lng1: 0,
+  lat2: 0,
+  lng2: 0,
+  length: 1000,
+  starred: false,
+  updatedAt,
+  ...extra,
 });
 
 describe("segment store merge", () => {

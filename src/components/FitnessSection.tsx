@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { Panel, StatCard } from "@/components/StatCard";
 import { wellnessQuery } from "@/lib/queries";
+import { formPercent } from "@/lib/readiness";
 import { computeForm, formZoneLabel } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
@@ -27,7 +28,9 @@ export function FitnessSection() {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">{t("Fitness, fatigue & form", "Forma fisica, fatica e forma")}</h2>
+        <h2 className="text-sm font-semibold">
+          {t("Fitness, fatigue & form", "Forma fisica, fatica e forma")}
+        </h2>
         <div className="flex gap-1 rounded-lg bg-secondary p-1">
           {RANGES.map((r) => (
             <button
@@ -45,7 +48,11 @@ export function FitnessSection() {
         </div>
       </div>
       <Suspense
-        fallback={<p className="py-16 text-center text-sm text-muted-foreground">{t("Loading…", "Caricamento…")}</p>}
+        fallback={
+          <p className="py-16 text-center text-sm text-muted-foreground">
+            {t("Loading…", "Caricamento…")}
+          </p>
+        }
       >
         <FormSection days={days} />
       </Suspense>
@@ -89,7 +96,11 @@ function FormSection({ days }: { days: number }) {
           label={t("Form", "Forma")}
           tone="form"
           value={today ? Math.round(today.form) : "–"}
-          hint={today ? formZoneLabel(today.form) : undefined}
+          hint={
+            today
+              ? `${Math.round(formPercent(today.fitness, today.fatigue))}% · ${formZoneLabel(formPercent(today.fitness, today.fatigue))}`
+              : undefined
+          }
         />
         <StatCard
           label={t("Ramp rate", "Ritmo di crescita")}
@@ -103,8 +114,17 @@ function FormSection({ days }: { days: number }) {
           <MetricChart
             data={series}
             lines={[
-              { key: "fitness", label: t("Fitness (CTL)", "Forma fisica (CTL)"), color: "var(--fitness)", area: true },
-              { key: "fatigue", label: t("Fatigue (ATL)", "Fatica (ATL)"), color: "var(--fatigue)" },
+              {
+                key: "fitness",
+                label: t("Fitness (CTL)", "Forma fisica (CTL)"),
+                color: "var(--fitness)",
+                area: true,
+              },
+              {
+                key: "fatigue",
+                label: t("Fatigue (ATL)", "Fatica (ATL)"),
+                color: "var(--fatigue)",
+              },
             ]}
             tall
           />

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { addDays, computeForm, formatClock, formZone, isoDate, loadFromRpe, weightOn } from "./training";
+import {
+  addDays,
+  computeForm,
+  formatClock,
+  formZone,
+  isoDate,
+  loadFromRpe,
+  weightFor,
+} from "./training";
 
 describe("training metrics", () => {
   it("form is fitness minus fatigue", () => {
@@ -28,10 +36,20 @@ describe("training metrics", () => {
     expect(addDays("2026-10-31", 1)).toBe("2026-11-01");
     expect(addDays("2026-10-25", -1)).toBe("2026-10-24");
   });
-  it("weightOn takes the last weigh-in on or before the ride", () => {
-    const rows = [{ id: "2026-10-01", weight: 72 }, { id: "2026-10-05", weight: null }, { id: "2026-10-08", weight: 71.5 }];
-    expect(weightOn(rows, "2026-10-06T08:00:00")).toBe(72);
-    expect(weightOn(rows, "2026-09-30")).toBeNull();
+  it("weightFor takes the ride's day, else the 3 days before, else the profile weight", () => {
+    const rows = [
+      { id: "2026-10-01", weight: 72 },
+      { id: "2026-10-04", weight: 71 },
+      { id: "2026-10-05", weight: null },
+      { id: "2026-10-06", weight: 70 },
+      { id: "2026-10-08", weight: 71.5 },
+    ];
+    expect(weightFor(rows, "2026-10-08T08:00:00", 75)).toBe(71.5);
+    // 7 Oct: no weigh-in, so 4–6 Oct (71 and 70); 1 Oct is too far back.
+    expect(weightFor(rows, "2026-10-07", 75)).toBe(70.5);
+    expect(weightFor(rows, "2026-10-03", 75)).toBe(72);
+    expect(weightFor(rows, "2026-09-30", 75)).toBe(75);
+    expect(weightFor(rows, "2026-09-30")).toBeNull();
   });
   it("formatClock shows m:ss and h:mm:ss", () => {
     expect(formatClock(754)).toBe("12:34");

@@ -71,6 +71,8 @@ export type Activity = {
   max_heartrate: number | null;
   icu_intensity: number | null;
   calories: number | null;
+  /** Total work (J), for fuelling. */
+  joules?: number | null;
   average_speed: number | null;
   zoneTimes: number[];
   decoupling: number | null;
@@ -145,6 +147,7 @@ const pickActivity = (a: Record<string, unknown>): Activity => ({
   max_heartrate: (a["max_heartrate"] as number) ?? null,
   icu_intensity: (a["icu_intensity"] as number) ?? null,
   calories: (a["calories"] as number) ?? null,
+  joules: (a["icu_joules"] as number) ?? null,
   average_speed: (a["average_speed"] as number) ?? null,
   zoneTimes: zoneSecs(a),
   decoupling: (a["decoupling"] as number) ?? null,
@@ -155,8 +158,12 @@ const pickActivity = (a: Record<string, unknown>): Activity => ({
 });
 
 function zoneSecs(a: Record<string, unknown>): number[] {
-  const z = Array.isArray(a["icu_zone_times"]) ? (a["icu_zone_times"] as { id: string; secs: number }[]) : [];
-  return ["Z1", "Z2", "Z3", "Z4", "Z5", "Z6", "Z7"].map((id) => z.find((x) => x.id === id)?.secs ?? 0);
+  const z = Array.isArray(a["icu_zone_times"])
+    ? (a["icu_zone_times"] as { id: string; secs: number }[])
+    : [];
+  return ["Z1", "Z2", "Z3", "Z4", "Z5", "Z6", "Z7"].map(
+    (id) => z.find((x) => x.id === id)?.secs ?? 0,
+  );
 }
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -167,7 +174,9 @@ export type Range = z.infer<typeof rangeSchema>;
 
 export async function getAthlete() {
   const a = await icu<Record<string, unknown>>(`/athlete/0`);
-  return { id: String(a["id"]), name: (a["name"] as string) ?? null };
+  // The weight set in the intervals.icu profile: the last fallback for per-kg numbers.
+  const kg = Number(a["icu_weight"] ?? a["weight"]);
+  return { id: String(a["id"]), name: (a["name"] as string) ?? null, weight: kg > 0 ? kg : null };
 }
 
 /** The ride zones set in intervals.icu: zone tops in watts and bpm, lowest zone first; empty when not set. */
@@ -175,8 +184,12 @@ export type RideZones = { ftp: number | null; power: number[]; hr: number[] };
 
 export async function getRideZones(): Promise<RideZones> {
   const a = await icu<Record<string, unknown>>(`/athlete/0`);
-  const all = Array.isArray(a["sportSettings"]) ? (a["sportSettings"] as Record<string, unknown>[]) : [];
-  const ride = all.find((s) => Array.isArray(s["types"]) && (s["types"] as string[]).includes("Ride"));
+  const all = Array.isArray(a["sportSettings"])
+    ? (a["sportSettings"] as Record<string, unknown>[])
+    : [];
+  const ride = all.find(
+    (s) => Array.isArray(s["types"]) && (s["types"] as string[]).includes("Ride"),
+  );
   const ftp = (ride?.["ftp"] as number) ?? null;
   const pct = Array.isArray(ride?.["power_zones"]) ? (ride["power_zones"] as number[]) : [];
   const hr = Array.isArray(ride?.["hr_zones"]) ? (ride["hr_zones"] as number[]) : [];
@@ -185,13 +198,17 @@ export async function getRideZones(): Promise<RideZones> {
 
 export async function getWellness(range: Range) {
   const { oldest, newest } = rangeSchema.parse(range);
-  const rows = await icu<Record<string, unknown>[]>(`/athlete/0/wellness?oldest=${oldest}&newest=${newest}`);
+  const rows = await icu<Record<string, unknown>[]>(
+    `/athlete/0/wellness?oldest=${oldest}&newest=${newest}`,
+  );
   return rows.map(pickWellness);
 }
 
 export async function getActivities(range: Range) {
   const { oldest, newest } = rangeSchema.parse(range);
-  const rows = await icu<Record<string, unknown>[]>(`/athlete/0/activities?oldest=${oldest}&newest=${newest}`);
+  const rows = await icu<Record<string, unknown>[]>(
+    `/athlete/0/activities?oldest=${oldest}&newest=${newest}`,
+  );
   return rows
     .map(pickActivity)
     .sort((a, b) => b.start_date_local.localeCompare(a["start_date_local"]));
@@ -225,8 +242,9 @@ export async function getActivity(id: string) {
 
 const entrySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  weight: z.number().min(20).max(300).optional(),
-  bodyFat: z.number().min(1).max(70).optional(),
+  // null clears a value logged by mistake.
+  weight: z.number().min(20).max(300).nullable().optional(),
+  bodyFat: z.number().min(1).max(70).nullable().optional(),
   sleepSecs: z.number().int().min(0).max(86400).optional(),
   sleepQuality: z.number().int().min(1).max(4).optional(),
   soreness: z.number().int().min(1).max(4).optional(),
@@ -234,7 +252,7 @@ const entrySchema = z.object({
   stress: z.number().int().min(1).max(4).optional(),
   mood: z.number().int().min(1).max(4).optional(),
   motivation: z.number().int().min(1).max(4).optional(),
-  comments: z.string().max(1000).optional(),
+  comments: z.string().max(1000).nullable().optional(),
 });
 
 export type WellnessEntry = z.infer<typeof entrySchema>;
@@ -304,16 +322,33 @@ export async function getStreams(id: string) {
   return fetchStreams(idSchema.parse(id));
 }
 
+/** Just a ride's 1 Hz power, for analyses over many rides (much smaller than the full streams, and not cached here). */
+export async function getRideWatts(id: string): Promise<(number | null)[]> {
+  const rows = await icu<StreamRow[]>(`/activity/${idSchema.parse(id)}/streams.json?types=watts`);
+  return rows.find((r) => r.type === "watts")?.data ?? [];
+}
+
 /** Outdoor rides (GPS, not trainer or virtual) in a date range, for the segment engine. */
 export async function listOutdoorRides(from: string, to: string): Promise<RideRef[]> {
   const { oldest, newest } = rangeSchema.parse({ oldest: from, newest: to });
-  const acts = await icu<Record<string, unknown>[]>(`/athlete/0/activities?oldest=${oldest}&newest=${newest}`);
+  const acts = await icu<Record<string, unknown>[]>(
+    `/athlete/0/activities?oldest=${oldest}&newest=${newest}`,
+  );
   return acts
     .filter((a) => {
       const type = String(a["type"] ?? "");
-      return type.includes("Ride") && !type.startsWith("Virtual") && !a["trainer"] && Number(a["distance"]) > 3000;
+      return (
+        type.includes("Ride") &&
+        !type.startsWith("Virtual") &&
+        !a["trainer"] &&
+        Number(a["distance"]) > 3000
+      );
     })
-    .map((a) => ({ id: String(a["id"]), name: (a["name"] as string) ?? null, date: String(a["start_date_local"] ?? "") }));
+    .map((a) => ({
+      id: String(a["id"]),
+      name: (a["name"] as string) ?? null,
+      date: String(a["start_date_local"] ?? ""),
+    }));
 }
 
 /** A ride's 20 m track straight from its streams (not kept in the streams cache), or null without GPS. */
@@ -325,7 +360,9 @@ export async function downloadRideTrack(ref: RideRef): Promise<Track | null> {
 export type PowerCurve = { id: string; label: string; secs: number[]; watts: number[] };
 
 export async function getPowerCurves() {
-  const r = await icu<{ list: Record<string, unknown>[] }>(`/athlete/0/power-curves.json?curves=42d,1y&type=Ride`);
+  const r = await icu<{ list: Record<string, unknown>[] }>(
+    `/athlete/0/power-curves.json?curves=42d,1y&type=Ride`,
+  );
   return r.list.map((c) => ({
     id: String(c["id"]),
     label: String(c["label"] ?? c["id"]),
@@ -380,7 +417,9 @@ export type PlannedEvent = {
 /** Calendar events (planned workouts, notes, races) in a date range. */
 export async function getEvents(range: Range): Promise<PlannedEvent[]> {
   const { oldest, newest } = rangeSchema.parse(range);
-  const rows = await icu<Record<string, unknown>[]>(`/athlete/0/events.json?oldest=${oldest}&newest=${newest}`);
+  const rows = await icu<Record<string, unknown>[]>(
+    `/athlete/0/events.json?oldest=${oldest}&newest=${newest}`,
+  );
   return rows.map((e) => ({
     id: String(e["id"]),
     date: String(e["start_date_local"] ?? "").slice(0, 10),
@@ -429,14 +468,21 @@ export async function createOffEvent(kind: OffKind, start: string, last: string)
   day.parse(last);
   await icu(`/athlete/0/events`, {
     method: "POST",
-    body: JSON.stringify({ category: kind, name: kind === "SICK" ? "Sick" : "Injured", ...offBody(start, last) }),
+    body: JSON.stringify({
+      category: kind,
+      name: kind === "SICK" ? "Sick" : "Injured",
+      ...offBody(start, last),
+    }),
   });
 }
 
 export async function updateOffEvent(id: string, start: string, last: string) {
   day.parse(start);
   day.parse(last);
-  await icu(`/athlete/0/events/${idSchema.parse(id)}`, { method: "PUT", body: JSON.stringify(offBody(start, last)) });
+  await icu(`/athlete/0/events/${idSchema.parse(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(offBody(start, last)),
+  });
 }
 
 export async function deleteEvent(id: string) {

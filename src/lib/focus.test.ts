@@ -153,7 +153,13 @@ describe("focus", () => {
     });
     expect(climb).toMatch(/Race pace for Climb \(12 min\): 3×10 min/);
     // An anaerobic block doesn't turn into climb pacing: a 12-minute effort is mostly aerobic and VO2max.
-    const anaerobic = focusSession({ focus: "anaerobic", races: [race("Climb", 20, "A", tt(12))], today, zones: undefined, c1y });
+    const anaerobic = focusSession({
+      focus: "anaerobic",
+      races: [race("Climb", 20, "A", tt(12))],
+      today,
+      zones: undefined,
+      c1y,
+    });
     expect(anaerobic).toMatch(/^6×1 min/);
     const gf = {
       discipline: "road" as const,

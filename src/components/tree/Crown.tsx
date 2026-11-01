@@ -309,22 +309,22 @@ export function CrownView({
         </div>
       )}
       {!quiet && (
-      <div className="text-sm text-muted-foreground">
-        {crown.score == null
-          ? t(
-              "Not enough data yet · tap to check in",
-              "Dati ancora insufficienti · tocca per il check-in",
-            )
-          : crown.estimated
+        <div className="text-sm text-muted-foreground">
+          {crown.score == null
             ? t(
-                `Readiness ${crown.score} · estimated · check in to refine`,
-                `Prontezza ${crown.score} · stimata · fai il check-in per affinarla`,
+                "Not enough data yet · tap to check in",
+                "Dati ancora insufficienti · tocca per il check-in",
               )
-            : t(
-                `Readiness ${crown.score} · tap the crown for today`,
-                `Prontezza ${crown.score} · tocca la chioma per oggi`,
-              )}
-      </div>
+            : crown.estimated
+              ? t(
+                  `Readiness ${crown.score} · estimated · check in to refine`,
+                  `Prontezza ${crown.score} · stimata · fai il check-in per affinarla`,
+                )
+              : t(
+                  `Readiness ${crown.score} · tap the crown for today`,
+                  `Prontezza ${crown.score} · tocca la chioma per oggi`,
+                )}
+        </div>
       )}
       {!quiet && crown.ctl != null && (
         // Wraps between whole items, never inside one.
@@ -341,6 +341,10 @@ export function CrownView({
             <span className="whitespace-nowrap text-form">
               {t("Form", "Forma")} {crown.form > 0 ? "+" : ""}
               {Math.round(crown.form)}
+              {crown.formPct != null &&
+                crown.ctl != null &&
+                crown.ctl >= 10 &&
+                ` (${Math.round(crown.formPct)}%)`}
               {crown.weather && (
                 <span className="text-muted-foreground"> · {WEATHER_WORD[crown.weather]}</span>
               )}
@@ -414,7 +418,13 @@ export function CrownView({
           {extras}
         </g>
         {crown.signals.length > 0 && (
-          <Wind cx={cx} cy={cy} rx={rx} seed={seedOf(`${today}wind`)} winter={crown.season === "winter"} />
+          <Wind
+            cx={cx}
+            cy={cy}
+            rx={rx}
+            seed={seedOf(`${today}wind`)}
+            winter={crown.season === "winter"}
+          />
         )}
       </svg>
     </button>
@@ -425,7 +435,19 @@ export function CrownView({
  * Wind through the crown: something is changing before the season does. A few gusts across the canopy and
  * leaves (snow in winter) carried sideways.
  */
-function Wind({ cx, cy, rx, seed, winter }: { cx: number; cy: number; rx: number; seed: number; winter: boolean }) {
+function Wind({
+  cx,
+  cy,
+  rx,
+  seed,
+  winter,
+}: {
+  cx: number;
+  cy: number;
+  rx: number;
+  seed: number;
+  winter: boolean;
+}) {
   const r = rng(seed);
   const gusts = [-0.45, 0.05, 0.4].map((k, i) => {
     const y = cy + k * 80;
@@ -449,7 +471,15 @@ function Wind({ cx, cy, rx, seed, winter }: { cx: number; cy: number; rx: number
     const [x, y] = [cx + (r() - 0.2) * rx * 1.6, cy - 50 + r() * 110];
     const style = { animationDelay: `${-r() * 4}s` };
     return winter ? (
-      <circle key={i} cx={x} cy={y} r={1.6} fill="var(--snow)" className="tree-blown" style={style} />
+      <circle
+        key={i}
+        cx={x}
+        cy={y}
+        r={1.6}
+        fill="var(--snow)"
+        className="tree-blown"
+        style={style}
+      />
     ) : (
       <ellipse
         key={i}
@@ -823,7 +853,10 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
       const p = (d + 0.5) / 7 - 0.5;
       const k = Math.floor(p);
       const l = loadAt(k) + (loadAt(k + 1) - loadAt(k)) * (p - k);
-      const [a0, a1] = [((d - 0.6) / 371) * Math.PI * 2 - Math.PI / 2, ((d + 1.6) / 371) * Math.PI * 2 - Math.PI / 2];
+      const [a0, a1] = [
+        ((d - 0.6) / 371) * Math.PI * 2 - Math.PI / 2,
+        ((d + 1.6) / 371) * Math.PI * 2 - Math.PI / 2,
+      ];
       return (
         <path
           key={d}
@@ -918,7 +951,11 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
               <ul className="mt-2 space-y-0.5 text-sm">
                 {y.scars.map((s) => (
                   <li key={s.from} className="flex items-center gap-2">
-                    <span className="h-2 w-3 shrink-0 rounded-sm" style={{ background: SCAR }} aria-hidden />
+                    <span
+                      className="h-2 w-3 shrink-0 rounded-sm"
+                      style={{ background: SCAR }}
+                      aria-hidden
+                    />
                     {t("Injured", "Infortunato")} {weekRange(s.start, s.end)}
                     <span className="text-muted-foreground">
                       ·{" "}
@@ -1015,7 +1052,14 @@ function Scar({
           strokeLinejoin="round"
         />
       ))}
-      <polyline points={spiral} fill="none" stroke={SCAR} strokeWidth={1.1} strokeLinecap="round" strokeLinejoin="round" />
+      <polyline
+        points={spiral}
+        fill="none"
+        stroke={SCAR}
+        strokeWidth={1.1}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </g>
   );
 }

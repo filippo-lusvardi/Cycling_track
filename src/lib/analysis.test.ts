@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { climbCategory, detectClimbs } from "./climbs";
-import { decoupling, fitCriticalPower, mmp, monotony, polarizationIndex, threeZone, weeklyTotals } from "./analysis";
+import {
+  decoupling,
+  fitCriticalPower,
+  fitOmPD,
+  mmp,
+  monotony,
+  omPD,
+  polarizationIndex,
+  threeZone,
+  wbal,
+  weeklyTotals,
+} from "./analysis";
 
 function profile() {
   // 1 km flat, 2 km at 5% (100 m gain), 1 km descent; 1 sample every 10 m at 5 m/s.
@@ -30,7 +41,9 @@ describe("climb detection", () => {
   });
   it("ends the climb where a flat summit starts", () => {
     const distance = Array.from({ length: 501 }, (_, i) => i * 10);
-    const altitude = distance.map((d) => (d < 1000 ? 0 : d < 3000 ? (d - 1000) * 0.06 : 120 + (d - 3000) * 0.002));
+    const altitude = distance.map((d) =>
+      d < 1000 ? 0 : d < 3000 ? (d - 1000) * 0.06 : 120 + (d - 3000) * 0.002,
+    );
     const [c] = detectClimbs({ distance, altitude, time: distance });
     expect(c!.endKm).toBeGreaterThan(2.8);
     expect(c!.endKm).toBeLessThan(3.2);
@@ -56,7 +69,9 @@ describe("climb detection", () => {
   });
   it("ignores a flat ride", () => {
     const distance = Array.from({ length: 500 }, (_, i) => i * 10);
-    expect(detectClimbs({ distance, altitude: distance.map(() => 100), time: distance })).toHaveLength(0);
+    expect(
+      detectClimbs({ distance, altitude: distance.map(() => 100), time: distance }),
+    ).toHaveLength(0);
   });
   it("categorises by length × grade like Strava", () => {
     expect(climbCategory(2000, 5)).toBe("4");
@@ -74,9 +89,26 @@ describe("load analysis", () => {
   });
   it("groups activities into Monday-start weeks", () => {
     const rows = weeklyTotals([
-      { start_date_local: "2026-10-26T08:00:00", moving_time: 3600, distance: 30000, icu_training_load: 50, total_elevation_gain: 400 },
-      { start_date_local: "2026-11-01T08:00:00", moving_time: 7200, distance: 60000, icu_training_load: 100, total_elevation_gain: 850 },
-      { start_date_local: "2026-11-02T08:00:00", moving_time: 3600, distance: 20000, icu_training_load: 40 },
+      {
+        start_date_local: "2026-10-26T08:00:00",
+        moving_time: 3600,
+        distance: 30000,
+        icu_training_load: 50,
+        total_elevation_gain: 400,
+      },
+      {
+        start_date_local: "2026-11-01T08:00:00",
+        moving_time: 7200,
+        distance: 60000,
+        icu_training_load: 100,
+        total_elevation_gain: 850,
+      },
+      {
+        start_date_local: "2026-11-02T08:00:00",
+        moving_time: 3600,
+        distance: 20000,
+        icu_training_load: 40,
+      },
     ]);
     expect(rows.map((r) => r.week)).toEqual(["2026-10-26", "2026-11-02"]);
     expect(rows[0]!.load).toBe(150);
@@ -107,12 +139,57 @@ describe("power analysis", () => {
     expect(fit.r2).toBeGreaterThan(0.99);
   });
   it("ignores efforts outside 3–20 minutes for CP", () => {
-    expect(fitCriticalPower([{ secs: 5, watts: 900 }, { secs: 60, watts: 500 }, { secs: 3600, watts: 230 }])).toBeNull();
+    expect(
+      fitCriticalPower([
+        { secs: 5, watts: 900 },
+        { secs: 60, watts: 500 },
+        { secs: 3600, watts: 230 },
+      ]),
+    ).toBeNull();
   });
   it("decoupling is the drop in power per heartbeat from first to second half", () => {
     const w = Array(3600).fill(200);
     const hr = [...Array(1800).fill(130), ...Array(1800).fill(136.5)];
     expect(decoupling(w, hr)).toBeCloseTo(4.76, 1);
     expect(decoupling(w.slice(0, 600), hr.slice(0, 600))).toBeNull();
+  });
+});
+
+describe("OmPD", () => {
+  const truth = { cp: 280, wPrime: 22000, pmax: 1100, a: 30 };
+  const secs = [
+    1, 2, 5, 10, 15, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2400, 3600, 5400, 7200,
+  ];
+
+  it("recovers the parameters of a curve it generated", () => {
+    const fit = fitOmPD(secs.map((s) => ({ secs: s, watts: omPD(truth, s) })))!;
+    expect(fit.cp).toBeCloseTo(280, -1);
+    expect(fit.wPrime / 1000).toBeCloseTo(22, 0);
+    expect(fit.pmax).toBeGreaterThan(1000);
+    expect(fit.pmax).toBeLessThan(1200);
+    expect(fit.a).toBeCloseTo(30, -1);
+    expect(fit.r2).toBeGreaterThan(0.999);
+  });
+
+  it("needs both a sprint and a long effort", () => {
+    expect(
+      fitOmPD(secs.filter((s) => s >= 60).map((s) => ({ secs: s, watts: omPD(truth, s) }))),
+    ).toBeNull();
+  });
+});
+
+describe("W′ balance", () => {
+  it("stays full at or under CP", () => {
+    expect(Math.min(...wbal(Array(600).fill(250), 280, 20000))).toBe(20000);
+  });
+
+  it("spends exactly the work above CP, then recovers", () => {
+    const ride = [...Array(60).fill(480), ...Array(600).fill(100)];
+    const w = wbal(ride, 280, 20000);
+    // 60 s at 200 W over CP is 12 kJ, less what came back meanwhile: τ = 546·e^(−0.01·180) + 316 for D_CP = 180 W.
+    const decay = Math.exp(-1 / (546 * Math.exp(-1.8) + 316));
+    const spent = (200 * (1 - decay ** 60)) / (1 - decay);
+    expect(w[59]!).toBeCloseTo(20000 - spent, 6);
+    expect(w.at(-1)!).toBeCloseTo(20000 - spent * decay ** 600, 6);
   });
 });

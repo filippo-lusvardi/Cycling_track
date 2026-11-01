@@ -231,7 +231,9 @@ describe("tree", () => {
     expect(fresh).toMatchObject({ estimated: false, weather: "sun" });
     const weather = (atl: number) =>
       crownFor([well("2026-10-31", 50, { atl })], [], "2026-10-31").weather;
-    expect(weather(70)).toBe("clouds");
+    // The sky follows form as % of fitness: at fitness 50, −20 is −40% (overreached), −10 is −20%.
+    expect(weather(70)).toBe("rain");
+    expect(weather(60)).toBe("clouds");
     expect(weather(52)).toBe("partly");
   });
   it("uses yesterday's fitness and fatigue until today has an activity", () => {
@@ -245,7 +247,8 @@ describe("tree", () => {
       ctl: 50,
       atl: 60,
       form: -10,
-      weather: "partly",
+      formPct: -20,
+      weather: "clouds",
       estimated: false,
     });
     // Ridden today: intervals.icu's values for today.
@@ -279,7 +282,12 @@ describe("tree", () => {
   });
 });
 
-const off = (id: string, category: string, date: string, end: string | null = null): PlannedEvent => ({
+const off = (
+  id: string,
+  category: string,
+  date: string,
+  end: string | null = null,
+): PlannedEvent => ({
   id,
   date,
   end,
@@ -311,7 +319,13 @@ describe("knots", () => {
     ]);
   });
   it("puts knots on days and counts them per week", () => {
-    const days = buildDays([], [], "2026-10-05", "2026-10-11", offDays([off("a", "SICK", "2026-10-06", "2026-10-07")]));
+    const days = buildDays(
+      [],
+      [],
+      "2026-10-05",
+      "2026-10-11",
+      offDays([off("a", "SICK", "2026-10-06", "2026-10-07")]),
+    );
     expect(days.filter((d) => d.off).map((d) => d.date)).toEqual(["2026-10-07", "2026-10-06"]);
     expect(buildWeeks(days)[0]!.off).toEqual({ days: 2, kind: "SICK" });
   });
@@ -319,11 +333,21 @@ describe("knots", () => {
     const today = "2026-10-10";
     expect(offToggle([], "SICK", today)).toEqual({ op: "create", start: today, last: today });
     const yesterday = [off("a", "SICK", "2026-10-07", "2026-10-09")];
-    expect(offToggle(yesterday, "SICK", today)).toEqual({ op: "update", id: "a", start: "2026-10-07", last: today });
+    expect(offToggle(yesterday, "SICK", today)).toEqual({
+      op: "update",
+      id: "a",
+      start: "2026-10-07",
+      last: today,
+    });
     // A different kind starts its own stretch.
     expect(offToggle(yesterday, "INJURED", today).op).toBe("create");
     const through = [off("a", "SICK", "2026-10-07", today)];
-    expect(offToggle(through, "SICK", today)).toEqual({ op: "update", id: "a", start: "2026-10-07", last: "2026-10-09" });
+    expect(offToggle(through, "SICK", today)).toEqual({
+      op: "update",
+      id: "a",
+      start: "2026-10-07",
+      last: "2026-10-09",
+    });
     expect(offToggle([off("b", "SICK", today)], "SICK", today)).toEqual({ op: "delete", id: "b" });
   });
 });
@@ -333,8 +357,12 @@ describe("returning from a break", () => {
     const today = "2026-11-01";
     const riding = Array.from({ length: 60 }, (_, i) => act(`r${i}`, addDaysT(today, -i), 60, 50));
     expect(returningFromBreak(riding, [], today)).toBe(false);
-    expect(returningFromBreak(riding, [off("i", "INJURED", "2026-09-20", "2026-10-10")], today)).toBe(true);
-    expect(returningFromBreak(riding, [off("i", "INJURED", "2026-08-01", "2026-08-20")], today)).toBe(false);
+    expect(
+      returningFromBreak(riding, [off("i", "INJURED", "2026-09-20", "2026-10-10")], today),
+    ).toBe(true);
+    expect(
+      returningFromBreak(riding, [off("i", "INJURED", "2026-08-01", "2026-08-20")], today),
+    ).toBe(false);
     const gap = riding.filter((_, i) => i < 10 || i > 26);
     expect(returningFromBreak(gap, [], today)).toBe(true);
   });
@@ -356,7 +384,9 @@ describe("bird perches", () => {
   it("keeps birds a body apart and on the branch", () => {
     const spots = perchSpots(4, 2, 0.4, len, bird);
     expect(spots).toHaveLength(4);
-    spots.slice(1).forEach((s, i) => expect((s - spots[i]!) * len).toBeGreaterThanOrEqual(bird - 1));
+    spots
+      .slice(1)
+      .forEach((s, i) => expect((s - spots[i]!) * len).toBeGreaterThanOrEqual(bird - 1));
     expect(spots[0]! * len).toBeGreaterThanOrEqual(bird * 0.8 - 1e-6);
     expect(spots[3]!).toBeLessThanOrEqual(1);
   });

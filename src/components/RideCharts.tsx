@@ -12,18 +12,23 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { useXZoom, ZOOM_AREA } from "@/hooks/use-x-zoom";
+import { wbal } from "@/lib/analysis";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { rideSeries, type SeriesPoint } from "@/lib/ride-series";
 import { t } from "@/lib/i18n";
 
 type Metric = {
-  key: "speed" | "watts" | "hr";
+  key: "speed" | "watts" | "hr" | "wbal";
   label: string;
   unit: string;
   color: string;
   avg: number | null | undefined;
   max: number | null | undefined;
   digits: number;
+  /** Replaces "avg · max" in the header. */
+  summary?: string;
+  /** Fixed y range instead of 0 → auto. */
+  yDomain?: [number, number];
 };
 
 const peak = (xs: (number | null)[]) =>
@@ -38,17 +43,28 @@ const avgOf = (xs: (number | null)[]) => {
  * Speed, power and heart rate along the ride, stacked on one distance axis; hovering one shows the same spot on all.
  * With a `work` selected, the charts zoom to that stretch and the averages are the work's own.
  * They also zoom along distance together (drag, or pinch on a phone), and the y axes fit what's shown.
+ * With `cp` (critical power and W′ from the power curve), a fourth chart shows W′ balance: the anaerobic reserve left.
  */
 export function RideCharts({
   a,
   streams,
   work,
+  cp,
 }: {
   a: ActivityDetail;
   streams: RideStreams;
   work?: { startKm: number; endKm: number } | null;
+  cp?: { cp: number; wPrime: number } | null;
 }) {
-  const all = useMemo(() => rideSeries(streams), [streams]);
+  const balance = useMemo(
+    () =>
+      // As % of W′: round axis ticks, and "how much of the reserve is left" reads straight off it.
+      cp && streams.watts.some((w) => w != null)
+        ? wbal(streams.watts, cp.cp, cp.wPrime).map((j) => (j / cp.wPrime) * 100)
+        : undefined,
+    [streams, cp],
+  );
+  const all = useMemo(() => rideSeries({ ...streams, wbal: balance }), [streams, balance]);
   const data = useMemo(
     () => (work ? all.filter((p) => p.km >= work.startKm && p.km <= work.endKm) : all),
     [all, work],
@@ -114,6 +130,16 @@ export function RideCharts({
             max: a.max_heartrate ?? peak(streams.heartrate),
             digits: 0,
           },
+          {
+            key: "wbal",
+            label: t("W′ balance", "Bilancio W′"),
+            unit: "%",
+            color: "var(--form)",
+            avg: null,
+            max: null,
+            digits: 0,
+            yDomain: [0, 100],
+          },
         ] satisfies Metric[]
       )
         .filter((m) => data.some((p) => p[m.key] != null))
@@ -121,14 +147,32 @@ export function RideCharts({
           work
             ? { ...m, avg: avgOf(data.map((p) => p[m.key])), max: peak(data.map((p) => p[m.key])) }
             : m,
-        ),
-    [a, streams, data, work],
+        )
+        .map((m): Metric => {
+          if (m.key !== "wbal" || !cp) return m;
+          const low = Math.min(...data.map((p) => p.wbal ?? Infinity));
+          const kj = (low * cp.wPrime) / 100000;
+          // Under 0 means the CP/W′ from your curve underrate you: the ride beat the model.
+          const lowest = t(
+            `lowest ${Math.round(low)}% (${kj.toFixed(1)} kJ)`,
+            `minimo ${Math.round(low)}% (${kj.toFixed(1)} kJ)`,
+          );
+          return {
+            ...m,
+            summary: `${lowest} · CP ${Math.round(cp.cp)} W`,
+            yDomain: [Math.min(0, Math.floor(low / 10) * 10), 100] as [number, number],
+          };
+        }),
+    [a, streams, data, work, cp],
   );
 
   if (!metrics.length)
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
-        {t("No speed, power or heart rate recorded.", "Nessuna velocità, potenza o frequenza cardiaca registrata.")}
+        {t(
+          "No speed, power or heart rate recorded.",
+          "Nessuna velocità, potenza o frequenza cardiaca registrata.",
+        )}
       </p>
     );
   return (
@@ -151,7 +195,8 @@ export function RideCharts({
                   {m.unit}
                 </>
               ) : (
-                `${t("avg", "media")} ${fmt(m.avg, m.digits)} · max ${fmt(m.max, m.digits)} ${m.unit}`
+                (m.summary ??
+                `${t("avg", "media")} ${fmt(m.avg, m.digits)} · max ${fmt(m.max, m.digits)} ${m.unit}`)
               )}
             </span>
           </div>
@@ -228,7 +273,7 @@ const Chart = memo(function Chart({
             stroke="var(--muted-foreground)"
             fontSize={11}
             allowDecimals={false}
-            domain={fit ? ["auto", "auto"] : [0, "auto"]}
+            domain={m.yDomain ?? (fit ? ["auto", "auto"] : [0, "auto"])}
           />
           {/* Cursor line and dot only; the value shows in the header. */}
           <Tooltip
@@ -249,12 +294,7 @@ const Chart = memo(function Chart({
             isAnimationActive={false}
           />
           {selection && (
-            <ReferenceArea
-              x1={selection[0]}
-              x2={selection[1]}
-              {...ZOOM_AREA}
-              ifOverflow="hidden"
-            />
+            <ReferenceArea x1={selection[0]} x2={selection[1]} {...ZOOM_AREA} ifOverflow="hidden" />
           )}
         </AreaChart>
       </ResponsiveContainer>

@@ -7,17 +7,28 @@ function effort(speed: number, every = 20, startAt = 0): EffortSeries {
   const d: number[] = [];
   for (let x = 0; x <= 1000; x += every) d.push(x);
   if (d.at(-1) !== 1000) d.push(1000);
-  return { d, t: d.map((x) => x / speed + startAt), lat: d.map((x) => 45 + x / 111000), lng: d.map(() => 11) };
+  return {
+    d,
+    t: d.map((x) => x / speed + startAt),
+    lat: d.map((x) => 45 + x / 111000),
+    lng: d.map(() => 11),
+  };
 }
 
 describe("ghost race", () => {
   it("rebases time and distance to the effort's start", () => {
     const n = 100;
     const t: TrackLike = {
-      id: "r", name: null, date: "2026-10-01",
-      lat: Array.from({ length: n }, (_, i) => 45 + i / 1000), lng: Array(n).fill(11),
-      dist: Array.from({ length: n }, (_, i) => i * 20), time: Array.from({ length: n }, (_, i) => 1000 + i * 4),
-      alt: Array(n).fill(0), watts: [], hr: [],
+      id: "r",
+      name: null,
+      date: "2026-10-01",
+      lat: Array.from({ length: n }, (_, i) => 45 + i / 1000),
+      lng: Array(n).fill(11),
+      dist: Array.from({ length: n }, (_, i) => i * 20),
+      time: Array.from({ length: n }, (_, i) => 1000 + i * 4),
+      alt: Array(n).fill(0),
+      watts: [],
+      hr: [],
     };
     const s = effortSeries(t, { i0: 10, i1: 20 });
     expect(s.t[0]).toBe(0);

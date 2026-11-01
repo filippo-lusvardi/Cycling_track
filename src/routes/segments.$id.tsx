@@ -22,11 +22,11 @@ import { Input } from "@/components/ui/input";
 import { useSegmentNames } from "@/hooks/use-segment-names";
 import { useSegmentLibrary } from "@/hooks/use-segments";
 import { useXZoom, ZOOM_AREA } from "@/hooks/use-x-zoom";
-import { wellnessRangeQuery } from "@/lib/queries";
+import { athleteQuery, wellnessRangeQuery } from "@/lib/queries";
 import { gradeChunks, maxGrade } from "@/lib/profile";
 import { historyYears } from "@/lib/segment-app";
 import { segmentSummary } from "@/lib/segments";
-import { formatClock, isoDate, weightOn } from "@/lib/training";
+import { addDays, formatClock, isoDate, weightFor } from "@/lib/training";
 import { fitTrend } from "@/lib/trend";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
@@ -55,18 +55,23 @@ function SegmentPage() {
     ?.reduce((m, a) => (a.date < m ? a.date : m), isoDate(new Date()))
     .slice(0, 10);
   const { data: wellness } = useQuery({
-    ...wellnessRangeQuery({ oldest: oldest ?? isoDate(new Date()), newest: isoDate(new Date()) }),
+    // From 3 days before the oldest effort, for the weigh-ins that stand in when a ride day has none.
+    ...wellnessRangeQuery({
+      oldest: addDays(oldest ?? isoDate(new Date()), -3),
+      newest: isoDate(new Date()),
+    }),
     enabled: !!oldest,
   });
+  const { data: athlete } = useQuery(athleteQuery());
   const efforts = useMemo(
     () =>
       (attempts ?? [])
         .map((a) => {
-          const kg = wellness ? weightOn(wellness, a.date) : null;
+          const kg = wellness ? weightFor(wellness, a.date, athlete?.weight ?? null) : null;
           return { ...a, wkg: a.avgWatts && kg ? a.avgWatts / kg : null };
         })
         .sort((a, b) => a.duration - b.duration),
-    [attempts, wellness],
+    [attempts, wellness, athlete],
   );
   // Path and profile of the fastest effort (or of the climb itself while efforts are being computed).
   const trace = seg?.trace ?? null;
@@ -87,7 +92,12 @@ function SegmentPage() {
     () =>
       trace
         ? [
-            { lat: trace.lat[0]!, lng: trace.lng[0]!, color: "var(--pine)", label: t("Start", "Partenza") },
+            {
+              lat: trace.lat[0]!,
+              lng: trace.lng[0]!,
+              color: "var(--pine)",
+              label: t("Start", "Partenza"),
+            },
             {
               lat: trace.lat.at(-1)!,
               lng: trace.lng.at(-1)!,
@@ -137,7 +147,9 @@ function SegmentPage() {
       <div className="space-y-4">
         <BackLink />
         <p className="text-sm text-muted-foreground">
-          {isLoading ? t("Loading rides…", "Caricamento attività…") : t("This segment no longer exists.", "Questo segmento non esiste più.")}
+          {isLoading
+            ? t("Loading rides…", "Caricamento attività…")
+            : t("This segment no longer exists.", "Questo segmento non esiste più.")}
         </p>
       </div>
     );
@@ -170,7 +182,10 @@ function SegmentPage() {
                 autoFocus
                 value={editing}
                 onChange={(e) => setEditing(e.target.value)}
-                placeholder={t("Empty = automatic name from the map", "Vuoto = nome automatico dalla mappa")}
+                placeholder={t(
+                  "Empty = automatic name from the map",
+                  "Vuoto = nome automatico dalla mappa",
+                )}
               />
               <Button type="submit">{t("Save", "Salva")}</Button>
             </form>
@@ -183,7 +198,9 @@ function SegmentPage() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label={seg.starred ? t("Unstar", "Togli dai preferiti") : t("Star", "Aggiungi ai preferiti")}
+            aria-label={
+              seg.starred ? t("Unstar", "Togli dai preferiti") : t("Star", "Aggiungi ai preferiti")
+            }
             onClick={() => lib.toggleStar(seg)}
           >
             <Star className={cn(seg.starred ? "fill-birch text-birch" : "text-muted-foreground")} />
@@ -213,12 +230,20 @@ function SegmentPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("Length", "Lunghezza")} value={(seg.length / 1000).toFixed(2)} unit="km" />
+        <StatCard
+          label={t("Length", "Lunghezza")}
+          value={(seg.length / 1000).toFixed(2)}
+          unit="km"
+        />
         <StatCard
           label={t("Avg grade", "Pendenza media")}
           value={seg.grade != null ? seg.grade.toFixed(1) : "–"}
           unit="%"
-          hint={steepest != null ? t(`max ${steepest.toFixed(1)}% over 100 m`, `max ${steepest.toFixed(1)}% su 100 m`) : undefined}
+          hint={
+            steepest != null
+              ? t(`max ${steepest.toFixed(1)}% over 100 m`, `max ${steepest.toFixed(1)}% su 100 m`)
+              : undefined
+          }
         />
         <StatCard
           label={t("Best time", "Miglior tempo")}
@@ -379,7 +404,10 @@ function SegmentPage() {
                 `${t("Dashed: trend", "Tratteggio: tendenza")} (${
                   degrees[metric] === 1
                     ? t("linear", "lineare")
-                    : t(`polynomial, degree ${degrees[metric]}`, `polinomiale, grado ${degrees[metric]}`)
+                    : t(
+                        `polynomial, degree ${degrees[metric]}`,
+                        `polinomiale, grado ${degrees[metric]}`,
+                      )
                 }). `}
               {t(
                 "Drag to zoom (pinch on a phone); double-click to reset.",
@@ -397,10 +425,15 @@ function SegmentPage() {
 
       <Panel title={t("All efforts", "Tutti i passaggi")}>
         {isLoading ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">{t("Loading rides…", "Caricamento attività…")}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {t("Loading rides…", "Caricamento attività…")}
+          </p>
         ) : efforts.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("No efforts found in the analysed rides.", "Nessun passaggio trovato nelle attività analizzate.")}
+            {t(
+              "No efforts found in the analysed rides.",
+              "Nessun passaggio trovato nelle attività analizzate.",
+            )}
           </p>
         ) : (
           <>

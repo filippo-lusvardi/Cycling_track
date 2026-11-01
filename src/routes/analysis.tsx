@@ -4,7 +4,9 @@ import { parseISO } from "date-fns";
 import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
   LineChart,
@@ -20,9 +22,26 @@ import { FitnessSection } from "@/components/FitnessSection";
 import { Panel, StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { ZoneBar } from "@/components/ZoneBar";
-import { distributionLabel, fitCriticalPower, mmp, polarizationIndex, threeZone } from "@/lib/analysis";
+import {
+  curveFit,
+  distributionLabel,
+  DUR,
+  mmp,
+  omPD,
+  polarizationIndex,
+  threeZone,
+  valueAt,
+} from "@/lib/analysis";
+import { BUCKETS, EFFORTS, durabilityVerdict } from "@/lib/durability";
+import { DURABILITY_DAYS } from "@/lib/durability-data";
 import type { PowerCurve } from "@/lib/intervals";
-import { activitiesQuery, powerCurvesQuery, streamsQuery, wellnessQuery } from "@/lib/queries";
+import {
+  activitiesQuery,
+  durabilityQuery,
+  powerCurvesQuery,
+  streamsQuery,
+  wellnessQuery,
+} from "@/lib/queries";
 import { addDays, formatClock, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
@@ -33,18 +52,11 @@ export const Route = createFileRoute("/analysis")({
   component: Analysis,
 });
 
-const DUR = [1, 2, 3, 5, 8, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1200, 1800, 2400, 3600, 5400, 7200, 10800];
 const TICKS = [1, 5, 15, 60, 300, 1200, 3600, 10800];
 const tip = { background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8 };
 
-const durLabel = (s: number) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${s / 3600}h`);
-
-/** Watts at duration d on an intervals.icu curve (exact or next longer duration). */
-function valueAt(c: PowerCurve | undefined, d: number): number | null {
-  if (!c) return null;
-  const i = c.secs.findIndex((s) => s >= d);
-  return i >= 0 && c.watts[i] ? c.watts[i]! : null;
-}
+const durLabel = (s: number) =>
+  s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${s / 3600}h`;
 
 function Analysis() {
   return (
@@ -55,6 +67,7 @@ function Analysis() {
       </div>
       <FitnessSection />
       <PowerSection />
+      <DurabilitySection />
       <EftpSection />
       <DecouplingSection />
       <ZonesSection />
@@ -67,30 +80,76 @@ function PowerSection() {
   const { data: acts } = useQuery(activitiesQuery(42));
   const rides = useMemo(() => (acts ?? []).filter((a) => a.icu_average_watts != null), [acts]);
   const [rideId, setRideId] = useState<string | null>(null);
-  const ride = rides.find((r) => r.id === rideId) ?? rides[0];
+  // No ride compared until one is picked.
+  const ride = rides.find((r) => r.id === rideId);
   const { data: streams } = useQuery({ ...streamsQuery(ride?.id ?? ""), enabled: !!ride });
 
   const c42 = curves?.find((c) => c.id.includes("42"));
   const c1y = curves?.find((c) => c.id.includes("1y") || c.id.includes("365"));
-  const fit42 = useMemo(() => fitCriticalPower(DUR.map((d) => ({ secs: d, watts: valueAt(c42, d) ?? 0 }))), [c42]);
-  const fit1y = useMemo(() => fitCriticalPower(DUR.map((d) => ({ secs: d, watts: valueAt(c1y, d) ?? 0 }))), [c1y]);
+  const fit42 = useMemo(() => curveFit(c42), [c42]);
+  const fit1y = useMemo(() => curveFit(c1y), [c1y]);
   const rideMmp = useMemo(() => (streams ? mmp(streams.watts, DUR) : null), [streams]);
 
-  const rows = DUR.map((d, i) => ({
-    secs: d,
-    c42: valueAt(c42, d),
-    c1y: valueAt(c1y, d),
-    ride: rideMmp?.[i] ?? null,
-    model: fit42 && d >= 120 && d <= 3600 ? fit42.cp + fit42.wPrime / d : null,
-  }));
+  const rows = DUR.map((d, i) => {
+    const model = !fit42
+      ? null
+      : fit42.omni
+        ? omPD(fit42, d)
+        : d >= 120 && d <= 3600
+          ? fit42.cp + fit42.wPrime / d
+          : null;
+    return {
+      secs: d,
+      c42: valueAt(c42, d),
+      c1y: valueAt(c1y, d),
+      ride: rideMmp?.[i] ?? null,
+      model,
+      // What W′ adds on top of CP at this duration: the band between the CP line and the model.
+      wband:
+        fit42 && model != null && model > fit42.cp ? ([fit42.cp, model] as [number, number]) : null,
+    };
+  });
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("Critical power", "Potenza critica")} tone="fitness" value={fit42 ? Math.round(fit42.cp) : "–"} unit="W" hint={t("42-day best, 3–20 min", "Migliore 42 giorni, 3–20 min")} />
-        <StatCard label="W′" tone="form" value={fit42 ? (fit42.wPrime / 1000).toFixed(1) : "–"} unit="kJ" hint={fit42 ? `fit R² ${fit42.r2.toFixed(3)}` : undefined} />
-        <StatCard label={t("CP, 1 year", "CP, 1 anno")} value={fit1y ? Math.round(fit1y.cp) : "–"} unit="W" hint={fit1y ? `W′ ${(fit1y.wPrime / 1000).toFixed(1)} kJ` : undefined} />
-        <StatCard label={t("20 min best", "Migliore 20 min")} value={valueAt(c42, 1200) ?? "–"} unit="W" hint={t("last 42 days", "ultimi 42 giorni")} />
+        <StatCard
+          label={t("Critical power", "Potenza critica")}
+          tone="fitness"
+          value={fit42 ? Math.round(fit42.cp) : "–"}
+          unit="W"
+          hint={
+            fit42?.omni
+              ? t("42 days, whole curve (OmPD)", "42 giorni, curva intera (OmPD)")
+              : t("42-day best, 3–20 min", "Migliore 42 giorni, 3–20 min")
+          }
+        />
+        <StatCard
+          label="W′"
+          tone="form"
+          value={fit42 ? (fit42.wPrime / 1000).toFixed(1) : "–"}
+          unit="kJ"
+          hint={fit42 ? `fit R² ${fit42.r2.toFixed(3)}` : undefined}
+        />
+        <StatCard
+          label={t("Sprint power", "Potenza sprint")}
+          value={fit42?.pmax != null ? Math.round(fit42.pmax) : "–"}
+          unit="W"
+          hint={
+            fit42?.omni
+              ? t(
+                  `model 1 h: ${Math.round(omPD(fit42, 3600))} W`,
+                  `modello 1 h: ${Math.round(omPD(fit42, 3600))} W`,
+                )
+              : undefined
+          }
+        />
+        <StatCard
+          label={t("CP, 1 year", "CP, 1 anno")}
+          value={fit1y ? Math.round(fit1y.cp) : "–"}
+          unit="W"
+          hint={fit1y ? `W′ ${(fit1y.wPrime / 1000).toFixed(1)} kJ` : undefined}
+        />
       </div>
       <Panel
         title={t("Power duration curve", "Curva potenza-durata")}
@@ -99,9 +158,12 @@ function PowerSection() {
             <select
               aria-label={t("Compare ride", "Confronta attività")}
               value={ride?.id ?? ""}
-              onChange={(e) => setRideId(e.target.value)}
+              onChange={(e) => setRideId(e.target.value || null)}
               className="h-8 max-w-[11rem] rounded-md border border-input bg-transparent px-2 text-xs"
             >
+              <option value="" className="bg-popover">
+                {t("Compare a ride…", "Confronta un'uscita…")}
+              </option>
               {rides.map((r) => (
                 <option key={r.id} value={r.id} className="bg-popover">
                   {format(parseISO(r.start_date_local), "d MMM")} · {r.name}
@@ -112,11 +174,13 @@ function PowerSection() {
         }
       >
         {isLoading ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">{t("Loading power curves…", "Caricamento curve di potenza…")}</p>
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            {t("Loading power curves…", "Caricamento curve di potenza…")}
+          </p>
         ) : (
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={rows} margin={{ left: -12, right: 8, top: 8 }}>
+              <ComposedChart data={rows} margin={{ left: -12, right: 8, top: 8 }}>
                 <CartesianGrid stroke="var(--border)" vertical={false} />
                 <XAxis
                   dataKey="secs"
@@ -133,42 +197,282 @@ function PowerSection() {
                 <Tooltip
                   contentStyle={tip}
                   labelFormatter={(s) => formatClock(Number(s))}
-                  formatter={(v, name) => [`${Math.round(Number(v))} W`, name]}
+                  formatter={(v, name) =>
+                    Array.isArray(v)
+                      ? [`+${Math.round(Number(v[1]) - Number(v[0]))} W`, t("W′ part", "Parte W′")]
+                      : [`${Math.round(Number(v))} W`, name]
+                  }
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line name={t("Best 1 year", "Migliore 1 anno")} dataKey="c1y" stroke="var(--z1)" strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />
-                <Line name={t("Best 42 days", "Migliore 42 giorni")} dataKey="c42" stroke="var(--fitness)" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
-                {rideMmp && <Line name={t("Selected ride", "Attività selezionata")} dataKey="ride" stroke="var(--form)" strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
                 {fit42 && (
-                  <Line name={t("CP model", "Modello CP")} dataKey="model" stroke="var(--lingon)" strokeDasharray="4 4" strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />
+                  <Area
+                    name={t(
+                      `W′ ${(fit42.wPrime / 1000).toFixed(1)} kJ (above CP)`,
+                      `W′ ${(fit42.wPrime / 1000).toFixed(1)} kJ (sopra la CP)`,
+                    )}
+                    dataKey="wband"
+                    fill="var(--birch)"
+                    fillOpacity={0.18}
+                    stroke="none"
+                    connectNulls
+                    isAnimationActive={false}
+                  />
                 )}
-              </LineChart>
+                {fit42 && (
+                  <ReferenceLine
+                    y={fit42.cp}
+                    stroke="var(--lingon)"
+                    strokeOpacity={0.7}
+                    strokeDasharray="2 4"
+                    label={{
+                      value: `CP ${Math.round(fit42.cp)} W`,
+                      position: "insideBottomRight",
+                      fill: "var(--muted-foreground)",
+                      fontSize: 11,
+                    }}
+                  />
+                )}
+                <Line
+                  name={t("Best 1 year", "Migliore 1 anno")}
+                  dataKey="c1y"
+                  stroke="var(--z1)"
+                  strokeWidth={1.5}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+                <Line
+                  name={t("Best 42 days", "Migliore 42 giorni")}
+                  dataKey="c42"
+                  stroke="var(--fitness)"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+                {rideMmp && (
+                  <Line
+                    name={t("Selected ride", "Attività selezionata")}
+                    dataKey="ride"
+                    stroke="var(--pine)"
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                )}
+                {fit42 && (
+                  <Line
+                    name={
+                      fit42.omni ? t("OmPD model", "Modello OmPD") : t("CP model", "Modello CP")
+                    }
+                    dataKey="model"
+                    stroke="var(--lingon)"
+                    strokeDasharray="4 4"
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                )}
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
+        )}
+        {fit42 && !isLoading && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t(
+              "Shaded: what W′ adds on top of CP. Short efforts lean on it, long ones are mostly CP.",
+              "In ombra: quanto W′ aggiunge sopra la CP. Gli sforzi brevi ci si appoggiano, quelli lunghi sono quasi solo CP.",
+            )}
+          </p>
         )}
       </Panel>
     </>
   );
 }
 
+const BUCKET_LABEL = (b: number) => (b ? `${t("after", "dopo")} ${b} kJ/kg` : t("Fresh", "Fresco"));
+const EFFORT_LABEL = (s: number) => `${s / 60} min`;
+
+/** Power left after hours of work: best 1/5/20 min after 15, 30 and 45 kJ/kg, against fresh. */
+function DurabilitySection() {
+  const { data, isLoading, isError } = useQuery(durabilityQuery());
+  const verdict = data ? durabilityVerdict(data) : null;
+  const VERDICT = {
+    strong: {
+      text: t(
+        "Holds power well late in long rides.",
+        "Tiene bene la potenza nel finale delle uscite lunghe.",
+      ),
+      tone: "text-pine",
+    },
+    average: {
+      text: t(
+        "Loses some power late in long rides.",
+        "Perde un po' di potenza nel finale delle uscite lunghe.",
+      ),
+      tone: "text-fitness",
+    },
+    fades: {
+      text: t(
+        "Fades late in long rides: long Z2 rides and fuelling build durability.",
+        "Cala nel finale delle uscite lunghe: fondo lungo in Z2 e alimentazione costruiscono la resistenza.",
+      ),
+      tone: "text-birch",
+    },
+  } as const;
+  return (
+    <Panel
+      title={t(
+        `Durability · rides ≥ 2 h, last ${DURABILITY_DAYS} days`,
+        `Resistenza alla fatica · uscite ≥ 2 h, ultimi ${DURABILITY_DAYS} giorni`,
+      )}
+    >
+      {isLoading ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {t("Reading the power of your long rides…", "Lettura della potenza delle uscite lunghe…")}
+        </p>
+      ) : isError || !data ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {t("Couldn't load the rides.", "Impossibile caricare le uscite.")}
+        </p>
+      ) : data.rides === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {data.missingWeight
+            ? t(
+                "Log your weight on the Body page: durability is measured per kg.",
+                "Registra il peso nella pagina Corpo: la resistenza si misura per kg.",
+              )
+            : t(
+                "No ride of 2 hours or more with power yet.",
+                "Ancora nessuna uscita di almeno 2 ore con potenza.",
+              )}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {t(
+              `Your best power once you'd already done 15, 30 or 45 kJ per kg of work, from ${data.rides} rides. The smaller the drop from fresh, the more you have left for the finale.`,
+              `La tua potenza migliore dopo aver già svolto 15, 30 o 45 kJ per kg di lavoro, da ${data.rides} uscite. Più piccolo il calo rispetto a fresco, più ne hai per il finale.`,
+            )}
+          </p>
+          <div className="-mx-1 overflow-x-auto">
+            <table className="stat-num w-full min-w-[22rem] text-sm">
+              <thead>
+                <tr className="text-xs text-muted-foreground">
+                  <th className="px-1 py-1 text-left font-normal" />
+                  {BUCKETS.map((b) => (
+                    <th key={b} className="px-1 py-1 text-right font-normal">
+                      {BUCKET_LABEL(b)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {EFFORTS.map((e, k) => (
+                  <tr key={e} className="border-t border-border">
+                    <td className="px-1 py-1.5 font-sans text-muted-foreground">
+                      {EFFORT_LABEL(e)}
+                    </td>
+                    {BUCKETS.map((b) => {
+                      const w = data.best[b][k];
+                      const d = data.drop[b][k];
+                      return (
+                        <td key={b} className="px-1 py-1.5 text-right">
+                          {w != null ? `${Math.round(w)} W` : "–"}
+                          {b > 0 && d != null && (
+                            <span
+                              className={cn(
+                                "ml-1 text-xs",
+                                d < 5 ? "text-pine" : d <= 10 ? "text-fitness" : "text-birch",
+                              )}
+                            >
+                              {d > 0 ? "−" : "+"}
+                              {Math.abs(d).toFixed(0)}%
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {verdict && (
+            <p className={cn("text-sm font-medium", VERDICT[verdict].tone)}>
+              {VERDICT[verdict].text}
+            </p>
+          )}
+          {data.missingWeight > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t(
+                `${data.missingWeight} rides skipped: no weight logged before them.`,
+                `${data.missingWeight} uscite escluse: nessun peso registrato prima.`,
+              )}
+            </p>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function EftpSection() {
   const { data } = useQuery(wellnessQuery(365));
-  const series = useMemo(() => (data ?? []).filter((w) => w.eftp != null).map((w) => ({ date: w.id, eftp: Math.round(w.eftp!) })), [data]);
+  const series = useMemo(
+    () =>
+      (data ?? [])
+        .filter((w) => w.eftp != null)
+        .map((w) => ({ date: w.id, eftp: Math.round(w.eftp!) })),
+    [data],
+  );
   // One tick per month (first data point in it), so labels don't repeat.
-  const ticks = useMemo(() => series.filter((p, i) => i === 0 || p.date.slice(0, 7) !== series[i - 1]!.date.slice(0, 7)).map((p) => p.date), [series]);
+  const ticks = useMemo(
+    () =>
+      series
+        .filter((p, i) => i === 0 || p.date.slice(0, 7) !== series[i - 1]!.date.slice(0, 7))
+        .map((p) => p.date),
+    [series],
+  );
   if (series.length < 2) return null;
   const latest = series.at(-1)!;
   const yearAgo = series[0]!;
   return (
-    <Panel title={`eFTP · ${latest.eftp} W (${latest.eftp - yearAgo.eftp >= 0 ? "+" : ""}${latest.eftp - yearAgo.eftp} W ${t("in a year", "in un anno")})`}>
+    <Panel
+      title={`eFTP · ${latest.eftp} W (${latest.eftp - yearAgo.eftp >= 0 ? "+" : ""}${latest.eftp - yearAgo.eftp} W ${t("in a year", "in un anno")})`}
+    >
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={series} margin={{ left: -16, right: 8, top: 8 }}>
             <CartesianGrid stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="date" ticks={ticks} tickFormatter={(d: string) => format(parseISO(d), "MMM")} stroke="var(--muted-foreground)" fontSize={11} minTickGap={16} />
-            <YAxis domain={["dataMin - 10", "dataMax + 10"]} stroke="var(--muted-foreground)" fontSize={11} />
-            <Tooltip contentStyle={tip} labelFormatter={(d) => format(parseISO(String(d)), "d MMM yyyy")} formatter={(v) => [`${v} W`, "eFTP"]} />
-            <Line type="stepAfter" dataKey="eftp" stroke="var(--fitness)" strokeWidth={2} dot={false} isAnimationActive={false} />
+            <XAxis
+              dataKey="date"
+              ticks={ticks}
+              tickFormatter={(d: string) => format(parseISO(d), "MMM")}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
+              minTickGap={16}
+            />
+            <YAxis
+              domain={["dataMin - 10", "dataMax + 10"]}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
+            />
+            <Tooltip
+              contentStyle={tip}
+              labelFormatter={(d) => format(parseISO(String(d)), "d MMM yyyy")}
+              formatter={(v) => [`${v} W`, "eFTP"]}
+            />
+            <Line
+              type="stepAfter"
+              dataKey="eftp"
+              stroke="var(--fitness)"
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -198,22 +502,46 @@ function DecouplingSection() {
   const recent = steady.slice(0, 8);
   const avg = recent.reduce((s, a) => s + a.d, 0) / recent.length;
   return (
-    <Panel title={t("Aerobic decoupling (Pw:HR) · steady rides ≥ 1 h", "Disaccoppiamento aerobico (Pw:FC) · attività regolari ≥ 1 h")}>
+    <Panel
+      title={t(
+        "Aerobic decoupling (Pw:HR) · steady rides ≥ 1 h",
+        "Disaccoppiamento aerobico (Pw:FC) · attività regolari ≥ 1 h",
+      )}
+    >
       <p className="mb-3 text-sm text-muted-foreground">
         {t(`Average of the last ${recent.length}:`, `Media delle ultime ${recent.length}:`)}{" "}
-        <span className={cn("stat-num font-semibold", avg < 5 ? "text-pine" : "text-birch")}>{avg.toFixed(1)}%</span>{" "}
+        <span className={cn("stat-num font-semibold", avg < 5 ? "text-pine" : "text-birch")}>
+          {avg.toFixed(1)}%
+        </span>{" "}
         {avg < 5
           ? t("is under 5%: solid aerobic base.", "è sotto il 5%: base aerobica solida.")
-          : t("is over 5%: endurance has room to build.", "è sopra il 5%: il fondo ha margine di crescita.")}
+          : t(
+              "is over 5%: endurance has room to build.",
+              "è sopra il 5%: il fondo ha margine di crescita.",
+            )}
       </p>
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ left: -16, right: 8, top: 8 }}>
             <CartesianGrid stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(t: number) => format(t, "d MMM")} stroke="var(--muted-foreground)" fontSize={11} />
+            <XAxis
+              dataKey="t"
+              type="number"
+              domain={["dataMin", "dataMax"]}
+              tickFormatter={(t: number) => format(t, "d MMM")}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
+            />
             <YAxis dataKey="d" unit="%" stroke="var(--muted-foreground)" fontSize={11} />
             <ReferenceLine y={5} stroke="var(--birch)" strokeDasharray="4 4" />
-            <Tooltip contentStyle={tip} formatter={(v, n) => (n === "d" ? [`${Number(v).toFixed(1)}%`, t("Decoupling", "Disaccoppiamento")] : [format(Number(v), "d MMM"), t("Date", "Data")])} />
+            <Tooltip
+              contentStyle={tip}
+              formatter={(v, n) =>
+                n === "d"
+                  ? [`${Number(v).toFixed(1)}%`, t("Decoupling", "Disaccoppiamento")]
+                  : [format(Number(v), "d MMM"), t("Date", "Data")]
+              }
+            />
             <Scatter data={steady} fill="var(--fitness)" isAnimationActive={false} />
           </ScatterChart>
         </ResponsiveContainer>
@@ -231,16 +559,21 @@ function DecouplingSection() {
         <ChevronDown className={cn("transition-transform", showRides && "rotate-180")} />
       </Button>
       {showRides && (
-      <div className="-mx-3 mt-1 divide-y divide-border text-sm">
-        {recent.map((a) => (
-          <Link key={a.id} to="/rides/$id" params={{ id: a.id }} className="stat-num flex justify-between gap-3 px-3 py-2 hover:bg-secondary">
-            <span className="truncate font-sans">
-              {format(parseISO(a.start_date_local), "d MMM")} · {a.name}
-            </span>
-            <span className={a.d < 5 ? "text-pine" : "text-birch"}>{a.d.toFixed(1)}%</span>
-          </Link>
-        ))}
-      </div>
+        <div className="-mx-3 mt-1 divide-y divide-border text-sm">
+          {recent.map((a) => (
+            <Link
+              key={a.id}
+              to="/rides/$id"
+              params={{ id: a.id }}
+              className="stat-num flex justify-between gap-3 px-3 py-2 hover:bg-secondary"
+            >
+              <span className="truncate font-sans">
+                {format(parseISO(a.start_date_local), "d MMM")} · {a.name}
+              </span>
+              <span className={a.d < 5 ? "text-pine" : "text-birch"}>{a.d.toFixed(1)}%</span>
+            </Link>
+          ))}
+        </div>
       )}
     </Panel>
   );
@@ -254,7 +587,9 @@ function ZonesSection() {
   const zones = useMemo(() => {
     const from = addDays(isoDate(new Date()), -weeks * 7);
     const z = Array(7).fill(0) as number[];
-    for (const a of data ?? []) if (a.start_date_local.slice(0, 10) >= from) a.zoneTimes.forEach((s, i) => (z[i] = (z[i] ?? 0) + s));
+    for (const a of data ?? [])
+      if (a.start_date_local.slice(0, 10) >= from)
+        a.zoneTimes.forEach((s, i) => (z[i] = (z[i] ?? 0) + s));
     return z;
   }, [data, weeks]);
   const f = threeZone(zones);
@@ -269,7 +604,10 @@ function ZonesSection() {
             <button
               key={w}
               onClick={() => setWeeks(w)}
-              className={cn("stat-num rounded-md px-3 py-1 text-xs", weeks === w ? "bg-background text-foreground" : "text-muted-foreground")}
+              className={cn(
+                "stat-num rounded-md px-3 py-1 text-xs",
+                weeks === w ? "bg-background text-foreground" : "text-muted-foreground",
+              )}
             >
               {w}
               {t("w", "s")}
@@ -281,10 +619,33 @@ function ZonesSection() {
       <ZoneBar secs={zones} />
       {f && (
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label={t("Low (Z1–2)", "Bassa (Z1–2)")} value={Math.round(f.low * 100)} unit="%" tone="weight" />
-          <StatCard label={t("Moderate (Z3)", "Moderata (Z3)")} value={Math.round(f.mid * 100)} unit="%" tone="form" />
-          <StatCard label={t("High (Z4+)", "Alta (Z4+)")} value={Math.round(f.high * 100)} unit="%" tone="fatigue" />
-          <StatCard label={t("Pattern", "Modello")} value={<span className="font-sans text-lg leading-tight">{distributionLabel(f)}</span>} hint={pi != null ? `${t("polarization index", "indice di polarizzazione")} ${pi.toFixed(2)}` : undefined} />
+          <StatCard
+            label={t("Low (Z1–2)", "Bassa (Z1–2)")}
+            value={Math.round(f.low * 100)}
+            unit="%"
+            tone="weight"
+          />
+          <StatCard
+            label={t("Moderate (Z3)", "Moderata (Z3)")}
+            value={Math.round(f.mid * 100)}
+            unit="%"
+            tone="form"
+          />
+          <StatCard
+            label={t("High (Z4+)", "Alta (Z4+)")}
+            value={Math.round(f.high * 100)}
+            unit="%"
+            tone="fatigue"
+          />
+          <StatCard
+            label={t("Pattern", "Modello")}
+            value={<span className="font-sans text-lg leading-tight">{distributionLabel(f)}</span>}
+            hint={
+              pi != null
+                ? `${t("polarization index", "indice di polarizzazione")} ${pi.toFixed(2)}`
+                : undefined
+            }
+          />
         </div>
       )}
     </Panel>

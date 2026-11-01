@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
   getActivities,
+  getAthlete,
   getActivity,
   getEvents,
   getOffEvents,
@@ -10,6 +11,7 @@ import {
   getWellness,
   type Range,
 } from "./intervals";
+import { getDurability } from "./durability-data";
 import { addDays, isoDate } from "./training";
 
 function range(days: number): Range {
@@ -72,8 +74,19 @@ export const offEventsQuery = (r: Range) =>
 export const racesQuery = (today: string) =>
   queryOptions({
     queryKey: ["events", "races", today],
-    queryFn: async () => (await getEvents({ oldest: addDays(today, -1), newest: addDays(today, 150) })).filter((e) => /^RACE_[ABC]$/.test(e.category)),
+    queryFn: async () =>
+      (await getEvents({ oldest: addDays(today, -1), newest: addDays(today, 150) })).filter((e) =>
+        /^RACE_[ABC]$/.test(e.category),
+      ),
     staleTime: 5 * 60_000,
+  });
+
+/** The intervals.icu profile (name, profile weight), which rarely changes. */
+export const athleteQuery = () =>
+  queryOptions({
+    queryKey: ["athlete"],
+    queryFn: () => getAthlete(),
+    staleTime: 24 * 60 * 60_000,
   });
 
 export const rideZonesQuery = () =>
@@ -102,4 +115,13 @@ export const powerCurvesQuery = () =>
     queryKey: ["power-curves"],
     queryFn: () => getPowerCurves(),
     staleTime: 30 * 60_000,
+  });
+
+/** Power after 15/30/45 kJ/kg over the last 90 days of long rides (each ride's power is downloaded once). */
+export const durabilityQuery = () =>
+  queryOptions({
+    // Versioned: the offline cache keeps results across releases, so a changed shape needs a new key.
+    queryKey: ["durability", 3],
+    queryFn: () => getDurability(),
+    staleTime: 60 * 60_000,
   });

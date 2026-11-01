@@ -21,7 +21,8 @@ import {
   type PlannedEvent,
   type Wellness,
 } from "@/lib/intervals";
-import { advice, readinessFor, recommendation } from "@/lib/readiness";
+import { briochesFor, intakeTarget } from "@/lib/fuel";
+import { advice, formPercent, readinessFor, recommendation } from "@/lib/readiness";
 import { computeForm, formatDuration, formZoneLabel, isoDate } from "@/lib/training";
 import {
   crownFor,
@@ -232,7 +233,19 @@ function Fact({ label, value, wide }: { label: string; value: string; wide?: boo
   );
 }
 
+/** What to bring for the longest suggested session: brioches for the carbs the guidelines ask for. */
+function fuelText(minutes: number, intensity: number) {
+  const g = intakeTarget(minutes * 60, intensity).grams;
+  if (!g) return t("Nothing needed", "Niente");
+  const n = Math.max(1, briochesFor(g));
+  return t(
+    `${n} brioche${n > 1 ? "s" : ""} (~${Math.round(g)} g)`,
+    `${n} brioche (~${Math.round(g)} g)`,
+  );
+}
+
 /** What to do today: the season's advice, the facts to ride by, and the block's session on a quality day. */
+
 function PlanCard({
   crown,
   rec,
@@ -289,6 +302,9 @@ function PlanCard({
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-[auto_auto_1fr] sm:gap-x-8">
           <Fact label={t("Zones", "Zone")} value={rec.zones} />
           <Fact label={t("Duration", "Durata")} value={rec.duration} />
+          {rec.minutes > 0 && (
+            <Fact label={t("Fuel", "Rifornimento")} value={fuelText(rec.minutes, rec.intensity)} />
+          )}
           {under && <Fact label={t("Stay under", "Resta sotto")} value={under} wide />}
         </dl>
       )}
@@ -389,6 +405,22 @@ function ScoreDetails({
           <div className="stat-num col-start-2 text-xs text-muted-foreground">{c.detail}</div>
         </div>
       ))}
+      <p className="text-sm text-muted-foreground">
+        {crown.confidence === "high"
+          ? t(
+              "Each part is measured against your own normal: HRV against your 60-day range, sleep against your usual, answers against how you usually answer.",
+              "Ogni parte è misurata rispetto al tuo normale: HRV sul tuo intervallo di 60 giorni, sonno sul tuo solito, risposte su come rispondi di solito.",
+            )
+          : crown.confidence === "medium"
+            ? t(
+                "Fair confidence: some parts are still learning your normal (HRV needs 14 readings in 60 days, sleep 10 nights).",
+                "Affidabilità discreta: alcune parti stanno ancora imparando il tuo normale (l'HRV serve 14 letture in 60 giorni, il sonno 10 notti).",
+              )
+            : t(
+                "Low confidence: too few inputs today. Wear the HRV sensor at night and do the check-in.",
+                "Affidabilità bassa: pochi dati oggi. Misura l'HRV di notte e fai il check-in.",
+              )}
+      </p>
       {crown.load.level > 0 && r.uncapped != null && (
         <p className="text-sm text-muted-foreground">
           {t(
@@ -517,12 +549,13 @@ function FocusPanel({ focus, quality }: { focus: FocusInfo; quality: boolean }) 
 function dayFacts(w: Wellness | undefined): [string, string][] {
   if (!w) return [];
   const tsb = w.ctl != null && w.atl != null ? computeForm(w.ctl, w.atl) : null;
+  const tsbPct = w.ctl != null && w.atl != null ? formPercent(w.ctl, w.atl) : null;
   const facts: [string, string | false | null][] = [
     [t("Fitness", "Forma fisica"), w.ctl != null && String(Math.round(w.ctl))],
     [
       t("Form", "Forma"),
       tsb != null &&
-        `${tsb > 0 ? "+" : ""}${Math.round(tsb)} · ${formZoneLabel(tsb).toLowerCase()}`,
+        `${tsb > 0 ? "+" : ""}${Math.round(tsb)} (${Math.round(tsbPct!)}%) · ${formZoneLabel(tsbPct!).toLowerCase()}`,
     ],
     [t("Sleep", "Sonno"), !!w.sleepSecs && formatDuration(w.sleepSecs)],
     [t("Fatigue", "Fatica"), w.fatigue != null && LEVEL[w.fatigue - 1]!],

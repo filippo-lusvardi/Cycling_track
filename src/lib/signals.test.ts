@@ -23,15 +23,17 @@ describe("early signals", () => {
     expect(keys([])).toEqual([]);
     expect(keys(days(35, () => ({ hrv: 60, sleepSecs: 8 * 3600, fatigue: 2 })))).toEqual([]);
   });
-  it("flag a week of HRV under the four weeks before, noting rising load", () => {
-    const rows = days(35, (b) => ({ hrv: b < 7 ? 52 : 60, atl: b === 0 ? 70 : 50 }));
+  // Real HRV wobbles from day to day: 54 and 66 ms on alternate mornings (an SD of about 0.1 in ln).
+  const usual = (b: number) => (b % 2 ? 54 : 66);
+  it("flag a week of HRV under your normal band, noting rising load", () => {
+    const rows = days(67, (b) => ({ hrv: b < 7 ? 52 : usual(b), atl: b === 0 ? 70 : 50 }));
     const s = earlySignals(rows, today);
     expect(s.map((x) => x.key)).toEqual(["hrv"]);
     expect(s[0]!.text).toMatch(/load went up/);
   });
   it("ignore a small HRV dip and a single bad morning", () => {
-    expect(keys(days(35, (b) => ({ hrv: b < 7 ? 57 : 60 })))).toEqual([]);
-    expect(keys(days(35, (b) => ({ hrv: b === 0 ? 30 : 60 })))).toEqual([]);
+    expect(keys(days(67, (b) => ({ hrv: b < 7 ? 58 : usual(b) })))).toEqual([]);
+    expect(keys(days(67, (b) => ({ hrv: b === 0 ? 30 : b < 7 ? 60 : usual(b) })))).toEqual([]);
   });
   it("flag fatigue high on 3 of the last 4 check-ins, not 2", () => {
     expect(keys(days(4, (b) => ({ fatigue: b === 2 ? 2 : 3 })))).toEqual(["fatigue"]);

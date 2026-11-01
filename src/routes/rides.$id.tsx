@@ -15,11 +15,18 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { useSegmentNames } from "@/hooks/use-segment-names";
 import { useSegmentLibrary } from "@/hooks/use-segments";
-import { decoupling } from "@/lib/analysis";
+import { curveFit, decoupling } from "@/lib/analysis";
 import { detectClimbs } from "@/lib/climbs";
 import { briochesIn, withBrioches, withoutBrioches } from "@/lib/brioches";
+import { BRIOCHE_G, rideFuel } from "@/lib/fuel";
 import { setActivityDescription, type ActivityDetail, type RideStreams } from "@/lib/intervals";
-import { activityQuery, streamsQuery, wellnessRangeQuery } from "@/lib/queries";
+import {
+  activityQuery,
+  athleteQuery,
+  powerCurvesQuery,
+  streamsQuery,
+  wellnessRangeQuery,
+} from "@/lib/queries";
 import { segmentEngine } from "@/lib/segment-app";
 import { cellOf, mayPass } from "@/lib/segment-index";
 import {
@@ -29,7 +36,7 @@ import {
   segmentSummary,
   trackFromStreams,
 } from "@/lib/segments";
-import { addDays, formatClock, formatDuration, formatKm, weightOn } from "@/lib/training";
+import { addDays, formatClock, formatDuration, formatKm, weightFor } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
 
@@ -46,12 +53,19 @@ function RideDetail() {
   const { id } = Route.useParams();
   const { data: a } = useSuspenseQuery(activityQuery(id));
   const { data: streams } = useQuery(streamsQuery(id));
+  // CP and W′ from the last 42 days' curve, for the W′ balance chart.
+  const { data: curves } = useQuery(powerCurvesQuery());
+  const cp = useMemo(() => curveFit(curves?.find((c) => c.id.includes("42"))), [curves]);
   const date = a.start_date_local.slice(0, 10);
   const { data: wellness } = useQuery({
-    ...wellnessRangeQuery({ oldest: addDays(date, -30), newest: date }),
+    ...wellnessRangeQuery({ oldest: addDays(date, -3), newest: date }),
     enabled: !!date,
   });
-  const weight = wellness ? weightOn(wellness, date) : null;
+  const { data: athlete } = useQuery(athleteQuery());
+  // The ride day's weigh-in, else the 3 days before, else the intervals.icu profile weight.
+  const weight = wellness
+    ? weightFor(wellness, date, athlete?.weight ?? null)
+    : (athlete?.weight ?? null);
   const intervals = (a.icu_intervals ?? []).filter((i) => i.type === "WORK" || i.label);
   // Collapsed by default: long and only occasionally needed.
   const [showCharts, setShowCharts] = useState(false);
@@ -191,7 +205,7 @@ function RideDetail() {
         {showCharts && work && <WorkBar work={work} onClear={() => setWorkId(null)} />}
         {showCharts &&
           (streams ? (
-            <RideCharts a={a} streams={streams} work={work} />
+            <RideCharts a={a} streams={streams} work={work} cp={cp} />
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {t("Loading ride streams…", "Caricamento dati attività…")}
@@ -269,8 +283,9 @@ function Brioches({ a }: { a: ActivityDetail }) {
       title={`${t("Brioches", "Brioche")}${saved ? ` · ${saved}` : ""}`}
       action={<ShowHide open={open} onToggle={() => setOpen((v) => !v)} />}
     >
+      <FuelLine a={a} brioches={count} />
       {open && (
-        <div className="space-y-3">
+        <div className="mt-3 space-y-3">
           <div className="flex items-center justify-center gap-6">
             <Button
               variant="outline"
@@ -305,6 +320,60 @@ function Brioches({ a }: { a: ActivityDetail }) {
         </div>
       )}
     </Panel>
+  );
+}
+
+/** Carbs burned, eaten and suggested for this ride, with how many brioches to change next time. */
+function FuelLine({ a, brioches }: { a: ActivityDetail; brioches: number }) {
+  const f = rideFuel(a, brioches);
+  if (f.burned == null && !f.target.high) return null;
+  const tone =
+    f.verdict === "under" ? "text-birch" : f.verdict === "over" ? "text-fitness" : "text-pine";
+  const next =
+    f.verdict === "ok" || f.advice === 0
+      ? t("Fuelling on target.", "Alimentazione giusta.")
+      : f.advice > 0
+        ? t(
+            `${f.advice} more brioche${f.advice > 1 ? "s" : ""} next time.`,
+            `${f.advice} brioche in più la prossima volta.`,
+          )
+        : t(
+            `${-f.advice} fewer brioche${f.advice < -1 ? "s" : ""} would do.`,
+            `${-f.advice} brioche in meno basterebbero.`,
+          );
+  return (
+    <div className="space-y-1 text-sm">
+      <p className="stat-num">
+        {f.burned != null && (
+          <>
+            {t(
+              `Burned ~${Math.round(f.burned)} g carbs`,
+              `Bruciati ~${Math.round(f.burned)} g di carboidrati`,
+            )}{" "}
+            ·{" "}
+          </>
+        )}
+        {t(`ate ${f.eaten} g`, `mangiati ${f.eaten} g`)}
+        {f.target.high > 0 &&
+          ` · ${t("target", "obiettivo")} ${Math.round(f.target.low)}–${Math.round(f.target.high)} g`}
+      </p>
+      {f.target.high > 0 ? (
+        <p className={cn("font-medium", tone)}>{next}</p>
+      ) : (
+        <p className="text-muted-foreground">
+          {t(
+            "Under 75 minutes: breakfast is enough, nothing needed on the bike.",
+            "Sotto i 75 minuti: basta la colazione, niente da mangiare in bici.",
+          )}
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        {t(
+          `Estimate: work and intensity give the carbs burned; targets follow the ACSM guidelines (30–60 g/h up to 2.5 h, 60–90 g/h beyond). 1 brioche ≈ ${BRIOCHE_G} g.`,
+          `Stima: lavoro e intensità danno i carboidrati bruciati; gli obiettivi seguono le linee guida ACSM (30–60 g/h fino a 2,5 h, 60–90 g/h oltre). 1 brioche ≈ ${BRIOCHE_G} g.`,
+        )}
+      </p>
+    </div>
   );
 }
 

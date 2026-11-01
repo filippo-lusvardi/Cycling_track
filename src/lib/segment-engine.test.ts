@@ -30,8 +30,23 @@ const base = road(30, 7);
 const climb = profile(30, [[10, 14, 6]]);
 const RIDES = {
   today: { ...ride("today", 3, base, climb, { altNoise: 2 }), date: "2026-10-30T09:00:00" },
-  sunday: { ...ride("sunday", 9, join(base, 10), profile(30, [[9.5, 10, 2.5], [10, 14, 6]]), { altNoise: 2 }), date: "2026-10-25T09:00:00" },
-  half: { ...ride("half", 5, branch(base, 12, 30), profile(30, [[10, 12, 6]])), date: "2026-10-20T09:00:00" },
+  sunday: {
+    ...ride(
+      "sunday",
+      9,
+      join(base, 10),
+      profile(30, [
+        [9.5, 10, 2.5],
+        [10, 14, 6],
+      ]),
+      { altNoise: 2 },
+    ),
+    date: "2026-10-25T09:00:00",
+  },
+  half: {
+    ...ride("half", 5, branch(base, 12, 30), profile(30, [[10, 12, 6]])),
+    date: "2026-10-20T09:00:00",
+  },
 } satisfies Record<string, TrackLike>;
 type RideId = keyof typeof RIDES;
 
@@ -75,7 +90,9 @@ describe("compact tracks", () => {
   it("round-trips within a metre and is much smaller", () => {
     const t = RIDES.today;
     const back = unpackTrack(structuredClone(packTrack(t)));
-    expect(Math.max(...t.lat.map((la, i) => haversine(la, t.lng[i]!, back.lat[i]!, back.lng[i]!)))).toBeLessThan(1);
+    expect(
+      Math.max(...t.lat.map((la, i) => haversine(la, t.lng[i]!, back.lat[i]!, back.lng[i]!))),
+    ).toBeLessThan(1);
     expect(back.watts[10]).toBe(220);
     expect(packedBytes(packTrack(t)) / t.lat.length).toBe(24);
   });

@@ -11,7 +11,7 @@ import {
   type FocusState,
 } from "@/lib/focus";
 import type { Activity, Wellness } from "@/lib/intervals";
-import { powerCurvesQuery, racesQuery, rideZonesQuery } from "@/lib/queries";
+import { durabilityQuery, powerCurvesQuery, racesQuery, rideZonesQuery } from "@/lib/queries";
 import { raceFrom, type Focus } from "@/lib/races";
 import { FOCUS_PIN, FOCUS_STATE } from "@/lib/settings";
 
@@ -20,6 +20,7 @@ export function useFocus(acts: Activity[], wellness: Wellness[], today: string) 
   const { data: events } = useQuery(racesQuery(today));
   const { data: curves } = useQuery(powerCurvesQuery());
   const { data: zones } = useQuery(rideZonesQuery());
+  const dur = useQuery(durabilityQuery());
   const [state, setState] = useLocalStore<FocusState | null>(FOCUS_STATE, null);
   const [pin, setPin] = useLocalStore<Focus | null>(FOCUS_PIN, null);
 
@@ -30,11 +31,12 @@ export function useFocus(acts: Activity[], wellness: Wellness[], today: string) 
   const c42 = curves?.find((c) => c.id.includes("42"));
   const c1y = curves?.find((c) => c.id.includes("1y") || c.id.includes("365"));
   const result = useMemo(
-    () => computeFocus({ races, today, acts, wellness, c42, c1y }),
-    [races, today, acts, wellness, c42, c1y],
+    () => computeFocus({ races, today, acts, wellness, c42, c1y, durability: dur.data ?? null }),
+    [races, today, acts, wellness, c42, c1y, dur.data],
   );
   // Only once the races and the curves have loaded, so a cold start doesn't open a block on partial data.
-  const ready = !!events && !!curves;
+  // Durability too (a failed load counts as done: it only adds a reason).
+  const ready = !!events && !!curves && (dur.isFetched || dur.isError);
   const next = ready ? holdFocus(state, result.focus, today, racesKey(races)) : state;
   useEffect(() => {
     if (ready && JSON.stringify(next) !== JSON.stringify(state)) setState(() => next);
