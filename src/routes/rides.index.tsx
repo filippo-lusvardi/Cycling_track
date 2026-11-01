@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { allActivitiesQuery } from "@/lib/queries";
 import { ActivityRow } from "@/components/ActivityRow";
 import { Panel, StatCard } from "@/components/StatCard";
@@ -9,6 +9,7 @@ import { activityKind, KINDS, type Kind } from "@/lib/activity-kind";
 import { formatDuration } from "@/lib/training";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { format, t } from "@/lib/i18n";
 
 const PAGE = 100;
 
@@ -26,15 +27,21 @@ function groupByMonth<T extends { start_date_local: string }>(acts: T[]): [strin
 export const Route = createFileRoute("/rides/")({
   head: () => ({
     meta: [
-      { title: "Rides — Cirmolo" },
+      { title: t("Rides — Cirmolo", "Attività — Cirmolo") },
       {
         name: "description",
-        content: "All your rides and workouts synced from Garmin via intervals.icu.",
+        content: t(
+          "All your rides and workouts synced from Garmin via intervals.icu.",
+          "Tutte le attività e gli allenamenti sincronizzati da Garmin tramite intervals.icu.",
+        ),
       },
-      { property: "og:title", content: "Rides — Cirmolo" },
+      { property: "og:title", content: t("Rides — Cirmolo", "Attività — Cirmolo") },
       {
         property: "og:description",
-        content: "Ride history with distance, power and training load.",
+        content: t(
+          "Ride history with distance, power and training load.",
+          "Storico attività con distanza, potenza e carico di allenamento.",
+        ),
       },
     ],
   }),
@@ -86,18 +93,18 @@ function Rides() {
     <div className="space-y-6">
       <div>
         <div className="eyebrow">
-          All activities
+          {t("All activities", "Tutte le attività")}
           {data.length
-            ? ` · since ${format(parseISO(data.at(-1)!.start_date_local), "MMM yyyy")}`
+            ? ` · ${t("since", "dal")} ${format(parseISO(data.at(-1)!.start_date_local), "MMM yyyy")}`
             : ""}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">Rides</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t("Rides", "Attività")}</h1>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="28d distance" value={Math.round(totals.km)} unit="km" />
-        <StatCard label="28d time" value={formatDuration(totals.time)} />
-        <StatCard label="28d load" value={Math.round(totals.load)} tone="fitness" />
-        <StatCard label="28d activities" value={totals.count} />
+        <StatCard label={t("28d distance", "Distanza 28g")} value={Math.round(totals.km)} unit="km" />
+        <StatCard label={t("28d time", "Tempo 28g")} value={formatDuration(totals.time)} />
+        <StatCard label={t("28d load", "Carico 28g")} value={Math.round(totals.load)} tone="fitness" />
+        <StatCard label={t("28d activities", "Attività 28g")} value={totals.count} />
       </div>
       <div className="flex flex-wrap gap-2">
         {kinds.map(([k, n]) => {
@@ -125,16 +132,16 @@ function Rides() {
           );
         })}
       </div>
-      <Panel title={`${filtered.length} activities`}>
+      <Panel title={`${filtered.length} ${t("activities", "attività")}`}>
         <div className="mb-1 hidden justify-end gap-4 px-3 text-right sm:flex">
-          <span className="eyebrow">Dist</span>
-          <span className="eyebrow">Time</span>
-          <span className="eyebrow w-14">Power</span>
-          <span className="eyebrow w-12">Load</span>
+          <span className="eyebrow">{t("Dist", "Dist")}</span>
+          <span className="eyebrow">{t("Time", "Tempo")}</span>
+          <span className="eyebrow w-14">{t("Power", "Potenza")}</span>
+          <span className="eyebrow w-12">{t("Load", "Carico")}</span>
         </div>
         <div className="-mx-3">
           {groupByMonth(shown).map(([m, acts]) => {
-            const t = months.get(m)!;
+            const mt = months.get(m)!;
             // One block per month, so its heading sticks under the site header while you scroll through it.
             return (
               <section key={m}>
@@ -143,8 +150,8 @@ function Rides() {
                     {format(parseISO(`${m}-01`), "MMMM yyyy")}
                   </span>
                   <span>
-                    {t.n} · {Math.round(t.km)} km · {formatDuration(t.secs)} ·{" "}
-                    <span className="text-primary">{Math.round(t.load)}</span>
+                    {mt.n} · {Math.round(mt.km)} km · {formatDuration(mt.secs)} ·{" "}
+                    <span className="text-primary">{Math.round(mt.load)}</span>
                   </span>
                 </div>
                 <div className="divide-y divide-border">
@@ -159,7 +166,7 @@ function Rides() {
         {filtered.length > limit && (
           <div className="mt-4 flex justify-center">
             <Button variant="secondary" onClick={() => setLimit((l) => l + PAGE)}>
-              Show more ({filtered.length - limit} left)
+              {t(`Show more (${filtered.length - limit} left)`, `Mostra altre (${filtered.length - limit} rimanenti)`)}
             </Button>
           </div>
         )}

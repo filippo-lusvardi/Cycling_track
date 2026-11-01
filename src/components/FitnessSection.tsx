@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { Suspense, useMemo, useState } from "react";
 import {
   Area,
@@ -15,8 +15,9 @@ import {
 } from "recharts";
 import { Panel, StatCard } from "@/components/StatCard";
 import { wellnessQuery } from "@/lib/queries";
-import { computeForm, formZone } from "@/lib/training";
+import { computeForm, formZoneLabel } from "@/lib/training";
 import { cn } from "@/lib/utils";
+import { format, t } from "@/lib/i18n";
 
 const RANGES = [42, 90, 180, 365] as const;
 
@@ -26,7 +27,7 @@ export function FitnessSection() {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">Fitness, fatigue & form</h2>
+        <h2 className="text-sm font-semibold">{t("Fitness, fatigue & form", "Forma fisica, fatica e forma")}</h2>
         <div className="flex gap-1 rounded-lg bg-secondary p-1">
           {RANGES.map((r) => (
             <button
@@ -37,13 +38,14 @@ export function FitnessSection() {
                 days === r ? "bg-background text-foreground" : "text-muted-foreground",
               )}
             >
-              {r}d
+              {r}
+              {t("d", "g")}
             </button>
           ))}
         </div>
       </div>
       <Suspense
-        fallback={<p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>}
+        fallback={<p className="py-16 text-center text-sm text-muted-foreground">{t("Loading…", "Caricamento…")}</p>}
       >
         <FormSection days={days} />
       </Suspense>
@@ -73,42 +75,42 @@ function FormSection({ days }: { days: number }) {
     <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
-          label="Fitness"
+          label={t("Fitness", "Forma fisica")}
           tone="fitness"
           value={today?.fitness ?? "–"}
           hint={
             weekAgo && today
-              ? `${today.fitness - weekAgo.fitness >= 0 ? "+" : ""}${today.fitness - weekAgo.fitness} vs last week`
+              ? `${today.fitness - weekAgo.fitness >= 0 ? "+" : ""}${today.fitness - weekAgo.fitness}${t(" vs last week", " vs settimana scorsa")}`
               : undefined
           }
         />
-        <StatCard label="Fatigue" tone="fatigue" value={today?.fatigue ?? "–"} />
+        <StatCard label={t("Fatigue", "Fatica")} tone="fatigue" value={today?.fatigue ?? "–"} />
         <StatCard
-          label="Form"
+          label={t("Form", "Forma")}
           tone="form"
           value={today ? Math.round(today.form) : "–"}
-          hint={today ? formZone(today.form) : undefined}
+          hint={today ? formZoneLabel(today.form) : undefined}
         />
         <StatCard
-          label="Ramp rate"
+          label={t("Ramp rate", "Ritmo di crescita")}
           value={ramp != null ? ramp.toFixed(1) : "–"}
-          hint="Fitness change / week"
+          hint={t("Fitness change / week", "Variazione forma fisica / settimana")}
         />
       </div>
-      <Panel title="Performance management">
+      <Panel title={t("Performance management", "Gestione della prestazione")}>
         {/* Fitness and fatigue share a scale; form has its own, with zones. Hovering one shows the same day on both. */}
         <div className="space-y-4">
           <MetricChart
             data={series}
             lines={[
-              { key: "fitness", label: "Fitness (CTL)", color: "var(--fitness)", area: true },
-              { key: "fatigue", label: "Fatigue (ATL)", color: "var(--fatigue)" },
+              { key: "fitness", label: t("Fitness (CTL)", "Forma fisica (CTL)"), color: "var(--fitness)", area: true },
+              { key: "fatigue", label: t("Fatigue (ATL)", "Fatica (ATL)"), color: "var(--fatigue)" },
             ]}
             tall
           />
           <MetricChart
             data={series}
-            lines={[{ key: "form", label: "Form (TSB)", color: "var(--form)" }]}
+            lines={[{ key: "form", label: t("Form (TSB)", "Forma (TSB)"), color: "var(--form)" }]}
             xAxis
             zones={FORM_ZONES}
           />
@@ -120,11 +122,11 @@ function FormSection({ days }: { days: number }) {
 
 // Form zones as in `formZone` (training.ts), drawn behind the form line.
 const FORM_ZONES: [number, number, string, string][] = [
-  [-200, -30, "High risk", "var(--lingon)"],
-  [-30, -10, "Optimal", "var(--pine)"],
-  [-10, 5, "Grey zone", "var(--z1)"],
-  [5, 25, "Fresh", "var(--fitness)"],
-  [25, 200, "Transition", "var(--birch)"],
+  [-200, -30, t("High risk", "Rischio alto"), "var(--lingon)"],
+  [-30, -10, t("Optimal", "Ottimale"), "var(--pine)"],
+  [-10, 5, t("Grey zone", "Zona grigia"), "var(--z1)"],
+  [5, 25, t("Fresh", "Fresco"), "var(--fitness)"],
+  [25, 200, t("Transition", "Transizione"), "var(--birch)"],
 ];
 
 type Point = { date: string; fitness: number; fatigue: number; form: number };

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { format } from "@/lib/i18n";
 
 function subscribe(cb: () => void) {
   window.addEventListener("online", cb);

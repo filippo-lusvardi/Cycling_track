@@ -1,10 +1,11 @@
 import { formatDuration } from "@/lib/training";
 import { ZONE_NAMES } from "@/lib/analysis";
+import { t } from "@/lib/i18n";
 
 /** Time in power zones Z1–Z7 as one stacked bar with a legend. */
 export function ZoneBar({ secs }: { secs: number[] }) {
   const total = secs.reduce((a, b) => a + b, 0);
-  if (!total) return <p className="text-sm text-muted-foreground">No power-zone data.</p>;
+  if (!total) return <p className="text-sm text-muted-foreground">{t("No power-zone data.", "Nessun dato sulle zone di potenza.")}</p>;
   return (
     <div>
       <div className="flex h-4 w-full overflow-hidden rounded-full bg-secondary">

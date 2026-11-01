@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Buds, CrownView, Rings } from "@/components/tree/Crown";
 import { dayHeight, MONTH_H, restHeight, WEEK_H } from "@/components/tree/geometry";
@@ -21,17 +21,18 @@ import {
   type TrunkPiece,
 } from "@/lib/tree";
 import { cn } from "@/lib/utils";
+import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/tree")({
-  head: () => ({ meta: [{ title: "Tree — Cirmolo" }] }),
+  head: () => ({ meta: [{ title: t("Tree — Cirmolo", "Albero — Cirmolo") }] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(allActivitiesQuery()),
   component: TreePage,
 });
 
 type Zoom = "tree" | "years";
 const ZOOMS: { key: Zoom; label: string }[] = [
-  { key: "tree", label: "Tree" },
-  { key: "years", label: "Years" },
+  { key: "tree", label: t("Tree", "Albero") },
+  { key: "years", label: t("Years", "Anni") },
 ];
 /** Days shown one branch per ride; older history folds into weeks. */
 const RECENT_DAYS = 5;
@@ -98,7 +99,7 @@ function TreePage() {
         )}
         {w > 0 && zoom === "years" && (
           <div className="pt-2">
-            <h1 className="mb-1 text-center text-lg font-semibold">The tree, cut across</h1>
+            <h1 className="mb-1 text-center text-lg font-semibold">{t("The tree, cut across", "L'albero, in sezione")}</h1>
             <Rings years={buildYears(days)} w={w} />
           </div>
         )}
@@ -108,7 +109,7 @@ function TreePage() {
         <div
           className="flex gap-1 rounded-full border border-border bg-card/85 p-1 shadow-lg backdrop-blur"
           role="tablist"
-          aria-label="Zoom"
+          aria-label={t("Zoom", "Zoom")}
         >
           {ZOOMS.map((z) => (
             <button
@@ -263,7 +264,7 @@ function TreeBody({
       const run = rest;
       const dates = run.map((d) => d.date);
       const title =
-        run.length === 1 ? format(parseISO(dates[0]!), "EEEE d MMMM") : `${run.length} rest days`;
+        run.length === 1 ? format(parseISO(dates[0]!), "EEEE d MMMM") : t(`${run.length} rest days`, `${run.length} giorni di riposo`);
       pieces.push({
         h: restHeight(run.length),
         top: run[0]!.trunk,
@@ -314,7 +315,7 @@ function TreeBody({
 
     // The recent days above are plain bark; fade into the first week's chapter.
     if (weeks.length)
-      monthRow("By week", "weekly", weeks[0]!.trunk, null, weeks[0]!.chapter, "steady");
+      monthRow(t("By week", "Per settimana"), "weekly", weeks[0]!.trunk, null, weeks[0]!.chapter, "steady");
     const oldest = days[days.length - 1]!.date;
     weeks.forEach((wk, i) => {
       newMonth(wk.start < oldest ? oldest : wk.start, wk.trunk, wk.ctl, wk.chapter);
@@ -335,7 +336,7 @@ function TreeBody({
             w={w}
             olderChapter={older?.chapter}
             onOpen={() =>
-              open({ kind: "days", title: `Week ${weekRange(wk.start, wk.end)}`, dates })
+              open({ kind: "days", title: t(`Week ${weekRange(wk.start, wk.end)}`, `Settimana ${weekRange(wk.start, wk.end)}`), dates })
             }
           />
         ),

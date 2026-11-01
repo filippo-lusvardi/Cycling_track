@@ -1,5 +1,6 @@
 // Pure, browser-safe helpers for training metrics.
 
+import { t } from "./i18n";
 export type FormZone = "High risk" | "Optimal" | "Grey zone" | "Fresh" | "Transition";
 
 /** Form (TSB) = Fitness (CTL) − Fatigue (ATL). */
@@ -15,6 +16,16 @@ export function formZone(form: number): FormZone {
   if (form <= 25) return "Fresh";
   return "Transition";
 }
+
+/** A form zone in the UI language. */
+export const formZoneLabel = (form: number) =>
+  ({
+    "High risk": t("High risk", "Rischio alto"),
+    Optimal: t("Optimal", "Ottimale"),
+    "Grey zone": t("Grey zone", "Zona grigia"),
+    Fresh: t("Fresh", "Fresco"),
+    Transition: t("Transition", "Transizione"),
+  })[formZone(form)];
 
 export function formatDuration(secs?: number | null): string {
   if (!secs) return "–";

@@ -7,15 +7,16 @@ import { Label } from "@/components/ui/label";
 import { createManualActivity, type ManualActivity } from "@/lib/intervals";
 import { loadFromRpe } from "@/lib/training";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 const TYPES: { value: ManualActivity["type"]; label: string }[] = [
-  { value: "Ride", label: "Ride" },
-  { value: "VirtualRide", label: "Indoor ride" },
-  { value: "Run", label: "Run" },
-  { value: "WeightTraining", label: "Gym" },
-  { value: "Walk", label: "Walk" },
-  { value: "Swim", label: "Swim" },
-  { value: "Other", label: "Other" },
+  { value: "Ride", label: t("Ride", "Attività in bici") },
+  { value: "VirtualRide", label: t("Indoor ride", "Rulli") },
+  { value: "Run", label: t("Run", "Corsa") },
+  { value: "WeightTraining", label: t("Gym", "Palestra") },
+  { value: "Walk", label: t("Walk", "Camminata") },
+  { value: "Swim", label: t("Swim", "Nuoto") },
+  { value: "Other", label: t("Other", "Altro") },
 ];
 
 /** A workout the watch didn't record, written to intervals.icu as a manual activity. */
@@ -34,13 +35,13 @@ export function LogWorkoutForm({ date, onSaved }: { date: string; onSaved?: () =
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (mins < 1) {
-      toast.error("Enter the duration");
+      toast.error(t("Enter the duration", "Inserisci la durata"));
       return;
     }
     const entry: ManualActivity = {
       date: day,
       type,
-      name: name.trim() || TYPES.find((t) => t.value === type)!.label,
+      name: name.trim() || TYPES.find((o) => o.value === type)!.label,
       minutes: Math.round(mins),
       load,
       rpe,
@@ -50,11 +51,11 @@ export function LogWorkoutForm({ date, onSaved }: { date: string; onSaved?: () =
     setBusy(true);
     try {
       await createManualActivity(entry);
-      toast.success("Workout added to intervals.icu");
+      toast.success(t("Workout added to intervals.icu", "Allenamento aggiunto su intervals.icu"));
       await qc.invalidateQueries({ queryKey: ["activities"] });
       onSaved?.();
     } catch {
-      toast.error("Couldn't save the workout");
+      toast.error(t("Couldn't save the workout", "Impossibile salvare l'allenamento"));
     } finally {
       setBusy(false);
     }
@@ -64,41 +65,41 @@ export function LogWorkoutForm({ date, onSaved }: { date: string; onSaved?: () =
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label htmlFor="lw-type">Type</Label>
+          <Label htmlFor="lw-type">{t("Type", "Tipo")}</Label>
           <select
             id="lw-type"
             value={type}
             onChange={(e) => setType(e.target.value as ManualActivity["type"])}
             className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
           >
-            {TYPES.map((t) => (
-              <option key={t.value} value={t.value} className="bg-popover">
-                {t.label}
+            {TYPES.map((o) => (
+              <option key={o.value} value={o.value} className="bg-popover">
+                {o.label}
               </option>
             ))}
           </select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="lw-date">Date</Label>
+          <Label htmlFor="lw-date">{t("Date", "Data")}</Label>
           <Input id="lw-date" type="date" value={day} onChange={(e) => setDay(e.target.value)} required />
         </div>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="lw-name">Name</Label>
-        <Input id="lw-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Leg day, easy run…" />
+        <Label htmlFor="lw-name">{t("Name", "Nome")}</Label>
+        <Input id="lw-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Leg day, easy run…", "Gambe, corsetta…")} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label htmlFor="lw-min">Duration (min)</Label>
+          <Label htmlFor="lw-min">{t("Duration (min)", "Durata (min)")}</Label>
           <Input id="lw-min" inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="lw-km">Distance (km)</Label>
-          <Input id="lw-km" inputMode="decimal" value={km} onChange={(e) => setKm(e.target.value)} placeholder="optional" />
+          <Label htmlFor="lw-km">{t("Distance (km)", "Distanza (km)")}</Label>
+          <Input id="lw-km" inputMode="decimal" value={km} onChange={(e) => setKm(e.target.value)} placeholder={t("optional", "facoltativa")} />
         </div>
       </div>
       <div className="space-y-1">
-        <Label>Effort (RPE)</Label>
+        <Label>{t("Effort (RPE)", "Sforzo (RPE)")}</Label>
         <div className="grid grid-cols-10 gap-1">
           {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
             <button
@@ -116,11 +117,12 @@ export function LogWorkoutForm({ date, onSaved }: { date: string; onSaved?: () =
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          Estimated load <span className="stat-num text-foreground">{load}</span> (duration × RPE intensity, like TSS)
+          {t("Estimated load", "Carico stimato")} <span className="stat-num text-foreground">{load}</span>{" "}
+          {t("(duration × RPE intensity, like TSS)", "(durata × intensità RPE, come il TSS)")}
         </p>
       </div>
       <Button type="submit" className="w-full" disabled={busy}>
-        {busy ? "Saving…" : "Add workout"}
+        {busy ? t("Saving…", "Salvataggio…") : t("Add workout", "Aggiungi allenamento")}
       </Button>
     </form>
   );

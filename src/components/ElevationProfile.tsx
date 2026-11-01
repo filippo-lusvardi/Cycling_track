@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Climb, ClimbCategory } from "@/lib/climbs";
+import { t } from "@/lib/i18n";
 
 export const CAT_COLOR: Record<ClimbCategory, string> = {
   HC: "var(--z6)",
@@ -38,7 +39,7 @@ export function ElevationProfile({
     }
     return out;
   }, [distance, altitude]);
-  if (data.length < 2) return <p className="text-sm text-muted-foreground">No altitude data for this ride.</p>;
+  if (data.length < 2) return <p className="text-sm text-muted-foreground">{t("No altitude data for this ride.", "Nessun dato altimetrico per questa attività.")}</p>;
 
   return (
     <div className="h-48 sm:h-56">
@@ -63,7 +64,7 @@ export function ElevationProfile({
           <Tooltip
             contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8 }}
             labelFormatter={(v) => `${Number(v).toFixed(1)} km`}
-            formatter={(v) => [`${Math.round(Number(v))} m`, "Altitude"]}
+            formatter={(v) => [`${Math.round(Number(v))} m`, t("Altitude", "Altitudine")]}
           />
           {climbs.map((c, i) => (
             <ReferenceArea

@@ -12,15 +12,32 @@ import { hasApiKey } from "@/lib/settings";
 import { isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { flushWellnessQueue, saveWellnessOrQueue } from "@/lib/wellness-queue";
+import { t } from "@/lib/i18n";
 
 type ScaleKey = "sleepQuality" | "fatigue" | "stress" | "mood";
 
 // intervals.icu's own 1–4 scales; 1 is always the best answer.
 const SCALES: { key: ScaleKey; label: string; options: [string, string, string, string] }[] = [
-  { key: "sleepQuality", label: "Sleep quality", options: ["Great", "Good", "Average", "Poor"] },
-  { key: "fatigue", label: "Fatigue", options: ["Low", "Average", "High", "Extreme"] },
-  { key: "stress", label: "Stress", options: ["Low", "Average", "High", "Extreme"] },
-  { key: "mood", label: "Mood", options: ["Great", "Good", "OK", "Grumpy"] },
+  {
+    key: "sleepQuality",
+    label: t("Sleep quality", "Qualità del sonno"),
+    options: [t("Great", "Ottima"), t("Good", "Buona"), t("Average", "Media"), t("Poor", "Scarsa")],
+  },
+  {
+    key: "fatigue",
+    label: t("Fatigue", "Fatica"),
+    options: [t("Low", "Bassa"), t("Average", "Media"), t("High", "Alta"), t("Extreme", "Estrema")],
+  },
+  {
+    key: "stress",
+    label: "Stress",
+    options: [t("Low", "Basso"), t("Average", "Medio"), t("High", "Alto"), t("Extreme", "Estremo")],
+  },
+  {
+    key: "mood",
+    label: t("Mood", "Umore"),
+    options: [t("Great", "Ottimo"), t("Good", "Buono"), t("OK", "OK"), t("Grumpy", "Scontroso")],
+  },
 ];
 
 const LEVEL_TONE = ["var(--pine)", "var(--fitness)", "var(--birch)", "var(--lingon)"];
@@ -58,17 +75,24 @@ export function CheckInForm({ date, row, onSaved }: { date: string; row: Wellnes
       if (v != null) entry[s.key] = v;
     }
     if (Object.keys(entry).length === 1) {
-      toast.error("Answer at least one question");
+      toast.error(t("Answer at least one question", "Rispondi ad almeno una domanda"));
       return;
     }
     setBusy(true);
     try {
       const r = await saveWellnessOrQueue(entry);
-      toast.success(r === "saved" ? "Saved to intervals.icu" : "Saved on this device; it will sync when you're back online");
+      toast.success(
+        r === "saved"
+          ? t("Saved to intervals.icu", "Salvato su intervals.icu")
+          : t(
+              "Saved on this device; it will sync when you're back online",
+              "Salvato su questo dispositivo; si sincronizzerà quando tornerai online",
+            ),
+      );
       await qc.invalidateQueries({ queryKey: ["wellness"] });
       onSaved?.();
     } catch {
-      toast.error("Couldn't save. Check the values and try again");
+      toast.error(t("Couldn't save. Check the values and try again", "Salvataggio non riuscito. Controlla i valori e riprova"));
     } finally {
       setBusy(false);
     }
@@ -77,7 +101,7 @@ export function CheckInForm({ date, row, onSaved }: { date: string; row: Wellnes
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-1">
-        <Label>Sleep</Label>
+        <Label>{t("Sleep", "Sonno")}</Label>
         <SleepStepper
           halves={halves}
           onChange={(h) => {
@@ -113,7 +137,7 @@ export function CheckInForm({ date, row, onSaved }: { date: string; row: Wellnes
         </div>
       ))}
       <Button type="submit" className="w-full" disabled={busy}>
-        {busy ? "Saving…" : "Save check-in"}
+        {busy ? t("Saving…", "Salvataggio…") : t("Save check-in", "Salva check-in")}
       </Button>
     </form>
   );
@@ -128,7 +152,7 @@ function SleepStepper({ halves, onChange }: { halves: number | null; onChange: (
   const h = halves != null ? Math.floor(halves / 2) : null;
   return (
     <div className="flex items-center gap-3">
-      <Button type="button" variant="secondary" size="icon" className="h-11 w-11" aria-label="30 minutes less" disabled={halves != null && halves <= MIN_HALVES} onClick={() => step(-1)}>
+      <Button type="button" variant="secondary" size="icon" className="h-11 w-11" aria-label={t("30 minutes less", "30 minuti in meno")} disabled={halves != null && halves <= MIN_HALVES} onClick={() => step(-1)}>
         <Minus />
       </Button>
       <button
@@ -136,9 +160,9 @@ function SleepStepper({ halves, onChange }: { halves: number | null; onChange: (
         onClick={() => halves == null && step(0)}
         className={cn("stat-num w-28 text-center text-2xl font-semibold", halves == null && "text-base font-normal text-muted-foreground")}
       >
-        {halves == null ? "tap to set" : `${h} h ${halves % 2 ? "30" : "00"}`}
+        {halves == null ? t("tap to set", "tocca per impostare") : `${h} h ${halves % 2 ? "30" : "00"}`}
       </button>
-      <Button type="button" variant="secondary" size="icon" className="h-11 w-11" aria-label="30 minutes more" disabled={halves != null && halves >= MAX_HALVES} onClick={() => step(1)}>
+      <Button type="button" variant="secondary" size="icon" className="h-11 w-11" aria-label={t("30 minutes more", "30 minuti in più")} disabled={halves != null && halves >= MAX_HALVES} onClick={() => step(1)}>
         <Plus />
       </Button>
     </div>
@@ -159,7 +183,7 @@ export function DailyCheckIn() {
     const flush = () =>
       flushWellnessQueue().then((n) => {
         if (n) {
-          toast.success("Offline check-in synced to intervals.icu");
+          toast.success(t("Offline check-in synced to intervals.icu", "Check-in offline sincronizzato su intervals.icu"));
           void qc.invalidateQueries({ queryKey: ["wellness"] });
         }
       });
@@ -172,8 +196,11 @@ export function DailyCheckIn() {
     <ResponsiveDialog
       open={open}
       onOpenChange={(o) => !o && setState("dismissed")}
-      title="Morning check-in"
-      description="How did you sleep and how do you feel? Feeds today's readiness."
+      title={t("Morning check-in", "Check-in mattutino")}
+      description={t(
+        "How did you sleep and how do you feel? Feeds today's readiness.",
+        "Come hai dormito e come ti senti? Alimenta la prontezza di oggi.",
+      )}
     >
       <CheckInForm key={row?.id ?? "none"} date={today} row={row} onSaved={() => setState("done")} />
     </ResponsiveDialog>

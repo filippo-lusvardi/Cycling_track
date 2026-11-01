@@ -1,6 +1,6 @@
 // One horizontal slice of the tree per day (or week). Every slice is a full-width button, so a tap
 // never has to hit a twig. Drawing stays inside each slice, so off-screen slices can skip painting.
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { useId, type CSSProperties, type ReactNode } from "react";
 import { dayHeight, LANE, MONTH_H, REST_STEP, restHeight, WEEK_H } from "./geometry";
 import { KINDS } from "@/lib/activity-kind";
@@ -15,6 +15,7 @@ import {
   type TreeWeek,
   weekRange,
 } from "@/lib/tree";
+import { format, t } from "@/lib/i18n";
 
 const slice = (h: number): CSSProperties => ({
   height: h,
@@ -298,8 +299,11 @@ export function RestRow({
   const last = days[0]!.date;
   const label =
     days.length === 1
-      ? `${format(parseISO(last), "EEEE d MMMM")}: rest`
-      : `${days.length} rest days, ${format(parseISO(first), "d MMM")} to ${format(parseISO(last), "d MMM")}`;
+      ? `${format(parseISO(last), "EEEE d MMMM")}: ${t("rest", "riposo")}`
+      : t(
+          `${days.length} rest days, ${format(parseISO(first), "d MMM")} to ${format(parseISO(last), "d MMM")}`,
+          `${days.length} giorni di riposo, dal ${format(parseISO(first), "d MMM")} al ${format(parseISO(last), "d MMM")}`,
+        );
   return (
     <Slice h={h} label={label} onOpen={onOpen}>
       <svg className="block" width={w} height={h} aria-hidden>
@@ -369,7 +373,7 @@ export function MonthRow({
             fill="var(--fitness)"
             className="stat-num"
           >
-            fitness {Math.round(ctl)}
+            {t("fitness", "forma")} {Math.round(ctl)}
           </text>
         )}
       </svg>
@@ -410,14 +414,17 @@ export function WeekRow({
     String(Math.round(week.load)),
     chapterStart && week.chapter !== "steady"
       ? week.chapter === "build"
-        ? "building"
-        : "resting"
+        ? t("building", "costruzione")
+        : t("resting", "scarico")
       : null,
   ];
   return (
     <Slice
       h={WEEK_H}
-      label={`Week ${weekRange(week.start, week.end)}: ${week.count} activities`}
+      label={t(
+        `Week ${weekRange(week.start, week.end)}: ${week.count} activities`,
+        `Settimana ${weekRange(week.start, week.end)}: ${week.count} attività`,
+      )}
       onOpen={onOpen}
     >
       <svg className="block" width={w} height={WEEK_H} aria-hidden>
@@ -434,7 +441,7 @@ export function WeekRow({
           side={week.side}
           y={WEEK_H / 2}
           title={weekRange(week.start, week.end)}
-          sub={week.count ? sub.filter(Boolean).join(" · ") : "rest week"}
+          sub={week.count ? sub.filter(Boolean).join(" · ") : t("rest week", "settimana di riposo")}
         />
       </svg>
     </Slice>
@@ -508,9 +515,9 @@ export function Roots({ trunk, w, since }: { trunk: number; w: number; since: st
       <svg className="block" width={w} height={60} aria-hidden>
         {roots}
       </svg>
-      <div className="eyebrow">Roots</div>
+      <div className="eyebrow">{t("Roots", "Radici")}</div>
       <div className="text-sm text-muted-foreground">
-        History begins {format(parseISO(since), "d MMMM yyyy")}
+        {t("History begins", "Lo storico inizia il")} {format(parseISO(since), "d MMMM yyyy")}
       </div>
     </div>
   );

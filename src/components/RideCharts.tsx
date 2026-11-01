@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { rideSeries, type SeriesPoint } from "@/lib/ride-series";
+import { t } from "@/lib/i18n";
 
 type Metric = {
   key: "speed" | "watts" | "hr";
@@ -56,7 +57,7 @@ export function RideCharts({
         [
           {
             key: "speed",
-            label: "Speed",
+            label: t("Speed", "Velocità"),
             unit: "km/h",
             color: "var(--fitness)",
             avg: a.average_speed != null ? a.average_speed * 3.6 : null,
@@ -65,7 +66,7 @@ export function RideCharts({
           },
           {
             key: "watts",
-            label: "Power",
+            label: t("Power", "Potenza"),
             unit: "W",
             color: "var(--birch)",
             avg: a.icu_average_watts,
@@ -74,7 +75,7 @@ export function RideCharts({
           },
           {
             key: "hr",
-            label: "Heart rate",
+            label: t("Heart rate", "Frequenza cardiaca"),
             unit: "bpm",
             color: "var(--fatigue)",
             avg: a.average_heartrate,
@@ -95,7 +96,7 @@ export function RideCharts({
   if (!metrics.length)
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
-        No speed, power or heart rate recorded.
+        {t("No speed, power or heart rate recorded.", "Nessuna velocità, potenza o frequenza cardiaca registrata.")}
       </p>
     );
   return (
@@ -118,7 +119,7 @@ export function RideCharts({
                   {m.unit}
                 </>
               ) : (
-                `avg ${fmt(m.avg, m.digits)} · max ${fmt(m.max, m.digits)} ${m.unit}`
+                `${t("avg", "media")} ${fmt(m.avg, m.digits)} · max ${fmt(m.max, m.digits)} ${m.unit}`
               )}
             </span>
           </div>

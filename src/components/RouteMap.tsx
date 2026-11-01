@@ -2,6 +2,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 export type MapLine = {
   lat: number[];
@@ -37,6 +38,13 @@ const BASES = {
   // Imagery with Esri's place names and boundaries on top.
   Satellite: () =>
     L.layerGroup([esri("World_Imagery", 18), esri("Reference/World_Boundaries_and_Places", 18)]),
+};
+
+const BASE_LABEL: Record<keyof typeof BASES, string> = {
+  Dark: t("Dark", "Scura"),
+  Topo: "Topo",
+  Streets: t("Streets", "Stradale"),
+  Satellite: t("Satellite", "Satellite"),
 };
 
 const savedBase = (): keyof typeof BASES => {
@@ -86,12 +94,14 @@ export function RouteMap({
   useEffect(() => {
     if (!el.current) return;
     const m = L.map(el.current, { scrollWheelZoom: false, zoomSnap: 0.5, maxZoom: 18 });
-    const layers = Object.fromEntries(Object.entries(BASES).map(([k, make]) => [k, make()]));
-    layers[savedBase()]!.addTo(m);
+    const keys = Object.keys(BASES) as (keyof typeof BASES)[];
+    // The control shows translated names; the stored choice stays the language-independent key.
+    const layers = Object.fromEntries(keys.map((k) => [BASE_LABEL[k], BASES[k]()]));
+    layers[BASE_LABEL[savedBase()]]!.addTo(m);
     L.control.layers(layers, undefined, { position: "topright" }).addTo(m);
     m.on("baselayerchange", (e) => {
       try {
-        localStorage.setItem(BASE_KEY, e.name);
+        localStorage.setItem(BASE_KEY, keys.find((k) => BASE_LABEL[k] === e.name) ?? e.name);
       } catch {
         /* per-device nicety only */
       }

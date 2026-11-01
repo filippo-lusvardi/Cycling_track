@@ -1,5 +1,6 @@
 // The tree: training history as one growing organism. Pure data → shape model, drawn by components/tree.
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
+import { format, t } from "./i18n";
 import { activityKind, type Kind } from "./activity-kind";
 import type { Activity, Wellness } from "./intervals";
 import { advice, formScore, readinessFor } from "./readiness";
@@ -10,9 +11,9 @@ export type Level = 1 | 2 | 3 | 4;
 
 /** Green, blue, gold, red: shared by intensity, feel and the seasons. */
 export const LEVEL_COLOR = ["var(--pine)", "var(--fitness)", "var(--birch)", "var(--lingon)"];
-export const INTENSITY_WORD = ["easy", "steady", "tempo", "hard"];
+export const INTENSITY_WORD = [t("easy", "facile"), t("steady", "regolare"), "tempo", t("hard", "dura")];
 /** intervals.icu feel words for levels 1–4 (4 also covers "weak"). */
-export const FEEL_WORD = ["strong", "good", "normal", "poor"];
+export const FEEL_WORD = [t("strong", "forte"), t("good", "bene"), t("normal", "normale"), t("poor", "male")];
 
 /** One leaf per this many metres climbed. */
 export const CLIMB_PER_LEAF = 100;
@@ -201,7 +202,7 @@ export function buildDays(
       const climb = a.total_elevation_gain ?? 0;
       return {
         id: a.id,
-        name: a.name ?? a.type ?? "Activity",
+        name: a.name ?? a.type ?? t("Activity", "Attività"),
         kind: activityKind(a),
         side: turn++ % 2 ? -1 : 1,
         length: 1 - Math.exp(-minutes / 120),
@@ -352,10 +353,10 @@ export function weatherOf(form: number): Weather {
 }
 
 export const WEATHER_WORD: Record<Weather, string> = {
-  sun: "fresh",
-  partly: "neutral",
-  clouds: "training hard",
-  rain: "overreached",
+  sun: t("fresh", "fresco"),
+  partly: t("neutral", "neutro"),
+  clouds: t("training hard", "carico intenso"),
+  rain: t("overreached", "sovraccarico"),
 };
 
 /**

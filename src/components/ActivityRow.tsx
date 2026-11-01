@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { activityKind, KINDS } from "@/lib/activity-kind";
 import type { Activity } from "@/lib/intervals";
 import { formatDuration, formatKm } from "@/lib/training";
+import { format, t } from "@/lib/i18n";
 
 export function ActivityRow({ a }: { a: Activity }) {
   const power = a.icu_weighted_avg_watts ?? a.icu_average_watts;
@@ -25,7 +26,7 @@ export function ActivityRow({ a }: { a: Activity }) {
           <kind.icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
-          <div className="truncate font-medium">{a.name ?? a.type ?? "Activity"}</div>
+          <div className="truncate font-medium">{a.name ?? a.type ?? t("Activity", "Attività")}</div>
           <div className="text-xs text-muted-foreground">
             {a.start_date_local ? format(parseISO(a.start_date_local), "EEE d MMM") : ""} ·{" "}
             <span style={{ color: kind.color }}>{kind.label}</span>

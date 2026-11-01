@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import type { ReactNode } from "react";
 import type { PlannedEvent } from "@/lib/intervals";
 import { formatDuration } from "@/lib/training";
@@ -12,13 +12,22 @@ import {
   type TreeYear,
   type Weather,
 } from "@/lib/tree";
+import { format, num, t } from "@/lib/i18n";
 
 const H = 262;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS = t(
+  "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec",
+  "Gen Feb Mar Apr Mag Giu Lug Ago Set Ott Nov Dic",
+).split(" ");
 /** Day of the year each month starts on (non-leap; a day's drift doesn't show at this scale). */
 const MONTH_STARTS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
 
-const SEASON_NAME = { summer: "Summer", spring: "Spring", autumn: "Autumn", winter: "Winter" };
+const SEASON_NAME = {
+  summer: t("Summer", "Estate"),
+  spring: t("Spring", "Primavera"),
+  autumn: t("Autumn", "Autunno"),
+  winter: t("Winter", "Inverno"),
+};
 
 /** Today: the crown's season is readiness; the sky beside it is form. */
 export function CrownView({
@@ -183,14 +192,14 @@ export function CrownView({
   }
   const heading = crown.season
     ? `${SEASON_NAME[crown.season]} · ${crown.advice!.toLowerCase()}`
-    : "Today";
+    : t("Today", "Oggi");
 
   return (
     <button
       type="button"
       onClick={onOpen}
       className="block w-full text-center focus-visible:outline-none"
-      aria-label={`Today: ${heading}`}
+      aria-label={`${t("Today", "Oggi")}: ${heading}`}
     >
       <div className="eyebrow">{format(parseISO(today), "EEEE d MMMM")}</div>
       <div className="mt-1 text-lg font-semibold" style={{ color }}>
@@ -198,21 +207,28 @@ export function CrownView({
       </div>
       <div className="text-sm text-muted-foreground">
         {crown.score == null
-          ? "Not enough data yet · tap to check in"
+          ? t("Not enough data yet · tap to check in", "Dati ancora insufficienti · tocca per il check-in")
           : crown.estimated
-            ? `Readiness ${crown.score} · estimated · check in to refine`
-            : `Readiness ${crown.score} · tap the crown for today`}
+            ? t(
+                `Readiness ${crown.score} · estimated · check in to refine`,
+                `Prontezza ${crown.score} · stimata · fai il check-in per affinarla`,
+              )
+            : t(`Readiness ${crown.score} · tap the crown for today`, `Prontezza ${crown.score} · tocca la chioma per oggi`)}
       </div>
       {crown.ctl != null && (
         // Wraps between whole items, never inside one.
         <div className="stat-num mt-1 flex flex-wrap justify-center gap-x-3 text-sm">
-          <span className="text-fitness">Fitness {Math.round(crown.ctl)}</span>
+          <span className="text-fitness">
+            {t("Fitness", "Forma fisica")} {Math.round(crown.ctl)}
+          </span>
           {crown.atl != null && (
-            <span className="text-fatigue">Fatigue {Math.round(crown.atl)}</span>
+            <span className="text-fatigue">
+              {t("Fatigue", "Fatica")} {Math.round(crown.atl)}
+            </span>
           )}
           {crown.form != null && (
             <span className="whitespace-nowrap text-form">
-              Form {crown.form > 0 ? "+" : ""}
+              {t("Form", "Forma")} {crown.form > 0 ? "+" : ""}
               {Math.round(crown.form)}
               {crown.weather && (
                 <span className="text-muted-foreground"> · {WEATHER_WORD[crown.weather]}</span>
@@ -519,7 +535,7 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
           d={`M${pt(r1, a0)} A${r1},${r1} 0 0 1 ${pt(r1, a1)} L${pt(r0, a1)} A${r0},${r0} 0 0 0 ${pt(r0, a0)} Z`}
           role="link"
           tabIndex={0}
-          aria-label={`Open ${MONTHS[m]} ${y.year} in the calendar`}
+          aria-label={t(`Open ${MONTHS[m]} ${y.year} in the calendar`, `Apri ${MONTHS[m]} ${y.year} nel calendario`)}
           className="cursor-pointer fill-transparent outline-none transition-colors hover:fill-birch/25 focus-visible:fill-birch/35 active:fill-birch/45"
           onClick={go}
           onKeyDown={(e) => e.key === "Enter" && go()}
@@ -547,8 +563,10 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
         {rings}
       </svg>
       <p className="mx-auto max-w-sm text-center text-sm text-muted-foreground">
-        Inner rings are older years. A wide ring is a big year; dark grain is a heavy week, read
-        clockwise from January at the top. Tap a month to open it in the calendar.
+        {t(
+          "Inner rings are older years. A wide ring is a big year; dark grain is a heavy week, read clockwise from January at the top. Tap a month to open it in the calendar.",
+          "Gli anelli interni sono gli anni più vecchi. Un anello largo è un anno intenso; le venature scure sono settimane pesanti, da leggere in senso orario da gennaio in alto. Tocca un mese per aprirlo nel calendario.",
+        )}
       </p>
       <div className="mx-auto max-w-sm space-y-3">
         {[...years].reverse().map((y) => (
@@ -556,15 +574,15 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
             <h2 className="text-lg font-semibold">{y.year}</h2>
             <div className="mt-3 grid grid-cols-3 gap-2">
               <YearStat
-                value={Math.round(y.distance / 1000).toLocaleString()}
+                value={num(Math.round(y.distance / 1000))}
                 unit="km"
-                label="Distance"
+                label={t("Distance", "Distanza")}
               />
-              <YearStat value={Math.round(y.climb).toLocaleString()} unit="m" label="Climbed" />
-              <YearStat value={Math.round(y.minutes / 60).toLocaleString()} unit="h" label="Time" />
+              <YearStat value={num(Math.round(y.climb))} unit="m" label={t("Climbed", "Dislivello")} />
+              <YearStat value={num(Math.round(y.minutes / 60))} unit="h" label={t("Time", "Tempo")} />
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              {y.count} activities · load {Math.round(y.load).toLocaleString()}
+              {t(`${y.count} activities · load`, `${y.count} attività · carico`)} {num(Math.round(y.load))}
             </p>
           </section>
         ))}

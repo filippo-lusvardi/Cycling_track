@@ -9,9 +9,10 @@ import { githubUser } from "@/lib/gist";
 import { getAthlete } from "@/lib/intervals";
 import { API_KEY, GITHUB_TOKEN, SEGMENT_HISTORY, writeSetting } from "@/lib/settings";
 import { parseSetupHash } from "@/lib/setup-link";
+import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/setup")({
-  head: () => ({ meta: [{ title: "Set up — Cirmolo" }] }),
+  head: () => ({ meta: [{ title: t("Set up — Cirmolo", "Configurazione — Cirmolo") }] }),
   component: SetupPage,
 });
 
@@ -62,31 +63,37 @@ function SetupPage() {
   return (
     <div className="mx-auto max-w-md space-y-6">
       <div>
-        <div className="eyebrow">This device</div>
-        <h1 className="text-3xl font-bold tracking-tight">Set up</h1>
+        <div className="eyebrow">{t("This device", "Questo dispositivo")}</div>
+        <h1 className="text-3xl font-bold tracking-tight">{t("Set up", "Configurazione")}</h1>
       </div>
-      <Panel title="Copy setup from your PC">
+      <Panel title={t("Copy setup from your PC", "Copia configurazione dal PC")}>
         {state.step === "working" && (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Connecting to intervals.icu…
+            <Loader2 className="h-4 w-4 animate-spin" /> {t("Connecting to intervals.icu…", "Connessione a intervals.icu…")}
           </p>
         )}
         {state.step === "done" && (
           <div className="space-y-3 text-sm">
             <p className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-pine" />
-              Connected to intervals.icu{state.athlete ? ` as ${state.athlete}` : ""}.
+              {state.athlete
+                ? t(`Connected to intervals.icu as ${state.athlete}.`, `Connesso a intervals.icu come ${state.athlete}.`)
+                : t("Connected to intervals.icu.", "Connesso a intervals.icu.")}
             </p>
-            {state.github && <p className="text-muted-foreground">Segment sync on (GitHub: {state.github}).</p>}
+            {state.github && <p className="text-muted-foreground">{t("Segment sync on", "Sincronizzazione segmenti attiva")} (GitHub: {state.github}).</p>}
             {state.github === false && (
-              <p className="text-muted-foreground">The GitHub token didn't work; add it later in Settings.</p>
+              <p className="text-muted-foreground">{t("The GitHub token didn't work; add it later in Settings.", "Il token GitHub non ha funzionato; aggiungilo poi nelle Impostazioni.")}</p>
             )}
             <p className="text-muted-foreground">
-              Install Cirmolo from the browser menu: <b>Add to Home screen</b>. On iPhone, Home Screen apps keep their
-              own storage: open the installed app and enter the keys in Settings there.
+              {t("Install Cirmolo from the browser menu:", "Installa Cirmolo dal menu del browser:")}{" "}
+              <b>{t("Add to Home screen", "Aggiungi a schermata Home")}</b>.{" "}
+              {t(
+                "On iPhone, Home Screen apps keep their own storage: open the installed app and enter the keys in Settings there.",
+                "Su iPhone le app della schermata Home hanno un archivio proprio: apri l'app installata e inserisci lì le chiavi nelle Impostazioni.",
+              )}
             </p>
             <Button asChild className="w-full">
-              <Link to="/">Continue</Link>
+              <Link to="/">{t("Continue", "Continua")}</Link>
             </Button>
           </div>
         )}
@@ -95,11 +102,14 @@ function SetupPage() {
             <p className="flex items-center gap-2">
               <CircleAlert className="h-5 w-5 text-lingon" />
               {state.step === "bad"
-                ? "This link doesn't contain a valid setup. Show the QR again on your PC and rescan."
-                : "intervals.icu didn't accept the key from the QR."}
+                ? t(
+                    "This link doesn't contain a valid setup. Show the QR again on your PC and rescan.",
+                    "Questo link non contiene una configurazione valida. Mostra di nuovo il QR sul PC e riscansiona.",
+                  )
+                : t("intervals.icu didn't accept the key from the QR.", "intervals.icu non ha accettato la chiave del QR.")}
             </p>
             <Button asChild variant="outline" className="w-full">
-              <Link to="/settings">Enter the keys in Settings</Link>
+              <Link to="/settings">{t("Enter the keys in Settings", "Inserisci le chiavi nelle Impostazioni")}</Link>
             </Button>
           </div>
         )}

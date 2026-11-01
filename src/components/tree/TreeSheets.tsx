@@ -1,5 +1,5 @@
 // What a tap on the tree opens: today (crown), one or more days (branches, buds of rest), or a planned workout.
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { ActivityRow } from "@/components/ActivityRow";
 import { CheckInForm, isCheckedIn, useCheckInState } from "@/components/CheckIn";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Activity, PlannedEvent, Wellness } from "@/lib/intervals";
 import { advice, readinessFor, recommendation } from "@/lib/readiness";
-import { computeForm, formatDuration, formZone } from "@/lib/training";
+import { computeForm, formatDuration, formZoneLabel } from "@/lib/training";
 import {
   crownFor,
   FEEL_WORD,
@@ -17,13 +17,14 @@ import {
   LEVEL_COLOR,
   SEASON_COLOR,
 } from "@/lib/tree";
+import { format, t } from "@/lib/i18n";
 
 export type Sheet =
   | { kind: "today" }
   | { kind: "days"; title: string; dates: string[] }
   | { kind: "plan"; event: PlannedEvent };
 
-const LEVEL = ["low", "average", "high", "extreme"];
+const LEVEL = [t("low", "bassa"), t("average", "media"), t("high", "alta"), t("extreme", "estrema")];
 
 export function TreeSheet({
   sheet,
@@ -41,10 +42,10 @@ export function TreeSheet({
   const title = !sheet
     ? ""
     : sheet.kind === "today"
-      ? "Today"
+      ? t("Today", "Oggi")
       : sheet.kind === "days"
         ? sheet.title
-        : (sheet.event.name ?? "Planned");
+        : (sheet.event.name ?? t("Planned", "Pianificato"));
   return (
     <ResponsiveDialog open={!!sheet} onOpenChange={(o) => !o && onClose()} title={title}>
       {sheet?.kind === "today" && <TodayBody today={today} wellness={wellness} onSaved={onClose} />}
@@ -80,7 +81,7 @@ function TodayBody({
             style={{ background: SEASON_COLOR[crown.season] }}
           >
             {adv.title} · {crown.score}
-            {crown.estimated ? " · estimated" : ""}
+            {crown.estimated ? t(" · estimated", " · stimato") : ""}
           </span>
           <p className="text-sm text-muted-foreground">{adv.text}</p>
           {rec && (
@@ -100,7 +101,7 @@ function TodayBody({
       <Collapsible>
         <CollapsibleTrigger asChild>
           <Button variant="secondary" className="w-full">
-            {done ? "Edit check-in" : "Check in"}
+            {done ? t("Edit check-in", "Modifica check-in") : t("Check in", "Fai il check-in")}
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4">
@@ -124,10 +125,10 @@ function dayLine(w: Wellness | undefined): string | null {
   if (!w) return null;
   const tsb = w.ctl != null && w.atl != null ? computeForm(w.ctl, w.atl) : null;
   return [
-    w.ctl != null && `Fitness ${Math.round(w.ctl)}`,
-    tsb != null && `form ${Math.round(tsb)} (${formZone(tsb).toLowerCase()})`,
-    w.sleepSecs && `slept ${formatDuration(w.sleepSecs)}`,
-    w.fatigue != null && `fatigue ${LEVEL[w.fatigue - 1]}`,
+    w.ctl != null && `${t("Fitness", "Forma fisica")} ${Math.round(w.ctl)}`,
+    tsb != null && `${t("form", "forma")} ${Math.round(tsb)} (${formZoneLabel(tsb).toLowerCase()})`,
+    w.sleepSecs && `${t("slept", "dormito")} ${formatDuration(w.sleepSecs)}`,
+    w.fatigue != null && `${t("fatigue", "fatica")} ${LEVEL[w.fatigue - 1]}`,
     w.stress != null && `stress ${LEVEL[w.stress - 1]}`,
   ]
     .filter(Boolean)
@@ -155,7 +156,7 @@ function DaysBody({
               <div className="eyebrow">{format(parseISO(d), "EEEE d MMMM")}</div>
             )}
             {line && <p className="text-sm text-muted-foreground">{line}</p>}
-            {day.length === 0 && <p className="text-sm">Rest day.</p>}
+            {day.length === 0 && <p className="text-sm">{t("Rest day.", "Giorno di riposo.")}</p>}
             <div className="-mx-3">
               {day.map((a) => {
                 const feel = feelLevel(a.feel);
@@ -171,10 +172,11 @@ function DaysBody({
                             {INTENSITY_WORD[intensity - 1]}
                           </span>
                         )}
-                        {climb >= 50 && `${intensity ? " · " : ""}${Math.round(climb)} m climbed`}
+                        {climb >= 50 && `${intensity ? " · " : ""}${Math.round(climb)} ${t("m climbed", "m di dislivello")}`}
                         {feel && (
                           <>
-                            {intensity || climb >= 50 ? " · " : ""}felt{" "}
+                            {intensity || climb >= 50 ? " · " : ""}
+                            {t("felt", "sensazione")}{" "}
                             <span style={{ color: LEVEL_COLOR[feel - 1] }}>
                               {FEEL_WORD[feel - 1]}
                             </span>
@@ -199,10 +201,10 @@ function PlanBody({ e }: { e: PlannedEvent }) {
       <p className="text-muted-foreground">
         {format(parseISO(e.date), "EEEE d MMMM")} ·{" "}
         {e.category === "WORKOUT"
-          ? (e.type ?? "Workout")
+          ? (e.type ?? t("Workout", "Allenamento"))
           : e.category.replace("_", " ").toLowerCase()}
         {e.moving_time ? ` · ${formatDuration(e.moving_time)}` : ""}
-        {e.icu_training_load ? ` · load ${e.icu_training_load}` : ""}
+        {e.icu_training_load ? ` · ${t("load", "carico")} ${e.icu_training_load}` : ""}
       </p>
       {e.description && <p className="whitespace-pre-line">{e.description}</p>}
     </div>

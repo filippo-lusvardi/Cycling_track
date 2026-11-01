@@ -1,5 +1,6 @@
 // GPS segment detection & matching across rides. Pure and browser-safe.
 import { climbCategory } from "./climbs";
+import { t as tr } from "./i18n";
 
 export type Segment = {
   id: string;
@@ -139,7 +140,7 @@ export function segmentFromRange(
   const grade = length > 0 ? (gain / length) * 100 : 0;
   return {
     id: `${source}-${p1.lat.toFixed(4)},${p1.lng.toFixed(4)}-${p2.lat.toFixed(4)},${p2.lng.toFixed(4)}`,
-    name: name ?? `${source === "auto" ? "Climb" : "Segment"} ${(length / 1000).toFixed(1)} km @ ${grade.toFixed(1)}%`,
+    name: name ?? `${source === "auto" ? tr("Climb", "Salita") : tr("Segment", "Segmento")} ${(length / 1000).toFixed(1)} km @ ${grade.toFixed(1)}%`,
     source, lat1: p1.lat, lng1: p1.lng, lat2: p2.lat, lng2: p2.lng, length, gain, grade,
   };
 }

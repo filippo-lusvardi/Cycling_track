@@ -1,4 +1,5 @@
 import { formatDuration } from "@/lib/training";
+import { t } from "@/lib/i18n";
 
 type Iv = {
   id: number;
@@ -45,7 +46,7 @@ export function WorkoutBlocks({
       i.average_watts != null,
   );
   if (!ivs.length)
-    return <p className="text-sm text-muted-foreground">No interval data for this ride.</p>;
+    return <p className="text-sm text-muted-foreground">{t("No interval data for this ride.", "Nessun dato sugli intervalli per questa attività.")}</p>;
   const total =
     Math.max(...ivs.map((i) => i.end_time!)) - Math.min(...ivs.map((i) => i.start_time!));
   const t0 = Math.min(...ivs.map((i) => i.start_time!));
@@ -63,7 +64,7 @@ export function WorkoutBlocks({
         </div>
         {ivs.map((i) => {
           const z = powerZone(i.average_watts!, ftp);
-          const label = `${i.label ?? i.type ?? "Interval"} · ${formatDuration(i.end_time! - i.start_time!)} · ${Math.round(i.average_watts!)}W · Z${z}`;
+          const label = `${i.label ?? i.type ?? t("Interval", "Intervallo")} · ${formatDuration(i.end_time! - i.start_time!)} · ${Math.round(i.average_watts!)}W · Z${z}`;
           // The whole column is the tap target, so even a short, easy block is easy to hit.
           return (
             <button

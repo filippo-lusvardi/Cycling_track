@@ -12,13 +12,20 @@ import type { Status } from "@/lib/segment-engine";
 import { segmentSummary } from "@/lib/segments";
 import { densestRegion } from "@/lib/density";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/segments/")({
-  head: () => ({ meta: [{ title: "Segments — Cirmolo" }] }),
+  head: () => ({ meta: [{ title: t("Segments — Cirmolo", "Segmenti — Cirmolo") }] }),
   component: Segments,
 });
 
 const FILTERS = ["All", "Starred", "Saved", "Auto"] as const;
+const FILTER_LABEL: Record<(typeof FILTERS)[number], string> = {
+  All: t("All", "Tutti"),
+  Starred: t("Starred", "Preferiti"),
+  Saved: t("Saved", "Salvati"),
+  Auto: "Auto",
+};
 
 /** Lower-case without accents, so "coe" finds "Passo Coè" and "rovereto" finds "Rovereto → Pozzacchio". */
 const fold = (s: string) =>
@@ -136,12 +143,14 @@ function Segments() {
       <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">
-            {lib.ridesAnalysed} outdoor rides ·{" "}
+            {t(`${lib.ridesAnalysed} outdoor rides`, `${lib.ridesAnalysed} pedalate`)} ·{" "}
             {historyYears()
-              ? `last ${historyYears()} year${historyYears() > 1 ? "s" : ""}`
-              : "all history"}
+              ? historyYears() > 1
+                ? t(`last ${historyYears()} years`, `ultimi ${historyYears()} anni`)
+                : t("last year", "ultimo anno")
+              : t("all history", "tutto lo storico")}
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Segments</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("Segments", "Segmenti")}</h1>
         </div>
         <div className="flex gap-1 rounded-lg bg-secondary p-1">
           {FILTERS.map((f) => (
@@ -156,7 +165,7 @@ function Segments() {
                 filter === f ? "bg-background text-foreground" : "text-muted-foreground",
               )}
             >
-              {f}
+              {FILTER_LABEL[f]}
             </button>
           ))}
         </div>
@@ -167,7 +176,7 @@ function Segments() {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:grid-rows-1">
         <Panel
-          title="Map"
+          title={t("Map", "Mappa")}
           className="flex flex-col p-2 lg:min-h-0 lg:p-4 [&>div:first-child]:hidden lg:[&>div:first-child]:flex"
         >
           {lines.length > 0 ? (
@@ -180,23 +189,24 @@ function Segments() {
             />
           ) : (
             <div className="flex h-[30dvh] min-h-40 items-center justify-center rounded-lg bg-background/50 text-sm text-muted-foreground lg:h-auto lg:min-h-0 lg:flex-1">
-              {isLoading ? "Loading rides…" : "No segments to show"}
+              {isLoading ? t("Loading rides…", "Caricamento attività…") : t("No segments to show", "Nessun segmento da mostrare")}
             </div>
           )}
           <div className="mt-2 hidden shrink-0 gap-4 text-[11px] text-muted-foreground lg:flex">
             <span className="flex items-center gap-1">
-              <span className="h-1 w-4 rounded bg-birch" /> Starred
+              <span className="h-1 w-4 rounded bg-birch" /> {t("Starred", "Preferiti")}
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-1 w-4 rounded bg-fitness" /> Saved
+              <span className="h-1 w-4 rounded bg-fitness" /> {t("Saved", "Salvati")}
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-1 w-4 rounded" style={{ background: "var(--z1)" }} /> Auto-detected
+              <span className="h-1 w-4 rounded" style={{ background: "var(--z1)" }} />{" "}
+              {t("Auto-detected", "Rilevati automaticamente")}
             </span>
           </div>
         </Panel>
 
-        <Panel title={`${shown.length} segments`} className="flex min-h-0 flex-col">
+        <Panel title={`${shown.length} ${t("segments", "segmenti")}`} className="flex min-h-0 flex-col">
           <div className="relative mb-2 shrink-0">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -213,13 +223,13 @@ function Segments() {
                   e.currentTarget.blur();
                 }
               }}
-              placeholder={touch ? "Search segments" : "Search segments  ( / )"}
-              aria-label="Search segments by name"
+              placeholder={touch ? t("Search segments", "Cerca segmenti") : t("Search segments  ( / )", "Cerca segmenti  ( / )")}
+              aria-label={t("Search segments by name", "Cerca segmenti per nome")}
               className="pl-8 pr-8"
             />
             {query && (
               <button
-                aria-label="Clear search"
+                aria-label={t("Clear search", "Cancella ricerca")}
                 onClick={() => setQuery("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
               >
@@ -237,15 +247,20 @@ function Segments() {
           >
             {isLoading && (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                Looking for recurring climbs in your rides… The first time each ride is downloaded
-                once; after that only new rides are.
+                {t(
+                  "Looking for recurring climbs in your rides… The first time each ride is downloaded once; after that only new rides are.",
+                  "Ricerca delle salite ricorrenti nelle tue attività… La prima volta ogni attività viene scaricata una volta; poi solo le nuove.",
+                )}
               </p>
             )}
             {!isLoading && shown.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 {query.trim()
-                  ? `No segment matches “${query.trim()}”.`
-                  : "No segments yet. Star a climb or draw a segment on any ride's elevation profile."}
+                  ? t(`No segment matches “${query.trim()}”.`, `Nessun segmento corrisponde a “${query.trim()}”.`)
+                  : t(
+                      "No segments yet. Star a climb or draw a segment on any ride's elevation profile.",
+                      "Ancora nessun segmento. Aggiungi una salita ai preferiti o traccia un segmento sul profilo altimetrico di un'attività.",
+                    )}
               </p>
             )}
             <div className="-mx-3 divide-y divide-border">
@@ -271,7 +286,7 @@ function Segments() {
                   }}
                 >
                   <button
-                    aria-label={s.starred ? "Unstar" : "Star"}
+                    aria-label={s.starred ? t("Unstar", "Togli dai preferiti") : t("Star", "Aggiungi ai preferiti")}
                     onClick={() => lib.toggleStar(s)}
                     className="p-1"
                   >
@@ -300,12 +315,14 @@ function Segments() {
                         {segmentSummary(s)}
                       </div>
                       {touch && focused === s.id && (
-                        <div className="text-[11px] text-primary">Tap again to open</div>
+                        <div className="text-[11px] text-primary">{t("Tap again to open", "Tocca di nuovo per aprire")}</div>
                       )}
                     </div>
                     <div className="shrink-0 text-right text-xs text-muted-foreground">
-                      <div>{s.saved ? (s.source === "custom" ? "Manual" : "Saved") : "Auto"}</div>
-                      {s.rides != null && <div className="stat-num">{s.rides} rides</div>}
+                      <div>
+                        {s.saved ? (s.source === "custom" ? t("Manual", "Manuale") : t("Saved", "Salvato")) : "Auto"}
+                      </div>
+                      {s.rides != null && <div className="stat-num">{t(`${s.rides} rides`, `${s.rides} attività`)}</div>}
                     </div>
                   </Link>
                 </div>
@@ -320,9 +337,9 @@ function Segments() {
 
 const PHASE: Record<Status["phase"], string> = {
   idle: "",
-  listing: "Checking intervals.icu for new rides",
-  downloading: "Downloading and analysing rides",
-  analysing: "Matching segments to rides",
+  listing: t("Checking intervals.icu for new rides", "Controllo nuove attività su intervals.icu"),
+  downloading: t("Downloading and analysing rides", "Download e analisi delle attività"),
+  analysing: t("Matching segments to rides", "Abbinamento segmenti alle attività"),
   error: "",
 };
 
@@ -332,7 +349,12 @@ function NamingStatus() {
   if (!left) return null;
   return (
     <p className="shrink-0 text-xs text-muted-foreground">
-      Naming {left} segment{left === 1 ? "" : "s"} from OpenStreetMap… (keep Cirmolo open)
+      {left === 1
+        ? t("Naming 1 segment from OpenStreetMap… (keep Cirmolo open)", "Assegnazione nome a 1 segmento da OpenStreetMap… (tieni Cirmolo aperto)")
+        : t(
+            `Naming ${left} segments from OpenStreetMap… (keep Cirmolo open)`,
+            `Assegnazione nomi a ${left} segmenti da OpenStreetMap… (tieni Cirmolo aperto)`,
+          )}
     </p>
   );
 }
@@ -342,7 +364,7 @@ function SyncStatus({ status }: { status: Status }) {
   if (status.phase === "error")
     return (
       <p className="shrink-0 text-xs text-muted-foreground">
-        {status.message ?? "Segment analysis stopped."}
+        {status.message ?? t("Segment analysis stopped.", "Analisi segmenti interrotta.")}
       </p>
     );
   const pct = status.total ? Math.round((status.done / status.total) * 100) : 0;

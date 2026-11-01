@@ -1,4 +1,5 @@
 // Pure training-analysis helpers. Browser-safe.
+import { t } from "./i18n";
 
 export function mondayOf(dateStr: string): string {
   const d = new Date(dateStr.slice(0, 10) + "T00:00:00Z");
@@ -63,14 +64,22 @@ export function polarizationIndex(f: { low: number; mid: number; high: number })
 
 export function distributionLabel(f: { low: number; mid: number; high: number }): string {
   const pi = polarizationIndex(f);
-  if (pi != null && pi > 2 && f.high > f.mid) return "Polarized";
-  if (f.low > f.mid && f.mid > f.high) return "Pyramidal";
-  if (f.mid >= f.high && f.mid > 0.2) return "Threshold";
-  if (f.high > 0.2) return "High intensity";
-  return "Base / low intensity";
+  if (pi != null && pi > 2 && f.high > f.mid) return t("Polarized", "Polarizzata");
+  if (f.low > f.mid && f.mid > f.high) return t("Pyramidal", "Piramidale");
+  if (f.mid >= f.high && f.mid > 0.2) return t("Threshold", "FTP");
+  if (f.high > 0.2) return t("High intensity", "Alta intensità");
+  return t("Base / low intensity", "Base / bassa intensità");
 }
 
-export const ZONE_NAMES = ["Recovery", "Endurance", "Tempo", "Threshold", "VO2max", "Anaerobic", "Neuromuscular"];
+export const ZONE_NAMES = [
+  t("Recovery", "Recupero"),
+  t("Endurance", "Fondo"),
+  "Tempo",
+  t("Threshold", "FTP"),
+  "VO2max",
+  t("Anaerobic", "Anaerobico"),
+  t("Neuromuscular", "Neuromuscolare"),
+];
 
 /** Mean-maximal power for each duration (s) from a 1 Hz watts stream; null where the ride is too short. */
 export function mmp(watts: (number | null)[], durations: number[]): (number | null)[] {

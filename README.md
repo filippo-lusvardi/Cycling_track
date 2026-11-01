@@ -88,6 +88,9 @@ Cirmolo opens on **Settings** until it has a key.
 
 Repeat steps 1–2 on each device. Each device keeps its own copy of the key and token.
 
+**Language:** Cirmolo is in English and Italian. It starts in the browser's language; switch it in
+**Settings → Language** (each device remembers its own choice).
+
 **Phone setup by QR:** once Cirmolo is hosted, open **Settings → Copy setup to phone** on the PC, press **Show QR** and
 scan it with the phone's camera. The phone opens Cirmolo with the key, token and history setting already filled in. The
 keys travel only inside the link (after `#`, never sent to any server), and the code hides itself after a minute. On

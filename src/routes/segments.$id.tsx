@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { ArrowLeft, Pencil, Star, Swords, Trash2, Trophy } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -26,9 +26,10 @@ import { historyYears } from "@/lib/segment-app";
 import { segmentSummary } from "@/lib/segments";
 import { formatClock, isoDate, weightOn } from "@/lib/training";
 import { cn } from "@/lib/utils";
+import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/segments/$id")({
-  head: () => ({ meta: [{ title: "Segment — Cirmolo" }] }),
+  head: () => ({ meta: [{ title: t("Segment — Cirmolo", "Segmento — Cirmolo") }] }),
   component: SegmentPage,
 });
 
@@ -83,12 +84,12 @@ function SegmentPage() {
     () =>
       trace
         ? [
-            { lat: trace.lat[0]!, lng: trace.lng[0]!, color: "var(--pine)", label: "Start" },
+            { lat: trace.lat[0]!, lng: trace.lng[0]!, color: "var(--pine)", label: t("Start", "Partenza") },
             {
               lat: trace.lat.at(-1)!,
               lng: trace.lng.at(-1)!,
               color: "var(--lingon)",
-              label: "Finish",
+              label: t("Finish", "Arrivo"),
             },
           ]
         : [],
@@ -111,7 +112,7 @@ function SegmentPage() {
       <div className="space-y-4">
         <BackLink />
         <p className="text-sm text-muted-foreground">
-          {isLoading ? "Loading rides…" : "This segment no longer exists."}
+          {isLoading ? t("Loading rides…", "Caricamento attività…") : t("This segment no longer exists.", "Questo segmento non esiste più.")}
         </p>
       </div>
     );
@@ -126,10 +127,10 @@ function SegmentPage() {
           <div className="eyebrow">
             {seg.saved
               ? seg.source === "custom"
-                ? "Manual segment"
-                : "Saved climb"
-              : "Auto-detected climb"}
-            {seg.renamed ? " · your name" : ""}
+                ? t("Manual segment", "Segmento manuale")
+                : t("Saved climb", "Salita salvata")
+              : t("Auto-detected climb", "Salita rilevata automaticamente")}
+            {seg.renamed ? t(" · your name", " · nome tuo") : ""}
           </div>
           {editing != null ? (
             <form
@@ -144,9 +145,9 @@ function SegmentPage() {
                 autoFocus
                 value={editing}
                 onChange={(e) => setEditing(e.target.value)}
-                placeholder="Empty = automatic name from the map"
+                placeholder={t("Empty = automatic name from the map", "Vuoto = nome automatico dalla mappa")}
               />
-              <Button type="submit">Save</Button>
+              <Button type="submit">{t("Save", "Salva")}</Button>
             </form>
           ) : (
             <h1 className="text-3xl font-bold tracking-tight">{nameOf(seg)}</h1>
@@ -157,7 +158,7 @@ function SegmentPage() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label={seg.starred ? "Unstar" : "Star"}
+            aria-label={seg.starred ? t("Unstar", "Togli dai preferiti") : t("Star", "Aggiungi ai preferiti")}
             onClick={() => lib.toggleStar(seg)}
           >
             <Star className={cn(seg.starred ? "fill-birch text-birch" : "text-muted-foreground")} />
@@ -165,7 +166,7 @@ function SegmentPage() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Rename"
+            aria-label={t("Rename", "Rinomina")}
             onClick={() => setEditing(seg.renamed ? seg.name : "")}
           >
             <Pencil />
@@ -174,7 +175,7 @@ function SegmentPage() {
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Delete"
+              aria-label={t("Delete", "Elimina")}
               onClick={() => {
                 lib.remove(seg);
                 navigate({ to: "/segments" });
@@ -187,26 +188,28 @@ function SegmentPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Length" value={(seg.length / 1000).toFixed(2)} unit="km" />
+        <StatCard label={t("Length", "Lunghezza")} value={(seg.length / 1000).toFixed(2)} unit="km" />
         <StatCard
-          label="Avg grade"
+          label={t("Avg grade", "Pendenza media")}
           value={seg.grade != null ? seg.grade.toFixed(1) : "–"}
           unit="%"
-          hint={steepest != null ? `max ${steepest.toFixed(1)}% over 100 m` : undefined}
+          hint={steepest != null ? t(`max ${steepest.toFixed(1)}% over 100 m`, `max ${steepest.toFixed(1)}% su 100 m`) : undefined}
         />
         <StatCard
-          label="Best time"
+          label={t("Best time", "Miglior tempo")}
           tone="form"
           value={best ? formatClock(best.duration) : "–"}
           hint={best ? format(parseISO(best.date), "d MMM yyyy") : undefined}
         />
         <StatCard
-          label="Efforts"
+          label={t("Efforts", "Passaggi")}
           value={efforts.length}
           hint={
             historyYears()
-              ? `last ${historyYears()} year${historyYears() > 1 ? "s" : ""}`
-              : "all history"
+              ? historyYears() > 1
+                ? t(`last ${historyYears()} years`, `ultimi ${historyYears()} anni`)
+                : t("last year", "ultimo anno")
+              : t("all history", "tutto lo storico")
           }
         />
       </div>
@@ -214,11 +217,11 @@ function SegmentPage() {
       {trace && (
         <div ref={routeRef} className="scroll-mt-20">
           <Panel
-            title={`Route · ${Math.round(seg.gain ?? 0)} m up · ${Math.round(trace.alt[0]!)} → ${Math.round(trace.alt.at(-1)!)} m`}
+            title={`${t("Route", "Percorso")} · ${Math.round(seg.gain ?? 0)} ${t("m up", "m D+")} · ${Math.round(trace.alt[0]!)} → ${Math.round(trace.alt.at(-1)!)} m`}
             action={
               !race && efforts.length > 1 ? (
                 <Button size="sm" variant="secondary" onClick={() => startRace()}>
-                  <Swords /> Race
+                  <Swords /> {t("Race", "Sfida")}
                 </Button>
               ) : undefined
             }
@@ -256,7 +259,7 @@ function SegmentPage() {
 
       {trend.length > 1 && (
         <Panel
-          title="Progression"
+          title={t("Progression", "Progressione")}
           action={
             <div className="flex gap-1 rounded-lg bg-secondary p-1">
               {(["time", "watts"] as const).map((m) => (
@@ -268,7 +271,7 @@ function SegmentPage() {
                     metric === m ? "bg-background text-foreground" : "text-muted-foreground",
                   )}
                 >
-                  {m === "time" ? "Time" : "Power"}
+                  {m === "time" ? t("Time", "Tempo") : t("Power", "Potenza")}
                 </button>
               ))}
             </div>
@@ -303,8 +306,8 @@ function SegmentPage() {
                   labelFormatter={(d) => format(parseISO(String(d)), "EEE d MMM yyyy")}
                   formatter={(v) =>
                     metric === "time"
-                      ? [formatClock(Number(v) * 60), "Time"]
-                      : [`${Math.round(Number(v))} W`, "Power"]
+                      ? [formatClock(Number(v) * 60), t("Time", "Tempo")]
+                      : [`${Math.round(Number(v))} W`, t("Power", "Potenza")]
                   }
                 />
                 <Line
@@ -320,17 +323,17 @@ function SegmentPage() {
             </ResponsiveContainer>
           </div>
           {metric === "time" && (
-            <p className="mt-1 text-xs text-muted-foreground">Faster is higher.</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("Faster is higher.", "Più in alto = più veloce.")}</p>
           )}
         </Panel>
       )}
 
-      <Panel title="All efforts">
+      <Panel title={t("All efforts", "Tutti i passaggi")}>
         {isLoading ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">Loading rides…</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("Loading rides…", "Caricamento attività…")}</p>
         ) : efforts.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            No efforts found in the analysed rides.
+            {t("No efforts found in the analysed rides.", "Nessun passaggio trovato nelle attività analizzate.")}
           </p>
         ) : (
           <>
@@ -387,7 +390,7 @@ function SegmentPage() {
                     </Link>
                     {i > 0 ? (
                       <button
-                        aria-label="Race against the PR"
+                        aria-label={t("Race against the PR", "Sfida il PR")}
                         onClick={() => startRace(effortKey(e))}
                         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground active:bg-secondary/60"
                       >
@@ -405,13 +408,13 @@ function SegmentPage() {
                 <thead>
                   <tr className="eyebrow text-left">
                     <th className="py-2 font-normal">#</th>
-                    <th className="font-normal">Date</th>
-                    <th className="text-right font-normal">Time</th>
-                    <th className="text-right font-normal">Power</th>
+                    <th className="font-normal">{t("Date", "Data")}</th>
+                    <th className="text-right font-normal">{t("Time", "Tempo")}</th>
+                    <th className="text-right font-normal">{t("Power", "Potenza")}</th>
                     <th className="text-right font-normal">W/kg</th>
                     <th className="text-right font-normal">VAM</th>
-                    <th className="text-right font-normal">HR</th>
-                    <th className="text-right font-normal">Cad</th>
+                    <th className="text-right font-normal">{t("HR", "FC")}</th>
+                    <th className="text-right font-normal">{t("Cad", "Cad")}</th>
                     <th className="text-right font-normal">km/h</th>
                     <th />
                   </tr>
@@ -444,8 +447,8 @@ function SegmentPage() {
                       <td className="text-right">
                         {i > 0 && (
                           <button
-                            aria-label="Race against the PR"
-                            title="Race against the PR"
+                            aria-label={t("Race against the PR", "Sfida il PR")}
+                            title={t("Race against the PR", "Sfida il PR")}
                             onClick={() => startRace(effortKey(e))}
                             className="p-1 text-muted-foreground hover:text-primary"
                           >
@@ -471,7 +474,7 @@ function BackLink() {
       to="/segments"
       className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
     >
-      <ArrowLeft className="h-4 w-4" /> Segments
+      <ArrowLeft className="h-4 w-4" /> {t("Segments", "Segmenti")}
     </Link>
   );
 }

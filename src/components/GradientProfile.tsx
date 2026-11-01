@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GRADE_LEGEND, gradeChunks, gradeColor, type Chunk } from "@/lib/profile";
+import { t } from "@/lib/i18n";
 
 const H = 220;
 const PAD = { l: 40, r: 8, t: 12, b: 24 };
@@ -32,7 +33,7 @@ export function GradientProfile({
   }, []);
 
   const chunks = useMemo(() => gradeChunks(dist, alt), [dist, alt]);
-  if (chunks.length === 0) return <p className="text-sm text-muted-foreground">No altitude data.</p>;
+  if (chunks.length === 0) return <p className="text-sm text-muted-foreground">{t("No altitude data.", "Nessun dato altimetrico.")}</p>;
 
   const total = dist.at(-1)!;
   const lo = Math.min(...chunks.map((c) => Math.min(c.altFrom, c.altTo)));
@@ -65,7 +66,7 @@ export function GradientProfile({
         onPointerDown={pick}
         onPointerLeave={() => onHover?.(null)}
         role="img"
-        aria-label="Elevation profile coloured by gradient"
+        aria-label={t("Elevation profile coloured by gradient", "Profilo altimetrico colorato per pendenza")}
       >
         {[lo, hi].map((a) => (
           <g key={a}>

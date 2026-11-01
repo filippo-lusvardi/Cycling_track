@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { ArrowLeft, ChevronDown, Plus, Star, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -30,9 +30,10 @@ import {
 } from "@/lib/segments";
 import { addDays, formatClock, formatDuration, formatKm, weightOn } from "@/lib/training";
 import { cn } from "@/lib/utils";
+import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/rides/$id")({
-  head: () => ({ meta: [{ title: "Ride details — Cirmolo" }] }),
+  head: () => ({ meta: [{ title: t("Ride details — Cirmolo", "Dettagli attività — Cirmolo") }] }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(activityQuery(params.id)),
   component: RideDetail,
 });
@@ -74,7 +75,7 @@ function RideDetail() {
         to="/rides"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> Rides
+        <ArrowLeft className="h-4 w-4" /> {t("Rides", "Attività")}
       </Link>
       <div>
         <div className="eyebrow">
@@ -83,17 +84,17 @@ function RideDetail() {
             : ""}{" "}
           · {a.type}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">{a.name ?? "Activity"}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{a.name ?? t("Activity", "Attività")}</h1>
         {a.description && <p className="mt-2 text-sm text-muted-foreground">{a.description}</p>}
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Distance" value={formatKm(a.distance)} />
-        <StatCard label="Moving time" value={formatDuration(a.moving_time)} />
-        <StatCard label="Elevation" value={r(a.total_elevation_gain)} unit="m" />
-        <StatCard label="Load" value={r(a.icu_training_load)} tone="fitness" />
-        <StatCard label="Avg power" value={r(a.icu_average_watts)} unit="W" />
+        <StatCard label={t("Distance", "Distanza")} value={formatKm(a.distance)} />
+        <StatCard label={t("Moving time", "Tempo in movimento")} value={formatDuration(a.moving_time)} />
+        <StatCard label={t("Elevation", "Dislivello")} value={r(a.total_elevation_gain)} unit="m" />
+        <StatCard label={t("Load", "Carico")} value={r(a.icu_training_load)} tone="fitness" />
+        <StatCard label={t("Avg power", "Potenza media")} value={r(a.icu_average_watts)} unit="W" />
         <StatCard
-          label="Norm. power"
+          label={t("Norm. power", "Potenza norm.")}
           value={r(np)}
           unit="W"
           hint={
@@ -103,45 +104,45 @@ function RideDetail() {
           }
         />
         <StatCard
-          label="Intensity"
+          label={t("Intensity", "Intensità")}
           value={a.icu_intensity != null ? `${Math.round(a.icu_intensity)}%` : "–"}
           tone="form"
         />
         <StatCard
-          label="Avg / max HR"
+          label={t("Avg / max HR", "FC media / max")}
           value={`${r(a.average_heartrate)} / ${r(a.max_heartrate)}`}
           unit="bpm"
           tone="fatigue"
         />
         <StatCard
-          label="Avg speed"
+          label={t("Avg speed", "Velocità media")}
           value={a.average_speed ? (a.average_speed * 3.6).toFixed(1) : "–"}
           unit="km/h"
         />
-        <StatCard label="Cadence" value={r(a.average_cadence)} unit="rpm" />
+        <StatCard label={t("Cadence", "Cadenza")} value={r(a.average_cadence)} unit="rpm" />
         <StatCard
-          label="Decoupling"
+          label={t("Decoupling", "Disaccoppiamento")}
           value={decouple != null ? decouple.toFixed(1) : "–"}
           unit="%"
           hint={
             decouple != null
               ? decouple < 5
-                ? "Pw:HR steady (< 5%)"
-                : "HR drifted vs power"
+                ? t("Pw:HR steady (< 5%)", "Pw:FC stabile (< 5%)")
+                : t("HR drifted vs power", "FC in deriva rispetto alla potenza")
               : undefined
           }
         />
-        <StatCard label="Calories" value={r(a.calories)} unit="kcal" />
+        <StatCard label={t("Calories", "Calorie")} value={r(a.calories)} unit="kcal" />
       </div>
 
       {a.zoneTimes.some((s) => s > 0) && (
-        <Panel title="Time in power zones">
+        <Panel title={t("Time in power zones", "Tempo nelle zone di potenza")}>
           <ZoneBar secs={a.zoneTimes} />
         </Panel>
       )}
 
       {a.icu_ftp && (a.icu_intervals?.length ?? 0) > 0 && (
-        <Panel title="Workout blocks">
+        <Panel title={t("Workout blocks", "Blocchi di allenamento")}>
           <WorkoutBlocks
             intervals={a.icu_intervals ?? []}
             ftp={a.icu_ftp}
@@ -149,7 +150,10 @@ function RideDetail() {
             onSelect={(id) => select(id, "blocks")}
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Tap a block to see just that work on the map and charts.
+            {t(
+              "Tap a block to see just that work on the map and charts.",
+              "Tocca un blocco per vedere solo quel lavoro su mappa e grafici.",
+            )}
           </p>
         </Panel>
       )}
@@ -165,13 +169,13 @@ function RideDetail() {
           />
         </div>
       ) : (
-        <Panel title="Elevation & climbs">
-          <p className="py-6 text-center text-sm text-muted-foreground">Loading ride streams…</p>
+        <Panel title={t("Elevation & climbs", "Altimetria e salite")}>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("Loading ride streams…", "Caricamento dati attività…")}</p>
         </Panel>
       )}
 
       <Panel
-        title="Speed, power & heart rate"
+        title={t("Speed, power & heart rate", "Velocità, potenza e frequenza cardiaca")}
         action={<ShowHide open={showCharts} onToggle={() => setShowCharts((v) => !v)} />}
       >
         {showCharts && work && <WorkBar work={work} onClear={() => setWorkId(null)} />}
@@ -179,13 +183,13 @@ function RideDetail() {
           (streams ? (
             <RideCharts a={a} streams={streams} work={work} />
           ) : (
-            <p className="py-6 text-center text-sm text-muted-foreground">Loading ride streams…</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("Loading ride streams…", "Caricamento dati attività…")}</p>
           ))}
       </Panel>
 
       {intervals.length > 0 && (
         <Panel
-          title={`Intervals · ${intervals.length}`}
+          title={`${t("Intervals", "Intervalli")} · ${intervals.length}`}
           action={<ShowHide open={showIntervals} onToggle={() => setShowIntervals((v) => !v)} />}
         >
           {showIntervals && (
@@ -244,7 +248,7 @@ function workOf(
   const km = (i: number) => (streams.distance[i] ?? 0) / 1000;
   return {
     id: iv.id,
-    label: iv.label ?? iv.type ?? "Interval",
+    label: iv.label ?? iv.type ?? t("Interval", "Intervallo"),
     startKm: km(at(iv.start_time)),
     endKm: km(at(iv.end_time)),
     secs: iv.end_time - iv.start_time,
@@ -263,7 +267,7 @@ function WorkBar({ work, onClear }: { work: Work; onClear: () => void }) {
         {work.hr != null && ` · ${Math.round(work.hr)} bpm`}
       </span>
       <Button size="sm" variant="ghost" onClick={onClear} className="shrink-0">
-        Whole ride
+        {t("Whole ride", "Attività intera")}
       </Button>
     </div>
   );
@@ -272,7 +276,7 @@ function WorkBar({ work, onClear }: { work: Work; onClear: () => void }) {
 function ShowHide({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <Button size="sm" variant="ghost" onClick={onToggle} aria-expanded={open}>
-      {open ? "Hide" : "Show"}
+      {open ? t("Hide", "Nascondi") : t("Show", "Mostra")}
       <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
     </Button>
   );
@@ -369,7 +373,7 @@ function Climbs({
         ...cut(c.startKm, c.endKm),
         color: CAT_COLOR[c.category],
         weight: hover === i ? 9 : 6,
-        tooltip: `Climb ${i + 1} · ${(c.length / 1000).toFixed(1)} km @ ${c.avgGrade.toFixed(1)}%`,
+        tooltip: `${t("Climb", "Salita")} ${i + 1} · ${(c.length / 1000).toFixed(1)} km @ ${c.avgGrade.toFixed(1)}%`,
       }),
     );
     if (range) ls.push({ ...cut(range[0], range[1]), color: "#ffffff", weight: 7 });
@@ -390,12 +394,12 @@ function Climbs({
     const p = (km: number) => ({ lat: track.lat[at(km)]!, lng: track.lng[at(km)]! });
     if (range)
       return [
-        { ...p(range[0]), color: "var(--pine)", label: "Segment start" },
-        { ...p(range[1]), color: "var(--lingon)", label: "Segment finish" },
+        { ...p(range[0]), color: "var(--pine)", label: t("Segment start", "Inizio segmento") },
+        { ...p(range[1]), color: "var(--lingon)", label: t("Segment finish", "Fine segmento") },
       ];
     return [
-      { lat: track.lat[0]!, lng: track.lng[0]!, color: "var(--pine)", label: "Start" },
-      { lat: track.lat.at(-1)!, lng: track.lng.at(-1)!, color: "var(--lingon)", label: "Finish" },
+      { lat: track.lat[0]!, lng: track.lng[0]!, color: "var(--pine)", label: t("Start", "Partenza") },
+      { lat: track.lat.at(-1)!, lng: track.lng.at(-1)!, color: "var(--lingon)", label: t("Finish", "Arrivo") },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track, range]);
@@ -411,7 +415,9 @@ function Climbs({
     const seg = segmentFromRange(track, range[0], range[1], "custom", name.trim() || undefined);
     store.save(seg, !!name.trim());
     toast.success(
-      name.trim() ? `Saved “${seg.name}”` : "Segment saved; it gets its name from the map",
+      name.trim()
+        ? t(`Saved “${seg.name}”`, `Salvato “${seg.name}”`)
+        : t("Segment saved; it gets its name from the map", "Segmento salvato; prenderà il nome dalla mappa"),
     );
     setRange(null);
     setName("");
@@ -420,7 +426,7 @@ function Climbs({
   return (
     <>
       <Panel
-        title={`${track ? "Map, elevation" : "Elevation"} & climbs${climbs.length ? ` · ${climbs.length}` : ""}`}
+        title={`${track ? t("Map, elevation & climbs", "Mappa, altimetria e salite") : t("Elevation & climbs", "Altimetria e salite")}${climbs.length ? ` · ${climbs.length}` : ""}`}
         action={
           track && !range ? (
             <Button
@@ -430,7 +436,7 @@ function Climbs({
                 setRange([Math.min(1, totalKm / 3), Math.min(totalKm, Math.max(2, totalKm / 2))])
               }
             >
-              <Plus /> Segment
+              <Plus /> {t("Segment", "Segmento")}
             </Button>
           ) : undefined
         }
@@ -458,9 +464,9 @@ function Climbs({
         {range && (
           <div className="mt-4 space-y-3 rounded-lg bg-background/50 p-3">
             <div className="stat-num flex justify-between text-xs text-muted-foreground">
-              <span>Start {range[0].toFixed(2)} km</span>
+              <span>{t("Start", "Inizio")} {range[0].toFixed(2)} km</span>
               <span>{((range[1] - range[0]) * 1000).toFixed(0)} m</span>
-              <span>Finish {range[1].toFixed(2)} km</span>
+              <span>{t("Finish", "Fine")} {range[1].toFixed(2)} km</span>
             </div>
             <Slider
               min={0}
@@ -472,13 +478,13 @@ function Climbs({
             />
             <div className="flex gap-2">
               <Input
-                placeholder="Segment name (optional)"
+                placeholder={t("Segment name (optional)", "Nome segmento (facoltativo)")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
-              <Button onClick={saveRange}>Save</Button>
+              <Button onClick={saveRange}>{t("Save", "Salva")}</Button>
               <Button variant="ghost" onClick={() => setRange(null)}>
-                Cancel
+                {t("Cancel", "Annulla")}
               </Button>
             </div>
           </div>
@@ -492,11 +498,11 @@ function Climbs({
                   <th className="py-2 font-normal">#</th>
                   <th className="font-normal">Cat</th>
                   <th className="text-right font-normal">Km</th>
-                  <th className="text-right font-normal">Avg</th>
+                  <th className="text-right font-normal">{t("Avg", "Media")}</th>
                   <th className="text-right font-normal">Max</th>
-                  <th className="text-right font-normal">Time</th>
+                  <th className="text-right font-normal">{t("Time", "Tempo")}</th>
                   <th className="text-right font-normal">VAM</th>
-                  <th className="text-right font-normal">Power</th>
+                  <th className="text-right font-normal">{t("Power", "Potenza")}</th>
                   <th className="text-right font-normal">W/kg</th>
                   {track && <th />}
                 </tr>
@@ -537,7 +543,7 @@ function Climbs({
                       {track && (
                         <td className="text-right">
                           <button
-                            aria-label={saved?.starred ? "Unstar climb" : "Star climb"}
+                            aria-label={saved?.starred ? t("Unstar climb", "Togli dai preferiti") : t("Star climb", "Aggiungi ai preferiti")}
                             onClick={(e) => {
                               e.stopPropagation();
                               store.toggleStar(
@@ -564,27 +570,30 @@ function Climbs({
         )}
       </Panel>
 
-      <Panel title={`Segments on this ride${onRide.length ? ` · ${onRide.length}` : ""}`}>
+      <Panel title={`${t("Segments on this ride", "Segmenti in questa attività")}${onRide.length ? ` · ${onRide.length}` : ""}`}>
         {onRide.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             {track
               ? store.ridesAnalysed
-                ? "This ride doesn't pass any of your segments."
-                : "Open Segments once to analyse your rides; recurring climbs will then show up here."
-              : "No GPS on this ride."}
+                ? t("This ride doesn't pass any of your segments.", "Questa attività non passa da nessuno dei tuoi segmenti.")
+                : t(
+                    "Open Segments once to analyse your rides; recurring climbs will then show up here.",
+                    "Apri Segmenti una volta per analizzare le attività; le salite ricorrenti appariranno qui.",
+                  )
+              : t("No GPS on this ride.", "Nessun GPS in questa attività.")}
           </p>
         ) : (
           <div className="-mx-4 overflow-x-auto px-4">
             <table className="stat-num w-full min-w-[600px] text-sm">
               <thead>
                 <tr className="eyebrow text-left">
-                  <th className="py-2 font-normal">Segment</th>
-                  <th className="text-right font-normal">Time</th>
-                  <th className="text-right font-normal">Rank</th>
-                  <th className="text-right font-normal">Power</th>
+                  <th className="py-2 font-normal">{t("Segment", "Segmento")}</th>
+                  <th className="text-right font-normal">{t("Time", "Tempo")}</th>
+                  <th className="text-right font-normal">{t("Rank", "Pos.")}</th>
+                  <th className="text-right font-normal">{t("Power", "Potenza")}</th>
                   <th className="text-right font-normal">W/kg</th>
                   <th className="text-right font-normal">VAM</th>
-                  <th className="text-right font-normal">HR</th>
+                  <th className="text-right font-normal">{t("HR", "FC")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

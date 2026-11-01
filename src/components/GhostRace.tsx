@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
+import { format, t as tr } from "@/lib/i18n";
 import { Pause, Play, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -97,7 +98,7 @@ export function GhostRace({
 
   if (!sa || !sb)
     return (
-      <p className="py-16 text-center text-sm text-muted-foreground">Loading the two rides…</p>
+      <p className="py-16 text-center text-sm text-muted-foreground">{tr("Loading the two rides…", "Caricamento delle due attività…")}</p>
     );
 
   const pa = atTime(sa, t);
@@ -128,7 +129,7 @@ export function GhostRace({
           label={label}
         />
         <Button size="sm" variant="ghost" className="ml-auto" onClick={onClose}>
-          <X /> End race
+          <X /> {tr("End race", "Termina sfida")}
         </Button>
       </div>
 
@@ -153,7 +154,7 @@ export function GhostRace({
       <div className="flex flex-wrap items-center gap-3">
         <Button
           size="icon"
-          aria-label={playing ? "Pause" : "Play"}
+          aria-label={playing ? tr("Pause", "Pausa") : tr("Play", "Avvia")}
           onClick={() => {
             if (!playing && t >= end) setT(0);
             setPlaying((p) => !p);
@@ -193,12 +194,12 @@ export function GhostRace({
 
       <div className="stat-num rounded-lg bg-background/50 px-3 py-2 text-sm">
         {at < 1 ? (
-          <span className="text-muted-foreground">On the line…</span>
+          <span className="text-muted-foreground">{tr("On the line…", "Sulla linea di partenza…")}</span>
         ) : (
           <>
-            at {(at / 1000).toFixed(2)} km: <span style={{ color: B_COLOR }}>B</span>{" "}
+            {tr("at", "a")} {(at / 1000).toFixed(2)} km: <span style={{ color: B_COLOR }}>B</span>{" "}
             {Math.abs(gap) < 0.5 ? (
-              <span className="font-semibold">level with</span>
+              <span className="font-semibold">{tr("level with", "alla pari con")}</span>
             ) : (
               <span className={cn("font-semibold", gap < 0 ? "text-pine" : "text-lingon")}>
                 {signed(gap)}
@@ -209,7 +210,7 @@ export function GhostRace({
             {Math.abs(gap) >= 0.5 && (
               <span className="font-sans text-muted-foreground">
                 {" "}
-                ({gap < 0 ? "ahead" : "behind"})
+                ({gap < 0 ? tr("ahead", "avanti") : tr("behind", "indietro")})
               </span>
             )}
           </>
@@ -218,7 +219,10 @@ export function GhostRace({
 
       <div>
         <div className="mb-1 text-xs text-muted-foreground">
-          Gap along the climb (B vs A; below zero = B faster)
+          {tr(
+            "Gap along the climb (B vs A; below zero = B faster)",
+            "Distacco lungo la salita (B vs A; sotto zero = B più veloce)",
+          )}
         </div>
         <div className="h-32">
           <ResponsiveContainer width="100%" height="100%">
@@ -247,7 +251,7 @@ export function GhostRace({
                   borderRadius: 8,
                 }}
                 labelFormatter={(v) => `${Number(v).toFixed(2)} km`}
-                formatter={(v) => [signed(Number(v)), "Gap"]}
+                formatter={(v) => [signed(Number(v)), tr("Gap", "Distacco")]}
               />
               <ReferenceLine y={0} stroke="var(--muted-foreground)" strokeDasharray="3 3" />
               <ReferenceLine x={at / 1000} stroke="var(--foreground)" strokeOpacity={0.6} />

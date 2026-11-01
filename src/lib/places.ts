@@ -1,5 +1,6 @@
 // Place names for segments from OpenStreetMap (Nominatim). Pure helpers first, then rate-limited lookups.
 import { haversine, type Segment } from "./segments";
+import { t } from "./i18n";
 
 const NEAR = 400; // m: how close a pass or peak must be to the segment's top
 
@@ -35,7 +36,7 @@ export function composeName(p: { landmark?: string | null; from?: string | null;
   const to = p.to && p.to === p.from && p.toLocal && p.toLocal !== p.from ? p.toLocal : p.to;
   if (p.from && to && p.from !== to) return `${p.from} → ${to}`;
   const one = p.from ?? to;
-  return one ? `${one} ${source === "auto" ? "climb" : "segment"}` : null;
+  return one ? t(`${one} ${source === "auto" ? "climb" : "segment"}`, `${source === "auto" ? "Salita" : "Segmento"} di ${one}`) : null;
 }
 
 /** Same name on different segments gets its length appended, so the list stays unambiguous. */

@@ -1,15 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import {
-  addMonths,
-  eachDayOfInterval,
-  endOfMonth,
-  endOfWeek,
-  format,
-  parseISO,
-  startOfMonth,
-  startOfWeek,
-} from "date-fns";
+import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ActivityRow } from "@/components/ActivityRow";
@@ -26,9 +17,10 @@ import { activityKind, KINDS } from "@/lib/activity-kind";
 import { advice, readinessFor } from "@/lib/readiness";
 import { addDays, formatDuration, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
+import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/calendar")({
-  head: () => ({ meta: [{ title: "Calendar — Cirmolo" }] }),
+  head: () => ({ meta: [{ title: t("Calendar — Cirmolo", "Calendario — Cirmolo") }] }),
   validateSearch: (
     s: Record<string, unknown>,
   ): { month?: string | undefined; week?: string | undefined } => ({
@@ -49,7 +41,7 @@ const TONE = {
   lingon: "var(--lingon)",
 } as const;
 const STRESS_TONE = ["var(--pine)", "var(--fitness)", "var(--birch)", "var(--lingon)"];
-const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DOW = t("Mon Tue Wed Thu Fri Sat Sun", "Lun Mar Mer Gio Ven Sab Dom").split(" ");
 
 type DayData = {
   date: string;
@@ -150,7 +142,7 @@ function CalendarPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="eyebrow">Training & wellness</div>
+          <div className="eyebrow">{t("Training & wellness", "Allenamento e benessere")}</div>
           <h1 className="text-3xl font-bold tracking-tight">
             {weekView
               ? `${format(parseISO(first), "d MMM")} – ${format(parseISO(last), "d MMM")}`
@@ -164,11 +156,11 @@ function CalendarPage() {
                 key={v}
                 onClick={() => setView(() => v)}
                 className={cn(
-                  "min-h-8 rounded-md px-3 text-xs capitalize",
+                  "min-h-8 rounded-md px-3 text-xs",
                   view === v ? "bg-background text-foreground" : "text-muted-foreground",
                 )}
               >
-                {v}
+                {v === "week" ? t("Week", "Settimana") : t("Month", "Mese")}
               </button>
             ))}
           </div>
@@ -176,7 +168,7 @@ function CalendarPage() {
             variant="ghost"
             size="icon"
             asChild
-            aria-label={weekView ? "Previous week" : "Previous month"}
+            aria-label={weekView ? t("Previous week", "Settimana precedente") : t("Previous month", "Mese precedente")}
           >
             <Link
               to="/calendar"
@@ -187,14 +179,14 @@ function CalendarPage() {
           </Button>
           <Button variant="secondary" size="sm" asChild>
             <Link to="/calendar" search={{}}>
-              Today
+              {t("Today", "Oggi")}
             </Link>
           </Button>
           <Button
             variant="ghost"
             size="icon"
             asChild
-            aria-label={weekView ? "Next week" : "Next month"}
+            aria-label={weekView ? t("Next week", "Settimana successiva") : t("Next month", "Mese successivo")}
           >
             <Link
               to="/calendar"
@@ -205,8 +197,8 @@ function CalendarPage() {
           </Button>
           <Button size="sm" className="ml-2" onClick={() => setLogging(true)}>
             <Plus />
-            <span className="hidden sm:inline">Log workout</span>
-            <span className="sm:hidden">Log</span>
+            <span className="hidden sm:inline">{t("Log workout", "Registra allenamento")}</span>
+            <span className="sm:hidden">{t("Log", "Registra")}</span>
           </Button>
         </div>
       </div>
@@ -214,7 +206,7 @@ function CalendarPage() {
       {/* Desktop: month grid with a weekly summary column. */}
       <div className="hidden overflow-hidden rounded-xl border border-border bg-card md:block">
         <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_9rem] border-b border-border">
-          {[...DOW, "Week"].map((d) => (
+          {[...DOW, t("Week", "Settimana")].map((d) => (
             <div key={d} className="eyebrow px-2 py-2">
               {d}
             </div>
@@ -234,7 +226,7 @@ function CalendarPage() {
                   !d.inMonth && "opacity-40",
                 )}
                 style={loadStyle(d.load, "top")}
-                title={d.load ? `Load ${Math.round(d.load)}` : undefined}
+                title={d.load ? `${t("Load", "Carico")} ${Math.round(d.load)}` : undefined}
               >
                 <DayHeader d={d} today={today} />
                 {d.acts.map((a) => (
@@ -245,13 +237,13 @@ function CalendarPage() {
                 ))}
               </button>
             ))}
-            <WeekSummary t={w.totals} />
+            <WeekSummary totals={w.totals} />
           </div>
         ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-        <span>Daily load:</span>
+        <span>{t("Daily load:", "Carico giornaliero:")}</span>
         {LOAD_BANDS.map(([, color, label]) => (
           <span key={label} className="flex items-center gap-1">
             <span className="h-1.5 w-5 rounded-full" style={{ background: color }} /> {label}
@@ -268,11 +260,11 @@ function CalendarPage() {
               className="overflow-hidden rounded-xl border border-border bg-card"
             >
               <div className="stat-num flex flex-wrap justify-between gap-x-3 bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
-                <span className="font-sans">Week</span>
+                <span className="font-sans">{t("Week", "Settimana")}</span>
                 <span>
                   {w.totals
                     ? `${Math.round(w.totals.load)} TSS · ${w.totals.hours.toFixed(1)} h · ${Math.round(w.totals.km)} km · ${Math.round(w.totals.elevation)} m`
-                    : "rest week"}
+                    : t("rest week", "settimana di riposo")}
                 </span>
               </div>
               <div className="divide-y divide-border">
@@ -315,8 +307,8 @@ function CalendarPage() {
       <ResponsiveDialog
         open={logging}
         onOpenChange={setLogging}
-        title="Log a workout"
-        description="For sessions the watch didn't record."
+        title={t("Log a workout", "Registra un allenamento")}
+        description={t("For sessions the watch didn't record.", "Per le sessioni che l'orologio non ha registrato.")}
       >
         <LogWorkoutForm date={today} onSaved={() => setLogging(false)} />
       </ResponsiveDialog>
@@ -356,7 +348,7 @@ function MonthGrid({
                 !d.inMonth && "opacity-35",
               )}
               style={loadStyle(d.load, "top")}
-              aria-label={`${format(parseISO(d.date), "EEEE d MMMM")}: ${d.acts.length} activities`}
+              aria-label={`${format(parseISO(d.date), "EEEE d MMMM")}: ${d.acts.length} ${t("activities", "attività")}`}
             >
               <span
                 className={cn(
@@ -403,7 +395,7 @@ function DayHeader({ d, today }: { d: DayData; today: string }) {
         <span
           className="stat-num rounded-full px-1.5 text-[10px] font-semibold text-background"
           style={{ background: tone }}
-          title="Readiness"
+          title={t("Readiness", "Prontezza")}
         >
           {d.score}
         </span>
@@ -445,24 +437,24 @@ function ActChip({ a }: { a: Activity }) {
 function PlannedChip({ e }: { e: PlannedEvent }) {
   return (
     <div className="truncate rounded border border-dashed border-birch/50 px-1.5 py-0.5 text-[11px] text-birch">
-      {e.name ?? "Planned"}
+      {e.name ?? t("Planned", "Pianificato")}
       {e.icu_training_load ? ` · ${e.icu_training_load}` : ""}
     </div>
   );
 }
 
-function WeekSummary({ t }: { t: WeekRow | undefined }) {
+function WeekSummary({ totals }: { totals: WeekRow | undefined }) {
   return (
     <div className="stat-num space-y-0.5 bg-secondary/30 p-2 text-xs">
-      {t ? (
+      {totals ? (
         <>
-          <div className="text-sm font-semibold text-fitness">{Math.round(t.load)} TSS</div>
-          <div>{t.hours.toFixed(1)} h</div>
-          <div>{Math.round(t.km)} km</div>
-          <div>{Math.round(t.elevation)} m</div>
+          <div className="text-sm font-semibold text-fitness">{Math.round(totals.load)} TSS</div>
+          <div>{totals.hours.toFixed(1)} h</div>
+          <div>{Math.round(totals.km)} km</div>
+          <div>{Math.round(totals.elevation)} m</div>
         </>
       ) : (
-        <div className="font-sans text-muted-foreground">Rest week</div>
+        <div className="font-sans text-muted-foreground">{t("Rest week", "Settimana di riposo")}</div>
       )}
     </div>
   );
@@ -475,9 +467,9 @@ function DayDetail({ d }: { d: DayData }) {
       <div className="flex gap-1 rounded-lg bg-secondary p-1">
         {(
           [
-            ["day", "Activities"],
-            ["wellness", "Wellness"],
-            ["log", "Log workout"],
+            ["day", t("Activities", "Attività")],
+            ["wellness", t("Wellness", "Benessere")],
+            ["log", t("Log workout", "Registra allenamento")],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -505,9 +497,9 @@ function DayDetail({ d }: { d: DayData }) {
                 key={e.id}
                 className="rounded-lg border border-dashed border-birch/50 p-3 text-sm"
               >
-                <div className="font-medium text-birch">{e.name ?? "Planned workout"}</div>
+                <div className="font-medium text-birch">{e.name ?? t("Planned workout", "Allenamento pianificato")}</div>
                 <div className="stat-num text-xs text-muted-foreground">
-                  {formatDuration(e.moving_time)} · load {e.icu_training_load ?? "–"}
+                  {formatDuration(e.moving_time)} · {t("load", "carico")} {e.icu_training_load ?? "–"}
                 </div>
                 {e.description && (
                   <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">
@@ -519,7 +511,7 @@ function DayDetail({ d }: { d: DayData }) {
           </div>
         ) : (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            No activities on this day.
+            {t("No activities on this day.", "Nessuna attività in questo giorno.")}
           </p>
         ))}
       {tab === "wellness" && (
