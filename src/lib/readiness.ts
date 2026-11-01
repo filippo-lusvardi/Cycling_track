@@ -133,3 +133,18 @@ export function recommendation(score: number, tsb: number | null): { zones: stri
   if (score >= 40) return { zones: "Z1", duration: "≤ 60 min", text: t("Easy spin at high cadence, or skip the bike.", "Pedalata facile ad alta cadenza, oppure niente bici.") };
   return { zones: t("Rest", "Riposo"), duration: "—", text: t("Day off. A walk and an early night help more than any ride.", "Giorno libero. Una camminata e andare a letto presto aiutano più di qualsiasi attività.") };
 }
+
+/**
+ * Today's upper limit on an easy or endurance day: the top of Z1 or Z2 in your intervals.icu zones (watts and
+ * bpm). Null on intensity and rest days, or when neither zone set is known.
+ */
+export function ceiling(score: number, zones: { power: number[]; hr: number[] }): { watts: number | null; bpm: number | null } | null {
+  const zone = score >= 75 ? null : score >= 55 ? 1 : score >= 40 ? 0 : null;
+  if (zone == null) return null;
+  const watts = zones.power[zone] ?? null;
+  const bpm = zones.hr[zone] ?? null;
+  return watts == null && bpm == null ? null : { watts, bpm };
+}
+
+export const ceilingText = (c: { watts: number | null; bpm: number | null }) =>
+  `${t("Stay under", "Resta sotto")} ${[c.watts != null && `${c.watts} W`, c.bpm != null && `${c.bpm} bpm`].filter(Boolean).join(" · ")}`;

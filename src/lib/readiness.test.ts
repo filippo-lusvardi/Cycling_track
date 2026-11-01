@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeReadiness, formScore, hrvScore, readinessInputFor, recommendation } from "./readiness";
+import { ceiling, ceilingText, computeReadiness, formScore, hrvScore, readinessInputFor, recommendation } from "./readiness";
 
 const base = { hrvToday: null, hrvBaseline: null, sleepSecs: null, sleepQuality: null, ctl: null, atl: null, stress: null, fatigue: null, mood: null };
 
@@ -56,5 +56,23 @@ describe("no resting heart rate anywhere", () => {
   it("the wellness model and save schema don't carry it", async () => {
     const src = (await import("./intervals.ts?raw")).default;
     expect(src).not.toMatch(/restingHR/i);
+  });
+});
+
+describe("ceiling", () => {
+  const zones = { power: [150, 205, 245, 285], hr: [128, 142, 155, 165] };
+  it("is the top of Z1 on an easy day and Z2 on an endurance day", () => {
+    expect(ceiling(45, zones)).toEqual({ watts: 150, bpm: 128 });
+    expect(ceiling(60, zones)).toEqual({ watts: 205, bpm: 142 });
+    expect(ceilingText(ceiling(60, zones)!)).toBe("Stay under 205 W · 142 bpm");
+  });
+  it("has none on intensity and rest days", () => {
+    expect(ceiling(80, zones)).toBeNull();
+    expect(ceiling(30, zones)).toBeNull();
+  });
+  it("works with only one kind of zone, and not with none", () => {
+    expect(ceiling(60, { power: [], hr: [128, 142] })).toEqual({ watts: null, bpm: 142 });
+    expect(ceilingText({ watts: null, bpm: 142 })).toBe("Stay under 142 bpm");
+    expect(ceiling(60, { power: [], hr: [] })).toBeNull();
   });
 });

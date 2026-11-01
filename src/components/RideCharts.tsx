@@ -3,12 +3,15 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { Button } from "@/components/ui/button";
+import { useXZoom, ZOOM_AREA } from "@/hooks/use-x-zoom";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { rideSeries, type SeriesPoint } from "@/lib/ride-series";
 import { t } from "@/lib/i18n";
@@ -34,6 +37,7 @@ const avgOf = (xs: (number | null)[]) => {
 /**
  * Speed, power and heart rate along the ride, stacked on one distance axis; hovering one shows the same spot on all.
  * With a `work` selected, the charts zoom to that stretch and the averages are the work's own.
+ * They also zoom along distance together (drag, or pinch on a phone), and the y axes fit what's shown.
  */
 export function RideCharts({
   a,
@@ -49,8 +53,36 @@ export function RideCharts({
     () => (work ? all.filter((p) => p.km >= work.startKm && p.km <= work.endKm) : all),
     [all, work],
   );
+  // Plot area inside each chart: YAxis 60 px + margin.left -20, margin.right 4.
+  const zoom = useXZoom(data, { minSpan: 10, inset: { left: 40, right: 4 } });
+  const shown = zoom.view;
   const [idx, setIdx] = useState<number | null>(null);
-  const at = idx != null ? data[idx] : undefined;
+  const at = idx != null ? shown[idx] : undefined;
+  const { onMouseMove: zoomMove, onMouseLeave: zoomLeave, ...zoomChart } = zoom.chart;
+  // Stable, so the memoised charts don't redraw on every hover.
+  const handlers = useMemo(
+    () => ({
+      ...zoomChart,
+      onMouseMove: (st: Parameters<typeof zoomMove>[0]) => {
+        setIdx(st?.activeTooltipIndex ?? null);
+        zoomMove(st);
+      },
+      onMouseLeave: () => {
+        setIdx(null);
+        zoomLeave();
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [zoom.chart],
+  );
+  const domain = useMemo<[number, number] | null>(
+    () =>
+      zoom.zoomed ? [shown[0]!.km, shown.at(-1)!.km] : work ? [work.startKm, work.endKm] : null,
+    [zoom.zoomed, shown, work],
+  );
+  const sel = zoom.selection
+    ? ([shown[zoom.selection[0]]!.km, shown[zoom.selection[1]]!.km] as [number, number])
+    : null;
   const metrics = useMemo(
     () =>
       (
@@ -100,7 +132,7 @@ export function RideCharts({
       </p>
     );
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 select-none md:cursor-crosshair" {...zoom.wrapper}>
       {metrics.map((m, i) => (
         <div key={m.key}>
           <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
@@ -124,14 +156,29 @@ export function RideCharts({
             </span>
           </div>
           <Chart
-            data={data}
+            data={shown}
             m={m}
             xAxis={i === metrics.length - 1}
-            domain={work ? [work.startKm, work.endKm] : null}
-            onHover={setIdx}
+            domain={domain}
+            fit={zoom.zoomed}
+            selection={sel}
+            handlers={handlers}
           />
         </div>
       ))}
+      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span>
+          {t(
+            "Drag across a chart to zoom (pinch on a phone); double-click to reset.",
+            "Trascina su un grafico per ingrandire (pizzica sul telefono); doppio clic per tornare.",
+          )}
+        </span>
+        {zoom.zoomed && (
+          <Button size="sm" variant="ghost" onClick={zoom.reset}>
+            {t("Reset zoom", "Annulla zoom")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -144,24 +191,27 @@ const Chart = memo(function Chart({
   m,
   xAxis,
   domain,
-  onHover,
+  fit,
+  selection,
+  handlers,
 }: {
   data: SeriesPoint[];
   m: Metric;
   xAxis: boolean;
   domain: [number, number] | null;
-  onHover: (i: number | null) => void;
+  /** Fit the y axis to the data shown instead of starting at 0 (when zoomed in). */
+  fit: boolean;
+  /** The stretch (km) being dragged to zoom. */
+  selection: [number, number] | null;
+  handlers: Pick<
+    React.ComponentProps<typeof AreaChart>,
+    "onMouseDown" | "onMouseMove" | "onMouseUp" | "onMouseLeave"
+  >;
 }) {
   return (
     <div className={xAxis ? "h-36" : "h-28"}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={data}
-          syncId="ride"
-          margin={{ left: -20, right: 4, top: 4 }}
-          onMouseMove={(st) => onHover(st?.activeTooltipIndex ?? null)}
-          onMouseLeave={() => onHover(null)}
-        >
+        <AreaChart data={data} syncId="ride" margin={{ left: -20, right: 4, top: 4 }} {...handlers}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
           <XAxis
             dataKey="km"
@@ -174,7 +224,12 @@ const Chart = memo(function Chart({
             fontSize={11}
             minTickGap={30}
           />
-          <YAxis stroke="var(--muted-foreground)" fontSize={11} allowDecimals={false} />
+          <YAxis
+            stroke="var(--muted-foreground)"
+            fontSize={11}
+            allowDecimals={false}
+            domain={fit ? ["auto", "auto"] : [0, "auto"]}
+          />
           {/* Cursor line and dot only; the value shows in the header. */}
           <Tooltip
             content={() => null}
@@ -193,6 +248,14 @@ const Chart = memo(function Chart({
             connectNulls
             isAnimationActive={false}
           />
+          {selection && (
+            <ReferenceArea
+              x1={selection[0]}
+              x2={selection[1]}
+              {...ZOOM_AREA}
+              ifOverflow="hidden"
+            />
+          )}
         </AreaChart>
       </ResponsiveContainer>
     </div>

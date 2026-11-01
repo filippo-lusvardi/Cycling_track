@@ -96,6 +96,21 @@ scan it with the phone's camera. The phone opens Cirmolo with the key, token and
 keys travel only inside the link (after `#`, never sent to any server), and the code hides itself after a minute. On
 iPhone, Home Screen apps keep their own storage, so enter the keys in the installed app instead.
 
+**The Tree** is the home page. Besides seasons, sky and branches (Settings → *How to read the tree*), it shows:
+
+- **Knots** for days ill or injured, from *Sick* / *Injured* events in the intervals.icu calendar. Mark today from
+  the crown's sheet, or a past run of rest days by tapping it.
+- **Wind** in the crown when a trend over several days is worth watching (HRV below your usual for a week, high
+  fatigue or stress on most recent check-ins, short nights), before it shows in readiness.
+- **Today's ceiling** on easy and endurance days: the power and heart rate to stay under, from your intervals.icu
+  zones.
+- **Quiet tree** (Settings → Tree) hides the scores on the tree until you tap.
+- **Training focus**: what to train in the current block (base, high aerobic, VO2max, anaerobic, sprint). It weighs
+  every race in the next 20 weeks (A more than B and C, nearer more than later) against the gaps in your own power
+  curve, puts the base first when it's weak, and tapers around races. Add races in **Calendar → a day → Add race** with
+  their discipline (road or MTB), kind, estimated time (time trials and hill climbs) and sprint finish; they're saved
+  to intervals.icu as A/B/C races, with Cirmolo's details as readable lines in the description.
+
 **Updates** reach every device automatically: when a new version is published, Cirmolo shows a
 "New version available → Reload" message.
 
@@ -131,7 +146,7 @@ OpenStreetMap, so each device doesn't have to look them up again). Secret gists 
 
 | What | Where |
 |---|---|
-| Rides, wellness, check-ins, manual workouts | **intervals.icu**: the single source of truth. Cirmolo reads it and writes check-ins and manual workouts there. |
+| Rides, wellness, check-ins, manual workouts, ill/injured days | **intervals.icu**: the single source of truth. Cirmolo reads it and writes check-ins, manual workouts and *Sick* / *Injured* calendar events there. |
 | Saved segments (stars, manual segments, your names) and OpenStreetMap place names | The browser on each device, **backed up to your private GitHub gist** when sync is on |
 | Segment analysis, downloaded rides, offline copy of recent data | The browser on each device (IndexedDB), about 15 MB per year of riding plus about 20 MB of cache |
 | API key and GitHub token | The browser on each device. They are never sent anywhere except intervals.icu and GitHub. |

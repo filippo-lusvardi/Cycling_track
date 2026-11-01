@@ -16,9 +16,11 @@ describe("gradient profile", () => {
   it("finds the steepest chunk", () => {
     expect(maxGrade(gradeChunks(dist, alt))).toBeGreaterThan(9.5);
   });
-  it("colours grades in 2% bands", () => {
-    expect(gradeColor(1)).toBe("var(--z1)");
-    expect(gradeColor(5)).toBe("var(--z3)");
-    expect(gradeColor(15)).toBe("var(--z7)");
+  it("colours grades along a continuous ramp", () => {
+    expect(gradeColor(-4)).toBe("var(--z1)");
+    expect(gradeColor(0)).toBe("var(--z1)");
+    expect(gradeColor(7.5)).toBe("color-mix(in oklch, var(--z5) 50%, var(--z4))");
+    expect(gradeColor(6)).toBe("var(--z4)");
+    expect(gradeColor(20)).toBe("var(--z7)");
   });
 });

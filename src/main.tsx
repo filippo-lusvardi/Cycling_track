@@ -40,6 +40,8 @@ const persister = createAsyncStoragePersister({
 const NOT_PERSISTED = new Set(["streams", "effort-track"]);
 
 navigator.storage?.persist?.().catch(() => {});
+// The old tile cache held opaque responses that Chrome counts as ~7 MB each; tiles now live in map-tiles-v2.
+globalThis.caches?.delete("map-tiles").catch(() => {});
 
 const router = getRouter(queryClient);
 

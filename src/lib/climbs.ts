@@ -32,6 +32,7 @@ const DROP = 10; // a climb ends when we drop this far below its top
 const MIN_GAIN = 25;
 const MIN_LENGTH = 400;
 const MIN_GRADE = 3;
+const LEAD = 20; // samples (500 m) a lead-in is judged over when it threatens to sink a climb
 
 /** Strava-style category from length (m) × avg grade (%). */
 export function climbCategory(length: number, grade: number): ClimbCategory {
@@ -123,6 +124,13 @@ export function detectClimbs(s: Streams): Climb[] {
     while (a + 4 < b && (sa[a + 4]! - sa[a]!) / (rd[a + 4]! - rd[a]!) < 0.01) a++;
     // …and the flat run-out over the top, so a false flat doesn't stretch the climb.
     while (b - 4 > a && (sa[b]! - sa[b - 4]!) / (rd[b]! - rd[b - 4]!) < 0.01) b--;
+    // A long gentle lead-in (or run-out) can drag a real climb's average under MIN_GRADE: then trim each end
+    // while its next 500 m stay under MIN_GRADE too. Only then, so climbs that already qualify keep their ends.
+    const grade = (i: number, j: number) => ((sa[j]! - sa[i]!) / (rd[j]! - rd[i]!)) * 100;
+    if (grade(a, b) < MIN_GRADE) {
+      while (a + LEAD < b && grade(a, a + LEAD) < MIN_GRADE) a++;
+      while (b - LEAD > a && grade(b - LEAD, b) < MIN_GRADE) b--;
+    }
     const length = rd[b]! - rd[a]!;
     const gain = sa[b]! - sa[a]!;
     if (length < MIN_LENGTH || gain < MIN_GAIN) continue;

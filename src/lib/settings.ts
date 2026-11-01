@@ -8,6 +8,12 @@ export const SEGMENTS = "cadence_segments";
 export const SEGMENT_HISTORY = "cadence_segment_history";
 /** UI language, "en" or "it". */
 export const LANGUAGE = "cadence_language";
+/** Hide scores on the Tree's home view until tapped. */
+export const QUIET_TREE = "cadence_quiet_tree";
+/** The training blocks chosen so far on this device (see lib/focus holdFocus). */
+export const FOCUS_STATE = "cadence_focus";
+/** A focus pinned by hand, overriding the computed one. */
+export const FOCUS_PIN = "cadence_focus_pin";
 
 export function readSetting<T>(key: string): T | null {
   try {

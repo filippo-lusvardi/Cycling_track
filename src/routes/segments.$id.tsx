@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSegmentNames } from "@/hooks/use-segment-names";
 import { useSegmentLibrary } from "@/hooks/use-segments";
+import { useXZoom, ZOOM_AREA } from "@/hooks/use-x-zoom";
 import { wellnessRangeQuery } from "@/lib/queries";
 import { gradeChunks, maxGrade } from "@/lib/profile";
 import { historyYears } from "@/lib/segment-app";
@@ -106,6 +108,8 @@ function SegmentPage() {
         .map((e) => ({ date: e.date.slice(0, 10), time: e.duration / 60, watts: e.avgWatts })),
     [efforts],
   );
+  // Plot area inside the chart: YAxis 60 px + margin.left -16, margin.right 8.
+  const zoom = useXZoom(trend, { inset: { left: 44, right: 8 } });
 
   if (!seg)
     return (
@@ -277,9 +281,9 @@ function SegmentPage() {
             </div>
           }
         >
-          <div className="h-56">
+          <div className="h-56 select-none md:cursor-crosshair" {...zoom.wrapper}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trend} margin={{ left: -16, right: 8, top: 8 }}>
+              <LineChart data={zoom.view} margin={{ left: -16, right: 8, top: 8 }} {...zoom.chart}>
                 <CartesianGrid stroke="var(--border)" vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -319,12 +323,30 @@ function SegmentPage() {
                   connectNulls
                   isAnimationActive={false}
                 />
+                {zoom.selection && (
+                  <ReferenceArea
+                    x1={zoom.view[zoom.selection[0]]!.date}
+                    x2={zoom.view[zoom.selection[1]]!.date}
+                    {...ZOOM_AREA}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
-          {metric === "time" && (
-            <p className="mt-1 text-xs text-muted-foreground">{t("Faster is higher.", "Più in alto = più veloce.")}</p>
-          )}
+          <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>
+              {metric === "time" && `${t("Faster is higher.", "Più in alto = più veloce.")} `}
+              {t(
+                "Drag to zoom (pinch on a phone); double-click to reset.",
+                "Trascina per ingrandire (pizzica sul telefono); doppio clic per tornare.",
+              )}
+            </span>
+            {zoom.zoomed && (
+              <Button size="sm" variant="ghost" onClick={zoom.reset}>
+                {t("Reset zoom", "Annulla zoom")}
+              </Button>
+            )}
+          </div>
         </Panel>
       )}
 

@@ -2,8 +2,9 @@
 import { parseISO } from "date-fns";
 import { format, t } from "./i18n";
 import { activityKind, type Kind } from "./activity-kind";
-import type { Activity, Wellness } from "./intervals";
+import type { Activity, OffKind, PlannedEvent, Wellness } from "./intervals";
 import { advice, formScore, readinessFor } from "./readiness";
+import { earlySignals, type Signal } from "./signals";
 import { addDays, computeForm, formZone } from "./training";
 
 /** 1–4, 1 being the easiest / best, like the check-in scales. */
@@ -11,9 +12,19 @@ export type Level = 1 | 2 | 3 | 4;
 
 /** Green, blue, gold, red: shared by intensity, feel and the seasons. */
 export const LEVEL_COLOR = ["var(--pine)", "var(--fitness)", "var(--birch)", "var(--lingon)"];
-export const INTENSITY_WORD = [t("easy", "facile"), t("steady", "regolare"), "tempo", t("hard", "dura")];
+export const INTENSITY_WORD = [
+  t("easy", "facile"),
+  t("steady", "regolare"),
+  "tempo",
+  t("hard", "dura"),
+];
 /** intervals.icu feel words for levels 1–4 (4 also covers "weak"). */
-export const FEEL_WORD = [t("strong", "forte"), t("good", "bene"), t("normal", "normale"), t("poor", "male")];
+export const FEEL_WORD = [
+  t("strong", "forte"),
+  t("good", "bene"),
+  t("normal", "normale"),
+  t("poor", "male"),
+];
 
 /** One leaf per this many metres climbed. */
 export const CLIMB_PER_LEAF = 100;
@@ -50,6 +61,8 @@ export type TreeDay = {
   branches: TreeBranch[];
   /** Side of the rest-day bud (rest days have no branches). */
   budSide: -1 | 1;
+  /** Ill or injured that day: a knot in the bark. */
+  off: OffKind | null;
 };
 
 export type Chapter = "build" | "steady" | "rest";
@@ -69,6 +82,8 @@ export type TreeWeek = {
   twigs: TreeBranch[];
   side: -1 | 1;
   chapter: Chapter;
+  /** Days ill or injured in the week (injured when the week has both). */
+  off: { days: number; kind: OffKind } | null;
 };
 
 export type TreeYear = {
@@ -90,6 +105,10 @@ export type Crown = {
   /** True until today's check-in is done: the score comes from HRV, sleep and form only. */
   estimated: boolean;
   season: Season | null;
+  /** How far through its season the crown is, 0 → 1 from the worse neighbour to the better (see seasonPhase). */
+  seasonPhase: number;
+  /** "Early spring", "Late autumn"…: the season and where in it. */
+  seasonLabel: string | null;
   /** The readiness advice title, e.g. "Ready for intensity". */
   advice: string | null;
   leaves: number;
@@ -97,6 +116,10 @@ export type Crown = {
   atl: number | null;
   form: number | null;
   weather: Weather | null;
+  /** How fair the weather is within its kind, 0 → 1 toward the next better sky (see weatherPhase). */
+  weatherPhase: number;
+  /** Trends worth watching before they show in readiness: wind in the crown. */
+  signals: Signal[];
 };
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -179,6 +202,7 @@ export function buildDays(
   wellness: Wellness[],
   oldest: string,
   today: string,
+  off: Map<string, OffKind> = new Map(),
 ): TreeDay[] {
   const byDay = new Map<string, Activity[]>();
   for (const a of acts) {
@@ -216,7 +240,7 @@ export function buildDays(
         seed: seedOf(a.id),
       };
     });
-    days.push({ date: d, ctl, trunk: 0, branches, budSide: turn % 2 ? -1 : 1 });
+    days.push({ date: d, ctl, trunk: 0, branches, budSide: turn % 2 ? -1 : 1, off: off.get(d) ?? null });
   }
   // Widths need the whole history first: each day is ranked against every other day.
   const sorted = days.flatMap((d) => (d.ctl != null ? [d.ctl] : [])).sort((a, b) => a - b);
@@ -227,6 +251,11 @@ export function buildDays(
 const weekStart = (date: string) => {
   const [y, m, d] = date.split("-").map(Number);
   return addDays(date, -((new Date(y!, m! - 1, d!).getDay() + 6) % 7));
+};
+
+const offOf = (ds: TreeDay[]): TreeWeek["off"] => {
+  const off = ds.flatMap((d) => (d.off ? [d.off] : []));
+  return off.length ? { days: off.length, kind: off.includes("INJURED") ? "INJURED" : "SICK" } : null;
 };
 
 /** Days folded into Monday–Sunday weeks, newest first, with build/rest chapters from the load trend. */
@@ -266,6 +295,7 @@ export function buildWeeks(days: TreeDay[]): TreeWeek[] {
       twigs,
       side: i % 2 ? -1 : 1,
       chapter,
+      off: offOf(ds),
     });
   });
   return weeks.reverse();
@@ -331,14 +361,67 @@ export function seasonOf(score: number): Season {
   return score >= 75 ? "summer" : score >= 55 ? "spring" : score >= 40 ? "autumn" : "winter";
 }
 
+/** Readiness span of each season (the ends of the scale stand in for winter's floor and summer's top). */
+const SEASON_SPAN: Record<Season, [number, number]> = {
+  winter: [0, 40],
+  autumn: [40, 55],
+  spring: [55, 75],
+  summer: [75, 100],
+};
+
+/**
+ * Where a score sits inside its season, 0 → 1 from the lower-readiness end to the higher: deep winter → first
+ * snow, late autumn (nearly bare) → early autumn, early spring (buds) → late spring, early summer → high summer.
+ */
+export function seasonPhase(score: number): number {
+  const [lo, hi] = SEASON_SPAN[seasonOf(score)];
+  return clamp01((score - lo) / (hi - lo));
+}
+
+/** The season named for where in it you are: thirds of each season get their own word. */
+export function seasonLabel(season: Season, phase: number): string {
+  const third = phase < 1 / 3 ? 0 : phase < 2 / 3 ? 1 : 2;
+  return {
+    winter: [
+      t("Deep winter", "Pieno inverno"),
+      t("Winter", "Inverno"),
+      t("Early winter", "Inizio inverno"),
+    ],
+    autumn: [
+      t("Late autumn", "Tardo autunno"),
+      t("Autumn", "Autunno"),
+      t("Early autumn", "Inizio autunno"),
+    ],
+    spring: [
+      t("Early spring", "Inizio primavera"),
+      t("Spring", "Primavera"),
+      t("Late spring", "Tarda primavera"),
+    ],
+    summer: [
+      t("Early summer", "Inizio estate"),
+      t("Summer", "Estate"),
+      t("High summer", "Piena estate"),
+    ],
+  }[season][third]!;
+}
+
 export const SEASON_COLOR: Record<Season, string> = {
   summer: "var(--summer)",
   spring: "var(--spring)",
   autumn: "var(--autumn)",
   winter: "var(--snow)",
 };
-/** Canopy blobs: a full summer crown, thinner autumn, bare winter. */
-const SEASON_LEAVES: Record<Season, number> = { summer: 62, spring: 42, autumn: 30, winter: 0 };
+/** Canopy blobs [at the season's low end, high end]: a full summer crown, thinner autumn, bare winter. */
+const SEASON_LEAVES: Record<Season, [number, number]> = {
+  summer: [56, 72],
+  spring: [14, 54],
+  autumn: [8, 36],
+  winter: [0, 0],
+};
+const leavesFor = (season: Season, phase: number) => {
+  const [a, b] = SEASON_LEAVES[season];
+  return Math.round(a + (b - a) * phase);
+};
 
 /** Form → the sky above the crown, on intervals.icu's form zones. */
 export function weatherOf(form: number): Weather {
@@ -352,6 +435,20 @@ export function weatherOf(form: number): Weather {
         : "sun";
 }
 
+/** Form span of each sky, on intervals.icu's form zones (the open ends are cut at a plausible extreme). */
+const WEATHER_SPAN: Record<Weather, [number, number]> = {
+  rain: [-50, -30],
+  clouds: [-30, -10],
+  partly: [-10, 5],
+  sun: [5, 25],
+};
+
+/** How fair a form is within its sky, 0 → 1: heavy rain → a shower, dark clouds → breaking up, and so on. */
+export function weatherPhase(form: number): number {
+  const [lo, hi] = WEATHER_SPAN[weatherOf(form)];
+  return clamp01((form - lo) / (hi - lo));
+}
+
 export const WEATHER_WORD: Record<Weather, string> = {
   sun: t("fresh", "fresco"),
   partly: t("neutral", "neutro"),
@@ -360,25 +457,113 @@ export const WEATHER_WORD: Record<Weather, string> = {
 };
 
 /**
- * Today's crown. Without the check-in the score still comes from HRV, sleep and form; with none of
- * those, from form alone.
+ * Wellness with today's fitness and fatigue as they stood this morning. intervals.icu gives today's at the end
+ * of the day, already decayed as if you won't train, which flatters form; so until today has an activity, today
+ * takes yesterday's values, and everything computed from them (form, weather, readiness) follows.
  */
-export function crownFor(wellness: Wellness[], today: string): Crown {
+export function morningWellness(wellness: Wellness[], acts: Activity[], today: string): Wellness[] {
+  if (acts.some((a) => dayOf(a) === today)) return wellness;
+  const yesterday = wellness.find((w) => w.id === addDays(today, -1));
+  if (yesterday?.ctl == null || yesterday.atl == null) return wellness;
+  const live = { ctl: yesterday.ctl, atl: yesterday.atl };
+  return wellness.some((w) => w.id === today)
+    ? wellness.map((w) => (w.id === today ? { ...w, ...live } : w))
+    : [...wellness, { id: today, ...EMPTY_DAY, ...live }];
+}
+
+/** A wellness day with nothing recorded, for filling in today. */
+const EMPTY_DAY = {
+  rampRate: null,
+  weight: null,
+  bodyFat: null,
+  hrv: null,
+  sleepSecs: null,
+  sleepQuality: null,
+  soreness: null,
+  fatigue: null,
+  stress: null,
+  mood: null,
+  motivation: null,
+  eftp: null,
+  wPrime: null,
+  pMax: null,
+  comments: null,
+} satisfies Omit<Wellness, "id" | "ctl" | "atl">;
+
+/**
+ * Today's crown, from fitness and fatigue as of this morning until you've trained today (see morningWellness).
+ * Without the check-in the score still comes from HRV, sleep and form; with none of those, from form alone.
+ */
+export function crownFor(allWellness: Wellness[], acts: Activity[], today: string): Crown {
+  const wellness = morningWellness(allWellness, acts, today);
   const row = wellness.find((w) => w.id === today);
   const form = row?.ctl != null && row.atl != null ? computeForm(row.ctl, row.atl) : null;
   const checkedIn = !!row && (row.sleepQuality ?? row.fatigue ?? row.stress ?? row.mood) != null;
   const r = readinessFor(wellness, today);
   const score = r.score ?? (form != null ? Math.round(formScore(form)) : null);
   const season = score != null ? seasonOf(score) : null;
+  const phase = score != null ? seasonPhase(score) : 0;
   return {
     score,
     estimated: !checkedIn,
     season,
+    seasonPhase: phase,
+    seasonLabel: season ? seasonLabel(season, phase) : null,
     advice: score != null ? advice(score).title : null,
-    leaves: season ? SEASON_LEAVES[season] : 30,
+    leaves: season ? leavesFor(season, phase) : 30,
     ctl: row?.ctl ?? null,
     atl: row?.atl ?? null,
     form,
     weather: form != null ? weatherOf(form) : null,
+    weatherPhase: form != null ? weatherPhase(form) : 0,
+    signals: earlySignals(allWellness, today),
   };
+}
+
+/** Every day covered by a sick or injured event; injured wins when both cover a day. */
+export function offDays(events: PlannedEvent[]): Map<string, OffKind> {
+  const map = new Map<string, OffKind>();
+  for (const e of events) {
+    if (e.category !== "SICK" && e.category !== "INJURED") continue;
+    for (let d = e.date; d <= (e.end ?? e.date); d = addDays(d, 1))
+      if (map.get(d) !== "INJURED") map.set(d, e.category);
+  }
+  return map;
+}
+
+/** The event covering `date` (of `kind`, when given). */
+export const offEventOn = (events: PlannedEvent[], date: string, kind?: OffKind) =>
+  events.find(
+    (e) =>
+      (kind ? e.category === kind : e.category === "SICK" || e.category === "INJURED") &&
+      e.date <= date &&
+      date <= (e.end ?? e.date),
+  );
+
+export type OffChange =
+  | { op: "create"; start: string; last: string }
+  | { op: "update"; id: string; start: string; last: string }
+  | { op: "delete"; id: string };
+
+/**
+ * What toggling `kind` for today does: undo it if today is already marked (shorten the stretch to yesterday,
+ * or remove a one-day event), extend yesterday's stretch of the same kind, or start a new one.
+ */
+export function offToggle(events: PlannedEvent[], kind: OffKind, today: string): OffChange {
+  const now = offEventOn(events, today, kind);
+  if (now) {
+    if (now.date >= today && (now.end ?? now.date) > today)
+      return { op: "update", id: now.id, start: addDays(today, 1), last: now.end! };
+    if (now.date >= today) return { op: "delete", id: now.id };
+    return { op: "update", id: now.id, start: now.date, last: addDays(today, -1) };
+  }
+  const before = offEventOn(events, addDays(today, -1), kind);
+  if (before) return { op: "update", id: before.id, start: before.date, last: today };
+  return { op: "create", start: today, last: today };
+}
+
+/** "Sick 4–9 Oct", "Injured 12 Oct". */
+export function offTitle(kind: OffKind, start: string, last: string): string {
+  const word = kind === "SICK" ? t("Sick", "Malato") : t("Injured", "Infortunato");
+  return `${word} ${weekRange(start, last)}`;
 }

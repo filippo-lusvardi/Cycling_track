@@ -42,9 +42,10 @@ export default defineConfig({
             urlPattern: ({ url }) => /(server\.arcgisonline\.com|tile\.opentopomap\.org|tile\.openstreetmap\.org)$/.test(url.hostname),
             handler: "CacheFirst",
             options: {
-              cacheName: "map-tiles",
+              // v2: CORS tiles only. Opaque (status 0) responses are padded to ~7 MB each in Chrome's quota.
+              cacheName: "map-tiles-v2",
               expiration: { maxEntries: 3000, maxAgeSeconds: 30 * 86400 },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],

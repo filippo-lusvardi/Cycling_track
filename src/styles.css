@@ -135,9 +135,32 @@
   from { transform: translateY(-5px) rotate(-10deg); }
   to { transform: translateY(5px) rotate(10deg); }
 }
+/* Rain only falls: each drop drops and fades, then starts again from the top. */
+@keyframes tree-rain {
+  from { transform: translateY(-8px); opacity: 0; }
+  25% { opacity: 1; }
+  to { transform: translateY(12px); opacity: 0; }
+}
+/* Snow falls slower than rain and drifts a little sideways. */
+@keyframes tree-snow {
+  from { transform: translate(-2px, -6px); opacity: 0; }
+  25% { opacity: 1; }
+  to { transform: translate(2px, 14px); opacity: 0; }
+}
 @keyframes tree-drift {
   from { transform: translateX(-4px); }
   to { transform: translateX(4px); }
+}
+/* Wind: gusts pulse across the crown, leaves are carried sideways and fade. */
+@keyframes tree-gust {
+  from { transform: translateX(-10px); opacity: 0; }
+  40% { opacity: 1; }
+  to { transform: translateX(14px); opacity: 0; }
+}
+@keyframes tree-blown {
+  from { transform: translate(-12px, -3px) rotate(0deg); opacity: 0; }
+  20% { opacity: 1; }
+  to { transform: translate(40px, 6px) rotate(200deg); opacity: 0; }
 }
 .tree-grow {
   transform-box: view-box;
@@ -150,6 +173,14 @@
     transform-box: fill-box;
     transform-origin: center;
     animation: tree-fall 6s ease-in-out infinite alternate;
+  }
+  .tree-rain { animation: tree-rain 1.4s linear infinite; }
+  .tree-snow { animation: tree-snow 3s linear infinite; }
+  .tree-gust { animation: tree-gust 4s ease-in-out infinite; }
+  .tree-blown {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: tree-blown 4s ease-in infinite;
   }
 }
 

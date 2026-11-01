@@ -2,19 +2,35 @@
 
 export type Chunk = { from: number; to: number; altFrom: number; altTo: number; grade: number; i0: number; i1: number };
 
-/** Grade bands for maps and profiles, like the pink/red/orange of a Giro climb profile. */
-const BANDS: [number, string][] = [
-  [2, "var(--z1)"],
-  [4, "var(--z2)"],
-  [6, "var(--z3)"],
-  [8, "var(--z4)"],
-  [10, "var(--z5)"],
+/**
+ * Grade colour ramp for maps and profiles, cool to hot like a Giro climb profile: colours blend between
+ * these stops (grade %, colour), so 7.9% and 8.1% look alike. Flat and downhill are the first colour,
+ * the last one covers everything steeper.
+ */
+export const GRADE_STOPS: [number, string][] = [
+  [0, "var(--z1)"],
+  [3, "var(--z2)"],
+  [6, "var(--z4)"],
+  [9, "var(--z5)"],
   [12, "var(--z6)"],
-  [Infinity, "var(--z7)"],
+  [15, "var(--z7)"],
 ];
-export const GRADE_LEGEND = ["< 2%", "2–4%", "4–6%", "6–8%", "8–10%", "10–12%", "> 12%"];
 
-export const gradeColor = (g: number) => BANDS.find(([max]) => g < max)![1];
+export function gradeColor(g: number): string {
+  const hi = GRADE_STOPS.findIndex(([max]) => g < max);
+  if (hi === 0) return GRADE_STOPS[0]![1];
+  if (hi < 0) return GRADE_STOPS.at(-1)![1];
+  const [g0, c0] = GRADE_STOPS[hi - 1]!;
+  const [g1, c1] = GRADE_STOPS[hi]!;
+  const p = Math.round(((g - g0) / (g1 - g0)) * 100);
+  return p === 0 ? c0 : `color-mix(in oklch, ${c1} ${p}%, ${c0})`;
+}
+
+/** CSS background drawing the whole ramp, for a legend bar from 0% to the last stop. */
+export const gradeRampCss = () => {
+  const top = GRADE_STOPS.at(-1)![0];
+  return `linear-gradient(to right in oklch, ${GRADE_STOPS.map(([g, c]) => `${c} ${(g / top) * 100}%`).join(", ")})`;
+};
 
 /** Altitude smoothed over ±`window` metres, to tame GPS / barometer noise before taking grades. */
 export function smoothAltitude(dist: number[], alt: number[], window = 50): number[] {

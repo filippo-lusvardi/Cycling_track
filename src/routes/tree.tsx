@@ -6,13 +6,27 @@ import { Buds, CrownView, Rings } from "@/components/tree/Crown";
 import { dayHeight, MONTH_H, restHeight, WEEK_H } from "@/components/tree/geometry";
 import { DayRow, MonthRow, RestRow, Roots, WeekRow } from "@/components/tree/TreeRows";
 import { TreeSheet, type Sheet } from "@/components/tree/TreeSheets";
-import { allActivitiesQuery, eventsQuery, wellnessRangeQuery } from "@/lib/queries";
+import { useFocus } from "@/hooks/use-focus";
+import { useLocalStore } from "@/hooks/use-local-store";
+import type { Block } from "@/lib/focus";
+import { FOCUS_LABEL } from "@/lib/races";
+import {
+  allActivitiesQuery,
+  eventsQuery,
+  offEventsQuery,
+  rideZonesQuery,
+  wellnessRangeQuery,
+} from "@/lib/queries";
+import { ceiling } from "@/lib/readiness";
+import { QUIET_TREE } from "@/lib/settings";
 import { addDays, isoDate } from "@/lib/training";
 import {
   buildDays,
   buildWeeks,
   buildYears,
   crownFor,
+  offDays,
+  offTitle,
   smoothTrunk,
   weekRange,
   type Chapter,
@@ -60,16 +74,21 @@ function TreePage() {
     : addDays(today, -365);
   const { data: wellness } = useSuspenseQuery(wellnessRangeQuery({ oldest, newest: today }));
   const { data: events } = useQuery(eventsQuery({ oldest: today, newest: today }));
+  const { data: offEvents } = useQuery(offEventsQuery({ oldest, newest: today }));
+  const { data: zones } = useQuery(rideZonesQuery());
+  const [quiet] = useLocalStore(QUIET_TREE, false);
+  const focus = useFocus(acts, wellness, today);
   // Not remembered: the home page always opens on the tree, Years is a look you take from there.
   const [zoom, setZoom] = useState<Zoom>("tree");
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [ref, w] = useWidth();
 
   const days = useMemo(
-    () => buildDays(acts, wellness, oldest, today),
-    [acts, wellness, oldest, today],
+    () => buildDays(acts, wellness, oldest, today, offDays(offEvents ?? [])),
+    [acts, wellness, oldest, today, offEvents],
   );
-  const crown = useMemo(() => crownFor(wellness, today), [wellness, today]);
+  const crown = useMemo(() => crownFor(wellness, acts, today), [wellness, acts, today]);
+  const limit = crown.score != null && zones ? ceiling(crown.score, zones) : null;
   // Only today's plan buds above the crown.
   const planned = (events ?? []).filter(
     (e) => e.date === today && (e.category === "WORKOUT" || e.category.startsWith("RACE")),
@@ -92,9 +111,19 @@ function TreePage() {
               today={today}
               trunk={days[0]!.trunk}
               w={w}
+              limit={limit}
+              quiet={quiet}
+              block={FOCUS_LABEL[focus.focus]}
               onOpen={() => setSheet({ kind: "today" })}
             />
-            <TreeBody days={days} w={w} today={today} open={setSheet} />
+            <TreeBody
+              days={days}
+              w={w}
+              today={today}
+              quiet={quiet}
+              blocks={focus.blocks}
+              open={setSheet}
+            />
           </>
         )}
         {w > 0 && zoom === "years" && (
@@ -134,6 +163,9 @@ function TreePage() {
         today={today}
         wellness={wellness}
         acts={acts}
+        offEvents={offEvents ?? []}
+        limit={limit}
+        focus={focus}
       />
     </div>
   );
@@ -214,11 +246,16 @@ function TreeBody({
   days,
   w,
   today,
+  quiet,
+  blocks,
   open,
 }: {
   days: TreeDay[];
   w: number;
   today: string;
+  quiet: boolean;
+  /** Training blocks this device remembers, labelled on the week each one started. */
+  blocks: Block[];
   open: (s: Sheet) => void;
 }) {
   const recent = useMemo(() => days.slice(0, RECENT_DAYS), [days]);
@@ -245,7 +282,7 @@ function TreeBody({
             month={label}
             edge={edge}
             w={w}
-            ctl={ctl}
+            ctl={quiet ? null : ctl}
             chapter={chapter}
             fadeFrom={fadeFrom}
           />
@@ -263,8 +300,12 @@ function TreeBody({
       if (!rest.length) return;
       const run = rest;
       const dates = run.map((d) => d.date);
-      const title =
-        run.length === 1 ? format(parseISO(dates[0]!), "EEEE d MMMM") : t(`${run.length} rest days`, `${run.length} giorni di riposo`);
+      const off = run.every((d) => d.off) ? run[0]!.off : null;
+      const title = off
+        ? offTitle(off, dates[dates.length - 1]!, dates[0]!)
+        : run.length === 1
+          ? format(parseISO(dates[0]!), "EEEE d MMMM")
+          : t(`${run.length} rest days`, `${run.length} giorni di riposo`);
       pieces.push({
         h: restHeight(run.length),
         top: run[0]!.trunk,
@@ -300,6 +341,7 @@ function TreeBody({
             day={d}
             edge={edge}
             w={w}
+            quiet={quiet}
             onOpen={() =>
               open({
                 kind: "days",
@@ -334,6 +376,8 @@ function TreeBody({
             week={wk}
             edge={edge}
             w={w}
+            quiet={quiet}
+            block={blocks.find((b) => b.since >= wk.start && b.since <= wk.end)?.focus}
             olderChapter={older?.chapter}
             onOpen={() =>
               open({ kind: "days", title: t(`Week ${weekRange(wk.start, wk.end)}`, `Settimana ${weekRange(wk.start, wk.end)}`), dates })
@@ -344,7 +388,7 @@ function TreeBody({
     });
     const edges = smoothTrunk(pieces);
     return pieces.map((p, i) => p.render(edges[i]!));
-  }, [days, recent, weeks, w, today, open]);
+  }, [days, recent, weeks, w, today, quiet, blocks, open]);
   const last = days[days.length - 1]!;
   return (
     <Progressive

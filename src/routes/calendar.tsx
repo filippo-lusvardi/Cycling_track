@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { ActivityRow } from "@/components/ActivityRow";
 import { CheckInForm } from "@/components/CheckIn";
 import { LogWorkoutForm } from "@/components/LogWorkout";
+import { RaceForm } from "@/components/RaceForm";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -14,6 +15,7 @@ import { weeklyTotals, type WeekRow } from "@/lib/analysis";
 import type { Activity, PlannedEvent, Wellness } from "@/lib/intervals";
 import { activitiesRangeQuery, eventsQuery, wellnessRangeQuery } from "@/lib/queries";
 import { activityKind, KINDS } from "@/lib/activity-kind";
+import { isRace, raceFrom, raceSummary, type Race } from "@/lib/races";
 import { advice, readinessFor } from "@/lib/readiness";
 import { addDays, formatDuration, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
@@ -53,18 +55,26 @@ type DayData = {
   load: number;
 };
 
-// Daily training load bands: easy → hard runs green → cyan → gold → orange → red, all at the same soft strength.
-const LOAD_BANDS: [number, string, string][] = [
-  [1, "var(--pine)", "< 40"],
-  [40, "var(--z3)", "40–80"],
-  [80, "var(--birch)", "80–120"],
-  [120, "var(--z5)", "120–160"],
-  [160, "var(--lingon)", "160+"],
+// Daily training load on a continuous scale: easy → hard runs green → cyan → gold → orange → red, all at the same
+// soft strength. Each colour sits at a load; loads in between blend the two neighbours.
+const LOAD_STOPS: [number, string][] = [
+  [20, "var(--pine)"],
+  [60, "var(--z3)"],
+  [100, "var(--birch)"],
+  [140, "var(--z5)"],
+  [180, "var(--lingon)"],
 ];
+const LOAD_TICKS = [0, 60, 120, "180+"];
 // Blended colours go muddy on the dark background, so the band shows as a vivid stripe over a faint wash.
 const tint = (color: string) => `color-mix(in oklab, ${color} 10%, transparent)`;
-const loadColor = (load: number) =>
-  load > 0 ? [...LOAD_BANDS].reverse().find(([min]) => load >= min)?.[1] : undefined;
+function loadColor(load: number): string | undefined {
+  if (load <= 0) return undefined;
+  const i = LOAD_STOPS.findIndex(([at]) => at >= load);
+  if (i === 0) return LOAD_STOPS[0]![1];
+  if (i < 0) return LOAD_STOPS[LOAD_STOPS.length - 1]![1];
+  const [[a, ca], [b, cb]] = [LOAD_STOPS[i - 1]!, LOAD_STOPS[i]!];
+  return `color-mix(in oklab, ${cb} ${Math.round(((load - a) / (b - a)) * 100)}%, ${ca})`;
+}
 /** Day cell style for its total load: a stripe on `edge` plus a faint wash; nothing on rest days. */
 function loadStyle(load: number, edge: "top" | "left"): React.CSSProperties | undefined {
   const c = loadColor(load);
@@ -244,11 +254,20 @@ function CalendarPage() {
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         <span>{t("Daily load:", "Carico giornaliero:")}</span>
-        {LOAD_BANDS.map(([, color, label]) => (
-          <span key={label} className="flex items-center gap-1">
-            <span className="h-1.5 w-5 rounded-full" style={{ background: color }} /> {label}
+        <span className="flex w-40 flex-col gap-0.5">
+          <span
+            className="h-1.5 rounded-full"
+            style={{
+              // Stops placed at their loads on a 0–180 bar, matching loadColor.
+              background: `linear-gradient(to right in oklab, ${LOAD_STOPS.map(([at, c]) => `${c} ${(at / 180) * 100}%`).join(", ")})`,
+            }}
+          />
+          <span className="stat-num flex justify-between">
+            {LOAD_TICKS.map((v) => (
+              <span key={v}>{v}</span>
+            ))}
           </span>
-        ))}
+        </span>
       </div>
 
       {/* Phone, week view: the week's totals, then one row per day. */}
@@ -461,7 +480,8 @@ function WeekSummary({ totals }: { totals: WeekRow | undefined }) {
 }
 
 function DayDetail({ d }: { d: DayData }) {
-  const [tab, setTab] = useState<"day" | "wellness" | "log">("day");
+  const [tab, setTab] = useState<"day" | "wellness" | "log" | "race">("day");
+  const [editing, setEditing] = useState<Race | undefined>();
   return (
     <div className="space-y-4">
       <div className="flex gap-1 rounded-lg bg-secondary p-1">
@@ -470,13 +490,18 @@ function DayDetail({ d }: { d: DayData }) {
             ["day", t("Activities", "Attività")],
             ["wellness", t("Wellness", "Benessere")],
             ["log", t("Log workout", "Registra allenamento")],
+            ["race", t("Race", "Gara")],
           ] as const
         ).map(([k, label]) => (
           <button
             key={k}
-            onClick={() => setTab(k)}
+            onClick={() => {
+              if (k === "race" && tab !== "race") setEditing(undefined);
+              setTab(k);
+            }}
             className={cn(
-              "flex-1 rounded-md px-3 py-1.5 text-xs",
+              // Four tabs on a phone: long labels wrap to two lines instead of overflowing.
+              "min-h-10 flex-1 rounded-md px-1.5 py-1 text-xs leading-tight",
               tab === k ? "bg-background text-foreground" : "text-muted-foreground",
             )}
           >
@@ -492,22 +517,40 @@ function DayDetail({ d }: { d: DayData }) {
                 <ActivityRow key={a.id} a={a} />
               ))}
             </div>
-            {d.planned.map((e) => (
-              <div
-                key={e.id}
-                className="rounded-lg border border-dashed border-birch/50 p-3 text-sm"
-              >
-                <div className="font-medium text-birch">{e.name ?? t("Planned workout", "Allenamento pianificato")}</div>
-                <div className="stat-num text-xs text-muted-foreground">
-                  {formatDuration(e.moving_time)} · {t("load", "carico")} {e.icu_training_load ?? "–"}
+            {d.planned.map((e) => {
+              const race = isRace(e) ? raceFrom(e) : null;
+              return (
+                <div
+                  key={e.id}
+                  className="rounded-lg border border-dashed border-birch/50 p-3 text-sm"
+                >
+                  <div className="font-medium text-birch">{e.name ?? t("Planned workout", "Allenamento pianificato")}</div>
+                  <div className="stat-num text-xs text-muted-foreground">
+                    {race
+                      ? raceSummary(race)
+                      : `${formatDuration(e.moving_time)} · ${t("load", "carico")} ${e.icu_training_load ?? "–"}`}
+                  </div>
+                  {(race ? race.notes : e.description) && (
+                    <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">
+                      {race ? race.notes : e.description}
+                    </p>
+                  )}
+                  {race && (
+                    <Button
+                      size="sm"
+                      variant={race.info ? "ghost" : "secondary"}
+                      className={cn("mt-2", race.info && "-ml-3")}
+                      onClick={() => {
+                        setEditing(race);
+                        setTab("race");
+                      }}
+                    >
+                      {race.info ? t("Edit race", "Modifica gara") : t("Set the race kind", "Imposta il tipo di gara")}
+                    </Button>
+                  )}
                 </div>
-                {e.description && (
-                  <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">
-                    {e.description}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="py-4 text-center text-sm text-muted-foreground">
@@ -518,6 +561,9 @@ function DayDetail({ d }: { d: DayData }) {
         <CheckInForm key={d.date} date={d.date} row={d.well} onSaved={() => setTab("day")} />
       )}
       {tab === "log" && <LogWorkoutForm date={d.date} onSaved={() => setTab("day")} />}
+      {tab === "race" && (
+        <RaceForm key={editing?.id ?? "new"} date={d.date} race={editing} onSaved={() => setTab("day")} />
+      )}
     </div>
   );
 }

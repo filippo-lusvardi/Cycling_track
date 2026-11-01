@@ -8,6 +8,8 @@ import { Panel } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useLocalStore } from "@/hooks/use-local-store";
 import { syncSegments } from "@/hooks/use-segments";
 import { githubUser } from "@/lib/gist";
 import { format, lang, setLang, t } from "@/lib/i18n";
@@ -19,6 +21,7 @@ import {
   API_KEY,
   GIST_ID,
   GITHUB_TOKEN,
+  QUIET_TREE,
   SEGMENT_HISTORY,
   readSetting,
   writeSetting,
@@ -39,6 +42,7 @@ function SettingsPage() {
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Language />
+        <QuietTree />
         <TreeGuide />
         <IntervalsKey />
         <GithubSync />
@@ -262,6 +266,49 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
     ],
   },
   {
+    term: t("Wind in the crown", "Vento nella chioma"),
+    text: t(
+      "A trend over several days worth watching before it shows in readiness: HRV below your usual for a week, high fatigue, stress or low mood on most recent check-ins, or short nights. Tap the crown to see which.",
+      "Una tendenza di più giorni da tenere d'occhio prima che si veda nella prontezza: HRV sotto il tuo solito da una settimana, fatica o stress alti o umore basso nella maggior parte degli ultimi check-in, oppure notti corte. Tocca la chioma per vedere quale.",
+    ),
+  },
+  {
+    term: t("Ceiling", "Tetto"),
+    text: t(
+      "On easy and endurance days, the power and heart rate to stay under: the top of Z1 or Z2 in your intervals.icu zones.",
+      "Nei giorni facili e di fondo, la potenza e la frequenza cardiaca da non superare: il limite di Z1 o Z2 nelle tue zone di intervals.icu.",
+    ),
+  },
+  {
+    term: t("Training focus", "Focus di allenamento"),
+    text: t(
+      "What to train in this block (base, high aerobic, VO2max, anaerobic, sprint), shown above the crown. Readiness decides when to go hard; the focus decides what. It comes from:",
+      "Cosa allenare in questo blocco (base, aerobico alto, VO2max, anaerobico, sprint), mostrato sopra la chioma. La prontezza decide quando spingere; il focus decide cosa. Nasce da:",
+    ),
+    points: [
+      t(
+        "Your races in the next 20 weeks (add them in Calendar with kind, estimated time and sprint finish); A counts more than B and C, nearer more than later",
+        "Le tue gare nelle prossime 20 settimane (aggiungile dal Calendario con tipo, tempo stimato e arrivo in volata); A conta più di B e C, le più vicine più delle lontane",
+      ),
+      t(
+        "With no races, the complete cyclist: everything counts the same",
+        "Senza gare, il ciclista completo: tutto conta allo stesso modo",
+      ),
+      t(
+        "Your last 42 days of power against your best of the year: the biggest gap that the races need",
+        "La tua potenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: la mancanza più grande che serve alle gare",
+      ),
+      t(
+        "Base first when steady rides decouple, Z2 time drops or fitness is well below your usual",
+        "Prima la base se le uscite regolari si disaccoppiano, il tempo in Z2 cala o la forma fisica è molto sotto il solito",
+      ),
+      t(
+        "A block lasts at least two weeks; around races: taper 10 days before an A, easy 3 days before a B, recovery the day after",
+        "Un blocco dura almeno due settimane; attorno alle gare: scarico 10 giorni prima di una A, facile 3 giorni prima di una B, recupero il giorno dopo",
+      ),
+    ],
+  },
+  {
     term: t("Buds above the crown", "Gemme sopra la chioma"),
     text: t("Workouts planned for today in intervals.icu.", "Allenamenti pianificati per oggi su intervals.icu."),
   },
@@ -299,6 +346,13 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
     text: t("Rest days on the bark.", "Giorni di riposo sulla corteccia."),
   },
   {
+    term: t("Knots", "Nodi"),
+    text: t(
+      "A dark spiral for each day sick or injured, from Sick and Injured events in the intervals.icu calendar. Mark today in the crown's sheet, or a past run of rest days by tapping it.",
+      "Una spirale scura per ogni giorno di malattia o infortunio, dagli eventi Malato e Infortunato del calendario di intervals.icu. Segna oggi dal pannello della chioma, o una serie passata di giorni di riposo toccandola.",
+    ),
+  },
+  {
     term: t("Weeks", "Settimane"),
     text: t("Older history folds into one bough per week:", "Lo storico più vecchio si raccoglie in un ramo per settimana:"),
     points: [
@@ -324,6 +378,26 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
     ],
   },
 ];
+
+function QuietTree() {
+  const [quiet, setQuiet] = useLocalStore(QUIET_TREE, false);
+  return (
+    <Panel title={t("Tree", "Albero")}>
+      <div className="flex items-start justify-between gap-4">
+        <Label htmlFor="quiet-tree" className="block space-y-1">
+          <span className="block">{t("Quiet tree", "Albero silenzioso")}</span>
+          <span className="block text-sm font-normal text-muted-foreground">
+            {t(
+              "Hide scores on the tree (readiness, fitness, form, load) until you tap. Read the picture first.",
+              "Nasconde i numeri sull'albero (prontezza, forma fisica, forma, carico) finché non tocchi. Leggi prima l'immagine.",
+            )}
+          </span>
+        </Label>
+        <Switch id="quiet-tree" checked={quiet} onCheckedChange={(v) => setQuiet(() => v)} />
+      </div>
+    </Panel>
+  );
+}
 
 function TreeGuide() {
   const [open, setOpen] = useState(false);

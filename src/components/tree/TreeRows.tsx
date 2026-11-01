@@ -4,6 +4,8 @@ import { parseISO } from "date-fns";
 import { useId, type CSSProperties, type ReactNode } from "react";
 import { dayHeight, LANE, MONTH_H, REST_STEP, restHeight, WEEK_H } from "./geometry";
 import { KINDS } from "@/lib/activity-kind";
+import type { OffKind } from "@/lib/intervals";
+import { FOCUS_LABEL, type Focus } from "@/lib/races";
 import { formatDuration } from "@/lib/training";
 import {
   LEVEL_COLOR,
@@ -115,6 +117,62 @@ export function Bark({
       />
     </>
   );
+}
+
+/** Ill or injured: a knot in the bark, a small brown elliptical spiral. */
+function Knot({
+  cx,
+  trunk,
+  y,
+  side,
+  room,
+}: {
+  cx: number;
+  trunk: number;
+  y: number;
+  side: -1 | 1;
+  /** Height available in px, so the knot never spills out of its row. */
+  room: number;
+}) {
+  const r = Math.max(3, Math.min(7, trunk * 0.22));
+  // Taller than wide, like a knot stretched by the grain.
+  const stretch = Math.max(1, Math.min(1.7, (room / 2 - 1) / r));
+  const x = cx + side * Math.max(0, trunk / 2 - r * 1.8);
+  // Two turns outward from the centre.
+  const points = Array.from({ length: 41 }, (_, i) => {
+    const a = (i / 40) * 4 * Math.PI;
+    const d = (r * i) / 40;
+    return `${(x + Math.cos(a) * d).toFixed(1)},${(y + Math.sin(a) * d * stretch).toFixed(1)}`;
+  }).join(" ");
+  return (
+    <polyline
+      points={points}
+      fill="none"
+      stroke="color-mix(in oklab, var(--bark) 75%, black)"
+      strokeWidth={1.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  );
+}
+
+/** Consecutive off days in a rest run as [first index, length]: one knot each, not one per day. */
+function offRuns(days: TreeDay[]): [number, number][] {
+  const runs: [number, number][] = [];
+  days.forEach((d, i) => {
+    if (!d.off) return;
+    const prev = runs[runs.length - 1];
+    if (prev && prev[0] + prev[1] === i) prev[1]++;
+    else runs.push([i, 1]);
+  });
+  return runs;
+}
+
+/** "3 days sick", for labels. */
+function offWord(n: number, kind: OffKind): string {
+  return kind === "SICK"
+    ? n === 1 ? t("sick", "malato") : t(`${n} days sick`, `${n} giorni malato`)
+    : n === 1 ? t("injured", "infortunato") : t(`${n} days injured`, `${n} giorni infortunato`);
 }
 
 /** Leaf colour: the activity's intensity, or a muted kind colour when there's no power data. */
@@ -236,11 +294,14 @@ export function DayRow({
   day,
   edge,
   w,
+  quiet,
   onOpen,
 }: {
   day: TreeDay;
   edge: TrunkEdge;
   w: number;
+  /** Quiet tree: no load numbers. */
+  quiet: boolean;
   onOpen: () => void;
 }) {
   const cx = w / 2;
@@ -254,13 +315,14 @@ export function DayRow({
     >
       <svg className="block" width={w} height={h} aria-hidden>
         <Bark cx={cx} edge={edge} />
+        {day.off && <Knot cx={cx} trunk={day.trunk} y={h / 2} side={day.budSide} room={h} />}
         {day.branches.map((b, i) => {
           const y0 = LANE * (day.branches.length - i) - 8; // later rides sit higher
           const parts = [
             date,
             formatDuration(b.minutes * 60),
             b.climb >= 50 ? `${Math.round(b.climb)} m` : null,
-            b.load ? String(Math.round(b.load)) : null,
+            b.load && !quiet ? String(Math.round(b.load)) : null,
           ];
           return (
             <g key={b.id}>
@@ -297,8 +359,10 @@ export function RestRow({
   const h = restHeight(days.length);
   const first = days[days.length - 1]!.date;
   const last = days[0]!.date;
-  const label =
-    days.length === 1
+  const off = days.every((d) => d.off) ? days[0]!.off : null;
+  const label = off
+    ? `${format(parseISO(first), "d MMM")}${days.length > 1 ? `–${format(parseISO(last), "d MMM")}` : ""}: ${offWord(days.length, off)}`
+    : days.length === 1
       ? `${format(parseISO(last), "EEEE d MMMM")}: ${t("rest", "riposo")}`
       : t(
           `${days.length} rest days, ${format(parseISO(first), "d MMM")} to ${format(parseISO(last), "d MMM")}`,
@@ -308,16 +372,28 @@ export function RestRow({
     <Slice h={h} label={label} onOpen={onOpen}>
       <svg className="block" width={w} height={h} aria-hidden>
         <Bark cx={cx} edge={edge} />
-        {days.map((d, i) => (
-          <circle
-            key={d.date}
-            cx={cx + d.budSide * (d.trunk / 2 + 2.5)}
-            cy={5 + i * REST_STEP + REST_STEP / 2}
-            r={2.6}
-            fill="var(--pine)"
-            opacity={0.7}
+        {offRuns(days).map(([i, n]) => (
+          <Knot
+            key={days[i]!.date}
+            cx={cx}
+            trunk={days[i]!.trunk}
+            y={5 + (i + n / 2) * REST_STEP}
+            side={days[i]!.budSide}
+            room={n * REST_STEP + 8}
           />
         ))}
+        {days.map((d, i) =>
+          d.off ? null : (
+            <circle
+              key={d.date}
+              cx={cx + d.budSide * (d.trunk / 2 + 2.5)}
+              cy={5 + i * REST_STEP + REST_STEP / 2}
+              r={2.6}
+              fill="var(--pine)"
+              opacity={0.7}
+            />
+          ),
+        )}
       </svg>
     </Slice>
   );
@@ -396,12 +472,18 @@ export function WeekRow({
   week,
   edge,
   w,
+  quiet,
+  block,
   olderChapter,
   onOpen,
 }: {
   week: TreeWeek;
   edge: TrunkEdge;
   w: number;
+  /** Quiet tree: no load numbers. */
+  quiet: boolean;
+  /** A training block started this week. */
+  block?: Focus | undefined;
   /** Chapter of the week underneath, so the bark colour blends into it. */
   olderChapter: TreeWeek["chapter"] | undefined;
   onOpen: () => void;
@@ -409,9 +491,11 @@ export function WeekRow({
   const cx = w / 2;
   const chapterStart = olderChapter !== week.chapter;
   const sub = [
+    // First, so it's the last part dropped when the line is too long.
+    block ? t(`${FOCUS_LABEL[block]} block`, `blocco ${FOCUS_LABEL[block]}`) : null,
     formatDuration(week.minutes * 60),
     week.climb >= 50 ? `${Math.round(week.climb)} m` : null,
-    String(Math.round(week.load)),
+    quiet ? null : String(Math.round(week.load)),
     chapterStart && week.chapter !== "steady"
       ? week.chapter === "build"
         ? t("building", "costruzione")
@@ -435,13 +519,20 @@ export function WeekRow({
           tintBelow={olderChapter ? CHAPTER_TINT[olderChapter] : CHAPTER_TINT[week.chapter]}
         />
         {week.count > 0 && <Bough week={week} cx={cx} />}
+        {week.off && <Knot cx={cx} trunk={week.trunk} y={WEEK_H * 0.4} side={week.side} room={WEEK_H * 0.8} />}
         <Label
           cx={cx}
           trunk={week.trunk}
           side={week.side}
           y={WEEK_H / 2}
           title={weekRange(week.start, week.end)}
-          sub={week.count ? sub.filter(Boolean).join(" · ") : t("rest week", "settimana di riposo")}
+          sub={
+            week.count
+              ? sub.filter(Boolean).join(" · ")
+              : week.off
+                ? offWord(week.off.days, week.off.kind)
+                : t("rest week", "settimana di riposo")
+          }
         />
       </svg>
     </Slice>

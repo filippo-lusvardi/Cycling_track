@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GRADE_LEGEND, gradeChunks, gradeColor, type Chunk } from "@/lib/profile";
+import { GRADE_STOPS, gradeChunks, gradeColor, gradeRampCss, type Chunk } from "@/lib/profile";
 import { t } from "@/lib/i18n";
 
 const H = 220;
 const PAD = { l: 40, r: 8, t: 12, b: 24 };
 
 /**
- * Climb-style altimetry: altitude vs distance, filled in 100 m chunks coloured by gradient.
+ * Climb-style altimetry: altitude vs distance, filled in 100 m chunks shaded along a gradient colour ramp.
  * Reports the hovered sample index so a map can follow along.
  */
 export function GradientProfile({
@@ -148,12 +148,20 @@ export function GradientProfile({
           </g>
         )}
       </svg>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-        {GRADE_LEGEND.map((g, i) => (
-          <span key={g} className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm" style={{ background: `var(--z${i + 1})` }} /> {g}
-          </span>
-        ))}
+      <div className="mt-2 max-w-xs text-[11px] text-muted-foreground">
+        <div className="h-2 rounded-sm" style={{ background: gradeRampCss() }} />
+        <div className="stat-num relative mt-0.5 h-4">
+          {GRADE_STOPS.map(([g], i) => (
+            <span
+              key={g}
+              className="absolute -translate-x-1/2 first:translate-x-0 last:-translate-x-full"
+              style={{ left: `${(g / GRADE_STOPS.at(-1)![0]) * 100}%` }}
+            >
+              {g}
+              {i === GRADE_STOPS.length - 1 ? "%+" : "%"}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

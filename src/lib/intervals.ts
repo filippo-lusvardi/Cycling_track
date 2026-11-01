@@ -29,7 +29,9 @@ async function icu<T>(path: string, init?: RequestInit): Promise<T> {
     console.error("intervals.icu error", res.status, await res.text());
     throw new Error(`Could not reach intervals.icu (${res.status})`);
   }
-  return (await res.json()) as T;
+  // Some writes (DELETE) answer with an empty body.
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 export type Wellness = {
@@ -162,6 +164,19 @@ export type Range = z.infer<typeof rangeSchema>;
 export async function getAthlete() {
   const a = await icu<Record<string, unknown>>(`/athlete/0`);
   return { id: String(a["id"]), name: (a["name"] as string) ?? null };
+}
+
+/** The ride zones set in intervals.icu: zone tops in watts and bpm, lowest zone first; empty when not set. */
+export type RideZones = { ftp: number | null; power: number[]; hr: number[] };
+
+export async function getRideZones(): Promise<RideZones> {
+  const a = await icu<Record<string, unknown>>(`/athlete/0`);
+  const all = Array.isArray(a["sportSettings"]) ? (a["sportSettings"] as Record<string, unknown>[]) : [];
+  const ride = all.find((s) => Array.isArray(s["types"]) && (s["types"] as string[]).includes("Ride"));
+  const ftp = (ride?.["ftp"] as number) ?? null;
+  const pct = Array.isArray(ride?.["power_zones"]) ? (ride["power_zones"] as number[]) : [];
+  const hr = Array.isArray(ride?.["hr_zones"]) ? (ride["hr_zones"] as number[]) : [];
+  return { ftp, power: ftp ? pct.map((p) => Math.round((ftp * p) / 100)) : [], hr };
 }
 
 export async function getWellness(range: Range) {
@@ -348,6 +363,8 @@ export async function createManualActivity(input: ManualActivity) {
 export type PlannedEvent = {
   id: string;
   date: string;
+  /** Last day for a multi-day event (sick, injured, holiday…); null for a single day. */
+  end: string | null;
   category: string;
   type: string | null;
   name: string | null;
@@ -363,6 +380,7 @@ export async function getEvents(range: Range): Promise<PlannedEvent[]> {
   return rows.map((e) => ({
     id: String(e["id"]),
     date: String(e["start_date_local"] ?? "").slice(0, 10),
+    end: lastDay(String(e["start_date_local"] ?? ""), (e["end_date_local"] as string) ?? null),
     category: String(e["category"] ?? ""),
     type: (e["type"] as string) ?? null,
     name: (e["name"] as string) ?? null,
@@ -370,4 +388,83 @@ export async function getEvents(range: Range): Promise<PlannedEvent[]> {
     moving_time: (e["moving_time"] as number) ?? null,
     icu_training_load: (e["icu_training_load"] as number) ?? null,
   }));
+}
+
+/**
+ * The last day a multi-day event covers. intervals.icu ends all-day events at midnight after their last day,
+ * so an end at 00:00 belongs to the day before.
+ */
+export function lastDay(start: string, end: string | null): string | null {
+  if (!end) return null;
+  const from = start.slice(0, 10);
+  let last = end.slice(0, 10);
+  if (/T00:00(:00)?$/.test(end) && last > from) last = shiftDay(last, -1);
+  return last > from ? last : null;
+}
+
+const shiftDay = (date: string, days: number) => {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+/** A stretch off the bike: intervals.icu's sick and injured calendar events. */
+export type OffKind = "SICK" | "INJURED";
+export const OFF_KINDS: OffKind[] = ["SICK", "INJURED"];
+
+export const getOffEvents = async (range: Range) =>
+  (await getEvents(range)).filter((e) => (OFF_KINDS as string[]).includes(e.category));
+
+const offBody = (start: string, last: string) => ({
+  start_date_local: `${start}T00:00:00`,
+  end_date_local: `${shiftDay(last, 1)}T00:00:00`,
+});
+
+export async function createOffEvent(kind: OffKind, start: string, last: string) {
+  day.parse(start);
+  day.parse(last);
+  await icu(`/athlete/0/events`, {
+    method: "POST",
+    body: JSON.stringify({ category: kind, name: kind === "SICK" ? "Sick" : "Injured", ...offBody(start, last) }),
+  });
+}
+
+export async function updateOffEvent(id: string, start: string, last: string) {
+  day.parse(start);
+  day.parse(last);
+  await icu(`/athlete/0/events/${idSchema.parse(id)}`, { method: "PUT", body: JSON.stringify(offBody(start, last)) });
+}
+
+export async function deleteEvent(id: string) {
+  await icu(`/athlete/0/events/${idSchema.parse(id)}`, { method: "DELETE" });
+}
+
+const raceSchema = z.object({
+  date: day,
+  name: z.string().min(1).max(120),
+  priority: z.enum(["A", "B", "C"]),
+  type: z.enum(["Ride", "MountainBikeRide"]),
+  description: z.string().max(4000),
+});
+
+export type RaceEntry = z.infer<typeof raceSchema>;
+
+const raceBody = (r: RaceEntry) => {
+  const v = raceSchema.parse(r);
+  return JSON.stringify({
+    category: `RACE_${v.priority}`,
+    start_date_local: `${v.date}T00:00:00`,
+    name: v.name,
+    type: v.type,
+    description: v.description,
+  });
+};
+
+/** A race on the intervals.icu calendar (RACE_A/B/C). */
+export async function createRace(r: RaceEntry) {
+  await icu(`/athlete/0/events`, { method: "POST", body: raceBody(r) });
+}
+
+export async function updateRace(id: string, r: RaceEntry) {
+  await icu(`/athlete/0/events/${idSchema.parse(id)}`, { method: "PUT", body: raceBody(r) });
 }

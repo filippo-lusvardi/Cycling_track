@@ -36,6 +36,24 @@ describe("climb detection", () => {
     expect(c!.endKm).toBeLessThan(3.2);
     expect(c!.avgGrade).toBeGreaterThan(5);
   });
+  it("finds a climb behind a long gentle lead-in that drags its average under 3%", () => {
+    // 2.5 km at 1.7% from the valley floor, then 4 km at 3.8%: 195 m over 6.5 km is 3%-, the climb proper isn't.
+    const distance = Array.from({ length: 1101 }, (_, i) => i * 10);
+    const altitude = distance.map((d) =>
+      d < 4000
+        ? 190
+        : d < 6500
+          ? 190 + (d - 4000) * 0.017
+          : d < 10500
+            ? 232.5 + (d - 6500) * 0.038
+            : 384.5,
+    );
+    const climbs = detectClimbs({ distance, altitude, time: distance });
+    expect(climbs).toHaveLength(1);
+    expect(climbs[0]!.startKm).toBeGreaterThan(6);
+    expect(climbs[0]!.startKm).toBeLessThan(7);
+    expect(climbs[0]!.avgGrade).toBeGreaterThan(3.5);
+  });
   it("ignores a flat ride", () => {
     const distance = Array.from({ length: 500 }, (_, i) => i * 10);
     expect(detectClimbs({ distance, altitude: distance.map(() => 100), time: distance })).toHaveLength(0);

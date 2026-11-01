@@ -19,11 +19,17 @@ export type MapPin = { lat: number; lng: number; color: string; label: string };
 // Renamed when Satellite became the default, so every device starts on it once.
 const BASE_KEY = "ora_map_base";
 
-// Free tile sources, no API key. Viewed tiles are cached by the service worker for offline use.
+// Free tile sources, no API key. Viewed tiles are cached by the service worker for offline use. Tiles are fetched
+// with CORS (all three servers allow it): an opaque no-CORS response counts as about 7 MB in Chrome's storage
+// quota, which made a few hundred cached tiles look like gigabytes on Android.
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
 const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const esri = (service: string, maxZoom: number) =>
-  L.tileLayer(`${ESRI}/${service}/MapServer/tile/{z}/{y}/{x}`, { maxZoom, attribution: "Tiles &copy; Esri" });
+  L.tileLayer(`${ESRI}/${service}/MapServer/tile/{z}/{y}/{x}`, {
+    maxZoom,
+    crossOrigin: true,
+    attribution: "Tiles &copy; Esri",
+  });
 
 const BASES = {
   // Esri's dark grey canvas has no labels; its reference layer adds them on top.
@@ -32,9 +38,15 @@ const BASES = {
     L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
       subdomains: "abc",
       maxZoom: 17,
+      crossOrigin: true,
       attribution: `${OSM_ATTR}, &copy; <a href="https://opentopomap.org">OpenTopoMap</a>`,
     }),
-  Streets: () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: OSM_ATTR }),
+  Streets: () =>
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      crossOrigin: true,
+      attribution: OSM_ATTR,
+    }),
   // Imagery with Esri's place names and boundaries on top.
   Satellite: () =>
     L.layerGroup([esri("World_Imagery", 18), esri("Reference/World_Boundaries_and_Places", 18)]),

@@ -20,7 +20,7 @@ import { t } from "./i18n";
 const RELIST_DAYS = 60;
 
 /** Bump when the analysis changes: the index is rebuilt from stored tracks (no downloads). */
-export const ANALYSIS_VERSION = 1;
+export const ANALYSIS_VERSION = 2;
 
 export type KV = {
   get<T>(key: string): Promise<T | undefined>;

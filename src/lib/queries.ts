@@ -3,6 +3,8 @@ import {
   getActivities,
   getActivity,
   getEvents,
+  getOffEvents,
+  getRideZones,
   getPowerCurves,
   getStreams,
   getWellness,
@@ -56,6 +58,29 @@ export const eventsQuery = (r: Range) =>
     queryKey: ["events", r.oldest, r.newest],
     queryFn: () => getEvents(r),
     staleTime: 5 * 60_000,
+  });
+
+/** Sick and injured stretches: the knots in the tree. */
+export const offEventsQuery = (r: Range) =>
+  queryOptions({
+    queryKey: ["events", "off", r.oldest, r.newest],
+    queryFn: () => getOffEvents(r),
+    staleTime: 5 * 60_000,
+  });
+
+/** Races from yesterday to about five months ahead: everything the training focus looks at. */
+export const racesQuery = (today: string) =>
+  queryOptions({
+    queryKey: ["events", "races", today],
+    queryFn: async () => (await getEvents({ oldest: addDays(today, -1), newest: addDays(today, 150) })).filter((e) => /^RACE_[ABC]$/.test(e.category)),
+    staleTime: 5 * 60_000,
+  });
+
+export const rideZonesQuery = () =>
+  queryOptions({
+    queryKey: ["ride-zones"],
+    queryFn: () => getRideZones(),
+    staleTime: 24 * 60 * 60_000,
   });
 
 export const activityQuery = (id: string) =>

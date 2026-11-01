@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
-import type { Activity, Wellness } from "./intervals";
+import { lastDay, type Activity, type PlannedEvent, type Wellness } from "./intervals";
 import {
   buildDays,
   buildWeeks,
   buildYears,
   crownFor,
   feelLevel,
+  morningWellness,
   intensityLevel,
+  offDays,
+  offToggle,
+  seasonLabel,
   seasonOf,
+  seasonPhase,
   seedOf,
   smoothTrunk,
   trunkWidth,
+  weatherPhase,
   weekRange,
 } from "./tree";
 
@@ -200,15 +206,54 @@ describe("tree", () => {
   it("maps readiness onto the four seasons", () => {
     expect([80, 60, 45, 20].map(seasonOf)).toEqual(["summer", "spring", "autumn", "winter"]);
   });
+  it("places a day inside its season and sky, 0 at the worse end to 1 at the better", () => {
+    expect([0, 20, 40, 47.5, 55, 65, 75, 100].map(seasonPhase)).toEqual([
+      0, 0.5, 0, 0.5, 0, 0.5, 0, 1,
+    ]);
+    expect(seasonLabel("spring", 0.1)).toBe("Early spring");
+    expect(seasonLabel("autumn", 0.1)).toBe("Late autumn"); // the low end of autumn is nearly winter
+    expect(seasonLabel("summer", 0.9)).toBe("High summer");
+    expect(weatherPhase(-60)).toBe(0); // the deepest rain
+    expect(weatherPhase(-20)).toBe(0.5);
+    expect(weatherPhase(40)).toBe(1); // as sunny as it gets
+  });
   it("crown without check-in is estimated from form, with weather and plain numbers", () => {
-    const tired = crownFor([well("2026-10-31", 50, { atl: 85 })], "2026-10-31");
+    const tired = crownFor([well("2026-10-31", 50, { atl: 85 })], [], "2026-10-31");
     expect(tired).toMatchObject({ estimated: true, ctl: 50, atl: 85, form: -35, weather: "rain" });
     expect(tired.score).not.toBeNull();
     expect(tired.season).toBe("winter");
-    const fresh = crownFor([well("2026-10-31", 50, { atl: 40, mood: 2 })], "2026-10-31");
+    const fresh = crownFor([well("2026-10-31", 50, { atl: 40, mood: 2 })], [], "2026-10-31");
     expect(fresh).toMatchObject({ estimated: false, weather: "sun" });
-    expect(crownFor([well("2026-10-31", 50, { atl: 70 })], "2026-10-31").weather).toBe("clouds");
-    expect(crownFor([well("2026-10-31", 50, { atl: 52 })], "2026-10-31").weather).toBe("partly");
+    const weather = (atl: number) =>
+      crownFor([well("2026-10-31", 50, { atl })], [], "2026-10-31").weather;
+    expect(weather(70)).toBe("clouds");
+    expect(weather(52)).toBe("partly");
+  });
+  it("uses yesterday's fitness and fatigue until today has an activity", () => {
+    const rows = [
+      well("2026-10-30", 50, { atl: 60 }),
+      well("2026-10-31", 49, { atl: 52, mood: 2 }),
+    ];
+    // No ride yet: this morning's numbers, and the form/weather computed from them.
+    const morning = crownFor(rows, [], "2026-10-31");
+    expect(morning).toMatchObject({
+      ctl: 50,
+      atl: 60,
+      form: -10,
+      weather: "partly",
+      estimated: false,
+    });
+    // Ridden today: intervals.icu's values for today.
+    const ridden = crownFor(rows, [act("r", "2026-10-31", 60, 80)], "2026-10-31");
+    expect(ridden).toMatchObject({ ctl: 49, atl: 52, form: -3 });
+    // A ride on another day doesn't count.
+    expect(crownFor(rows, [act("r", "2026-10-30", 60, 80)], "2026-10-31").ctl).toBe(50);
+    // No row for today yet: yesterday's numbers still show.
+    expect(morningWellness(rows.slice(0, 1), [], "2026-10-31").at(-1)).toMatchObject({
+      id: "2026-10-31",
+      ctl: 50,
+      atl: 60,
+    });
   });
   it("labels a week by its first and last day, ending early when cut short", () => {
     const weeks = buildWeeks(buildDays([], [], "2026-09-28", "2026-10-07"));
@@ -226,5 +271,54 @@ describe("tree", () => {
     expect(e[1]!.slopeBottom).toBe(e[2]!.slopeTop);
     expect(e[1]!.slopeTop).toBeCloseTo(-0.05);
     expect(e[2]!.slopeBottom).toBeCloseTo(-0.4);
+  });
+});
+
+const off = (id: string, category: string, date: string, end: string | null = null): PlannedEvent => ({
+  id,
+  date,
+  end,
+  category,
+  type: null,
+  name: null,
+  description: null,
+  moving_time: null,
+  icu_training_load: null,
+});
+
+describe("knots", () => {
+  it("reads an all-day event's midnight end as the day before", () => {
+    expect(lastDay("2026-10-04T00:00:00", "2026-10-10T00:00:00")).toBe("2026-10-09");
+    expect(lastDay("2026-10-04T00:00:00", "2026-10-09T23:59:00")).toBe("2026-10-09");
+    expect(lastDay("2026-10-04T00:00:00", "2026-10-05T00:00:00")).toBeNull();
+    expect(lastDay("2026-10-04T00:00:00", null)).toBeNull();
+  });
+  it("marks every covered day, injured over ill, and ignores other events", () => {
+    const map = offDays([
+      off("a", "SICK", "2026-10-04", "2026-10-06"),
+      off("b", "INJURED", "2026-10-06"),
+      off("c", "WORKOUT", "2026-10-08"),
+    ]);
+    expect([...map.entries()]).toEqual([
+      ["2026-10-04", "SICK"],
+      ["2026-10-05", "SICK"],
+      ["2026-10-06", "INJURED"],
+    ]);
+  });
+  it("puts knots on days and counts them per week", () => {
+    const days = buildDays([], [], "2026-10-05", "2026-10-11", offDays([off("a", "SICK", "2026-10-06", "2026-10-07")]));
+    expect(days.filter((d) => d.off).map((d) => d.date)).toEqual(["2026-10-07", "2026-10-06"]);
+    expect(buildWeeks(days)[0]!.off).toEqual({ days: 2, kind: "SICK" });
+  });
+  it("toggling today creates, extends yesterday's stretch, or undoes", () => {
+    const today = "2026-10-10";
+    expect(offToggle([], "SICK", today)).toEqual({ op: "create", start: today, last: today });
+    const yesterday = [off("a", "SICK", "2026-10-07", "2026-10-09")];
+    expect(offToggle(yesterday, "SICK", today)).toEqual({ op: "update", id: "a", start: "2026-10-07", last: today });
+    // A different kind starts its own stretch.
+    expect(offToggle(yesterday, "INJURED", today).op).toBe("create");
+    const through = [off("a", "SICK", "2026-10-07", today)];
+    expect(offToggle(through, "SICK", today)).toEqual({ op: "update", id: "a", start: "2026-10-07", last: "2026-10-09" });
+    expect(offToggle([off("b", "SICK", today)], "SICK", today)).toEqual({ op: "delete", id: "b" });
   });
 });
