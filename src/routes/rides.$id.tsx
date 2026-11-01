@@ -89,7 +89,10 @@ function RideDetail() {
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label={t("Distance", "Distanza")} value={formatKm(a.distance)} />
-        <StatCard label={t("Moving time", "Tempo in movimento")} value={formatDuration(a.moving_time)} />
+        <StatCard
+          label={t("Moving time", "Tempo in movimento")}
+          value={formatDuration(a.moving_time)}
+        />
         <StatCard label={t("Elevation", "Dislivello")} value={r(a.total_elevation_gain)} unit="m" />
         <StatCard label={t("Load", "Carico")} value={r(a.icu_training_load)} tone="fitness" />
         <StatCard label={t("Avg power", "Potenza media")} value={r(a.icu_average_watts)} unit="W" />
@@ -170,7 +173,9 @@ function RideDetail() {
         </div>
       ) : (
         <Panel title={t("Elevation & climbs", "Altimetria e salite")}>
-          <p className="py-6 text-center text-sm text-muted-foreground">{t("Loading ride streams…", "Caricamento dati attività…")}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {t("Loading ride streams…", "Caricamento dati attività…")}
+          </p>
         </Panel>
       )}
 
@@ -183,7 +188,9 @@ function RideDetail() {
           (streams ? (
             <RideCharts a={a} streams={streams} work={work} />
           ) : (
-            <p className="py-6 text-center text-sm text-muted-foreground">{t("Loading ride streams…", "Caricamento dati attività…")}</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {t("Loading ride streams…", "Caricamento dati attività…")}
+            </p>
           ))}
       </Panel>
 
@@ -345,12 +352,16 @@ function Climbs({
   }, [track, store.list, store.efforts]);
   // An outdoor ride missing from the segment index (e.g. uploaded late) is analysed now, so its efforts also
   // count in each segment's standings and the rank shown here is against every effort.
-  const outdoor = !!track && (a.type ?? "").includes("Ride") && !(a.type ?? "").startsWith("Virtual") && !a.trainer;
+  const outdoor =
+    !!track &&
+    (a.type ?? "").includes("Ride") &&
+    !(a.type ?? "").startsWith("Virtual") &&
+    !a.trainer;
   useEffect(() => {
     if (outdoor)
-      void segmentEngine.ensureRide({ id: a.id, name: a.name, date: a.start_date_local }).catch((e) =>
-        console.warn("Couldn't add the ride to the segment index", e),
-      );
+      void segmentEngine
+        .ensureRide({ id: a.id, name: a.name, date: a.start_date_local })
+        .catch((e) => console.warn("Couldn't add the ride to the segment index", e));
   }, [outdoor, a.id, a.name, a.start_date_local]);
   const totalKm = (streams.distance.at(-1) ?? 0) / 1000;
 
@@ -398,8 +409,18 @@ function Climbs({
         { ...p(range[1]), color: "var(--lingon)", label: t("Segment finish", "Fine segmento") },
       ];
     return [
-      { lat: track.lat[0]!, lng: track.lng[0]!, color: "var(--pine)", label: t("Start", "Partenza") },
-      { lat: track.lat.at(-1)!, lng: track.lng.at(-1)!, color: "var(--lingon)", label: t("Finish", "Arrivo") },
+      {
+        lat: track.lat[0]!,
+        lng: track.lng[0]!,
+        color: "var(--pine)",
+        label: t("Start", "Partenza"),
+      },
+      {
+        lat: track.lat.at(-1)!,
+        lng: track.lng.at(-1)!,
+        color: "var(--lingon)",
+        label: t("Finish", "Arrivo"),
+      },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track, range]);
@@ -417,7 +438,10 @@ function Climbs({
     toast.success(
       name.trim()
         ? t(`Saved “${seg.name}”`, `Salvato “${seg.name}”`)
-        : t("Segment saved; it gets its name from the map", "Segmento salvato; prenderà il nome dalla mappa"),
+        : t(
+            "Segment saved; it gets its name from the map",
+            "Segmento salvato; prenderà il nome dalla mappa",
+          ),
     );
     setRange(null);
     setName("");
@@ -464,9 +488,13 @@ function Climbs({
         {range && (
           <div className="mt-4 space-y-3 rounded-lg bg-background/50 p-3">
             <div className="stat-num flex justify-between text-xs text-muted-foreground">
-              <span>{t("Start", "Inizio")} {range[0].toFixed(2)} km</span>
+              <span>
+                {t("Start", "Inizio")} {range[0].toFixed(2)} km
+              </span>
               <span>{((range[1] - range[0]) * 1000).toFixed(0)} m</span>
-              <span>{t("Finish", "Fine")} {range[1].toFixed(2)} km</span>
+              <span>
+                {t("Finish", "Fine")} {range[1].toFixed(2)} km
+              </span>
             </div>
             <Slider
               min={0}
@@ -491,91 +519,181 @@ function Climbs({
         )}
 
         {climbs.length > 0 && (
-          <div className="-mx-4 mt-4 overflow-x-auto px-4">
-            <table className="stat-num w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className="eyebrow text-left">
-                  <th className="py-2 font-normal">#</th>
-                  <th className="font-normal">Cat</th>
-                  <th className="text-right font-normal">Km</th>
-                  <th className="text-right font-normal">{t("Avg", "Media")}</th>
-                  <th className="text-right font-normal">Max</th>
-                  <th className="text-right font-normal">{t("Time", "Tempo")}</th>
-                  <th className="text-right font-normal">VAM</th>
-                  <th className="text-right font-normal">{t("Power", "Potenza")}</th>
-                  <th className="text-right font-normal">W/kg</th>
-                  {track && <th />}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {climbs.map((c, i) => {
-                  const saved = savedFor(c.startKm, c.endKm);
-                  return (
-                    <tr
-                      key={i}
-                      onMouseEnter={() => setHover(i)}
-                      onMouseLeave={() => setHover(null)}
+          <>
+            {/* Phone: one compact row per climb instead of a table wider than the screen. */}
+            <div className="-mx-4 mt-4 divide-y divide-border md:hidden">
+              {climbs.map((c, i) => {
+                const saved = savedFor(c.startKm, c.endKm);
+                // Two short lines that fit a phone: shape (length, grades), then effort (VAM, power).
+                const effort = [
+                  c.vam != null && `VAM ${Math.round(c.vam)}`,
+                  c.avgWatts != null && `${Math.round(c.avgWatts)} W`,
+                  c.avgWatts && weight && `${(c.avgWatts / weight).toFixed(2)} W/kg`,
+                ].filter(Boolean);
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex items-center gap-1 pr-2 transition-colors",
+                      hover === i && "bg-secondary/60",
+                    )}
+                  >
+                    <button
+                      type="button"
                       onClick={() => setHover(hover === i ? null : i)}
-                      className={cn("transition-colors", hover === i && "bg-secondary/60")}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 text-left active:bg-secondary/40"
                     >
-                      <td className="py-2 text-muted-foreground">{i + 1}</td>
-                      <td>
-                        <span
-                          className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
-                          style={{ background: CAT_COLOR[c.category] }}
-                        >
-                          {c.category === "Uncat"
-                            ? "–"
-                            : c.category === "HC"
-                              ? "HC"
-                              : `Cat ${c.category}`}
-                        </span>
-                      </td>
-                      <td className="text-right">{(c.length / 1000).toFixed(1)}</td>
-                      <td className="text-right">{c.avgGrade.toFixed(1)}%</td>
-                      <td className="text-right">{c.maxGrade.toFixed(1)}%</td>
-                      <td className="text-right">{formatClock(c.duration)}</td>
-                      <td className="text-right">{r(c.vam)}</td>
-                      <td className="text-right">{r(c.avgWatts, "W")}</td>
-                      <td className="text-right">
-                        {c.avgWatts && weight ? (c.avgWatts / weight).toFixed(2) : "–"}
-                      </td>
-                      {track && (
-                        <td className="text-right">
-                          <button
-                            aria-label={saved?.starred ? t("Unstar climb", "Togli dai preferiti") : t("Star climb", "Aggiungi ai preferiti")}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              store.toggleStar(
-                                saved ?? segmentFromRange(track, c.startKm, c.endKm, "auto"),
-                              );
-                            }}
-                            className="p-1"
+                      <span className="stat-num w-5 shrink-0 text-sm text-muted-foreground">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="stat-num flex items-center gap-2 text-sm">
+                          <span
+                            className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
+                            style={{ background: CAT_COLOR[c.category] }}
                           >
-                            <Star
-                              className={cn(
-                                "h-4 w-4",
-                                saved?.starred ? "fill-birch text-birch" : "text-muted-foreground",
-                              )}
-                            />
-                          </button>
+                            {c.category === "Uncat"
+                              ? "–"
+                              : c.category === "HC"
+                                ? "HC"
+                                : `Cat ${c.category}`}
+                          </span>
+                          {(c.length / 1000).toFixed(1)} km · {c.avgGrade.toFixed(1)}%
+                        </span>
+                        <span className="stat-num block text-xs text-muted-foreground">
+                          Max {c.maxGrade.toFixed(1)}%
+                          {effort.length > 0 && ` · ${effort.join(" · ")}`}
+                        </span>
+                      </span>
+                      <span className="stat-num shrink-0 text-right text-base font-semibold">
+                        {formatClock(c.duration)}
+                      </span>
+                    </button>
+                    {track ? (
+                      <button
+                        aria-label={
+                          saved?.starred
+                            ? t("Unstar climb", "Togli dai preferiti")
+                            : t("Star climb", "Aggiungi ai preferiti")
+                        }
+                        onClick={() =>
+                          store.toggleStar(
+                            saved ?? segmentFromRange(track, c.startKm, c.endKm, "auto"),
+                          )
+                        }
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg active:bg-secondary/60"
+                      >
+                        <Star
+                          className={cn(
+                            "h-5 w-5",
+                            saved?.starred ? "fill-birch text-birch" : "text-muted-foreground",
+                          )}
+                        />
+                      </button>
+                    ) : (
+                      <span className="w-11 shrink-0" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="-mx-4 mt-4 hidden overflow-x-auto px-4 md:block">
+              <table className="stat-num w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="eyebrow text-left">
+                    <th className="py-2 font-normal">#</th>
+                    <th className="font-normal">Cat</th>
+                    <th className="text-right font-normal">Km</th>
+                    <th className="text-right font-normal">{t("Avg", "Media")}</th>
+                    <th className="text-right font-normal">Max</th>
+                    <th className="text-right font-normal">{t("Time", "Tempo")}</th>
+                    <th className="text-right font-normal">VAM</th>
+                    <th className="text-right font-normal">{t("Power", "Potenza")}</th>
+                    <th className="text-right font-normal">W/kg</th>
+                    {track && <th />}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {climbs.map((c, i) => {
+                    const saved = savedFor(c.startKm, c.endKm);
+                    return (
+                      <tr
+                        key={i}
+                        onMouseEnter={() => setHover(i)}
+                        onMouseLeave={() => setHover(null)}
+                        onClick={() => setHover(hover === i ? null : i)}
+                        className={cn("transition-colors", hover === i && "bg-secondary/60")}
+                      >
+                        <td className="py-2 text-muted-foreground">{i + 1}</td>
+                        <td>
+                          <span
+                            className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
+                            style={{ background: CAT_COLOR[c.category] }}
+                          >
+                            {c.category === "Uncat"
+                              ? "–"
+                              : c.category === "HC"
+                                ? "HC"
+                                : `Cat ${c.category}`}
+                          </span>
                         </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td className="text-right">{(c.length / 1000).toFixed(1)}</td>
+                        <td className="text-right">{c.avgGrade.toFixed(1)}%</td>
+                        <td className="text-right">{c.maxGrade.toFixed(1)}%</td>
+                        <td className="text-right">{formatClock(c.duration)}</td>
+                        <td className="text-right">{r(c.vam)}</td>
+                        <td className="text-right">{r(c.avgWatts, "W")}</td>
+                        <td className="text-right">
+                          {c.avgWatts && weight ? (c.avgWatts / weight).toFixed(2) : "–"}
+                        </td>
+                        {track && (
+                          <td className="text-right">
+                            <button
+                              aria-label={
+                                saved?.starred
+                                  ? t("Unstar climb", "Togli dai preferiti")
+                                  : t("Star climb", "Aggiungi ai preferiti")
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                store.toggleStar(
+                                  saved ?? segmentFromRange(track, c.startKm, c.endKm, "auto"),
+                                );
+                              }}
+                              className="p-1"
+                            >
+                              <Star
+                                className={cn(
+                                  "h-4 w-4",
+                                  saved?.starred
+                                    ? "fill-birch text-birch"
+                                    : "text-muted-foreground",
+                                )}
+                              />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Panel>
 
-      <Panel title={`${t("Segments on this ride", "Segmenti in questa attività")}${onRide.length ? ` · ${onRide.length}` : ""}`}>
+      <Panel
+        title={`${t("Segments on this ride", "Segmenti in questa attività")}${onRide.length ? ` · ${onRide.length}` : ""}`}
+      >
         {onRide.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             {track
               ? store.ridesAnalysed
-                ? t("This ride doesn't pass any of your segments.", "Questa attività non passa da nessuno dei tuoi segmenti.")
+                ? t(
+                    "This ride doesn't pass any of your segments.",
+                    "Questa attività non passa da nessuno dei tuoi segmenti.",
+                  )
                 : t(
                     "Open Segments once to analyse your rides; recurring climbs will then show up here.",
                     "Apri Segmenti una volta per analizzare le attività; le salite ricorrenti appariranno qui.",
@@ -583,66 +701,118 @@ function Climbs({
               : t("No GPS on this ride.", "Nessun GPS in questa attività.")}
           </p>
         ) : (
-          <div className="-mx-4 overflow-x-auto px-4">
-            <table className="stat-num w-full min-w-[600px] text-sm">
-              <thead>
-                <tr className="eyebrow text-left">
-                  <th className="py-2 font-normal">{t("Segment", "Segmento")}</th>
-                  <th className="text-right font-normal">{t("Time", "Tempo")}</th>
-                  <th className="text-right font-normal">{t("Rank", "Pos.")}</th>
-                  <th className="text-right font-normal">{t("Power", "Potenza")}</th>
-                  <th className="text-right font-normal">W/kg</th>
-                  <th className="text-right font-normal">VAM</th>
-                  <th className="text-right font-normal">{t("HR", "FC")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {onRide.map(({ seg, at, rank, of }, i) => (
-                  <tr
+          <>
+            {/* Phone: one compact row per segment instead of a table wider than the screen. */}
+            <div className="-mx-4 divide-y divide-border md:hidden">
+              {onRide.map(({ seg, at, rank, of }) => {
+                const effort = [
+                  at.avgWatts != null && `${Math.round(at.avgWatts)} W`,
+                  at.avgWatts && weight && `${(at.avgWatts / weight).toFixed(2)} W/kg`,
+                  at.vam != null && `VAM ${Math.round(at.vam)}`,
+                  at.avgHr != null && `${Math.round(at.avgHr)} bpm`,
+                ].filter(Boolean);
+                return (
+                  <Link
                     key={`${seg.id}-${at.i0}`}
-                    onMouseEnter={() => setSegHover(i)}
-                    onMouseLeave={() => setSegHover(null)}
-                    className={cn("transition-colors", segHover === i && "bg-secondary/60")}
+                    to="/segments/$id"
+                    params={{ id: seg.id }}
+                    className="flex items-center gap-3 px-4 py-3 active:bg-secondary/40"
                   >
-                    <td className="max-w-0 py-2 pr-3 font-sans">
-                      <Link
-                        to="/segments/$id"
-                        params={{ id: seg.id }}
-                        className="block truncate font-medium hover:text-primary"
-                      >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
                         {seg.starred && (
                           <Star className="mr-1 inline h-3.5 w-3.5 fill-birch text-birch" />
                         )}
                         {nameOf(seg)}
-                      </Link>
-                      <div className="stat-num truncate text-xs text-muted-foreground">
+                      </span>
+                      <span className="stat-num block truncate text-xs text-muted-foreground">
                         {segmentSummary(seg)}
-                      </div>
-                    </td>
-                    <td className="text-right">{formatClock(at.duration)}</td>
-                    <td className="text-right">
+                      </span>
+                      {effort.length > 0 && (
+                        <span className="stat-num block truncate text-xs text-muted-foreground">
+                          {effort.join(" · ")}
+                        </span>
+                      )}
+                    </span>
+                    <span className="stat-num shrink-0 text-right">
+                      <span className="block text-base font-semibold">
+                        {formatClock(at.duration)}
+                      </span>
                       {rank === 1 && of > 1 ? (
                         <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
                           <Trophy className="h-3 w-3" /> PR
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">
-                          {rank}
-                          <span className="text-[10px]">/{of}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {rank}/{of}
                         </span>
                       )}
-                    </td>
-                    <td className="text-right">{r(at.avgWatts, "W")}</td>
-                    <td className="text-right">
-                      {at.avgWatts && weight ? (at.avgWatts / weight).toFixed(2) : "–"}
-                    </td>
-                    <td className="text-right">{r(at.vam)}</td>
-                    <td className="text-right text-fatigue">{r(at.avgHr)}</td>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="-mx-4 hidden overflow-x-auto px-4 md:block">
+              <table className="stat-num w-full min-w-[600px] text-sm">
+                <thead>
+                  <tr className="eyebrow text-left">
+                    <th className="py-2 font-normal">{t("Segment", "Segmento")}</th>
+                    <th className="text-right font-normal">{t("Time", "Tempo")}</th>
+                    <th className="text-right font-normal">{t("Rank", "Pos.")}</th>
+                    <th className="text-right font-normal">{t("Power", "Potenza")}</th>
+                    <th className="text-right font-normal">W/kg</th>
+                    <th className="text-right font-normal">VAM</th>
+                    <th className="text-right font-normal">{t("HR", "FC")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {onRide.map(({ seg, at, rank, of }, i) => (
+                    <tr
+                      key={`${seg.id}-${at.i0}`}
+                      onMouseEnter={() => setSegHover(i)}
+                      onMouseLeave={() => setSegHover(null)}
+                      className={cn("transition-colors", segHover === i && "bg-secondary/60")}
+                    >
+                      <td className="max-w-0 py-2 pr-3 font-sans">
+                        <Link
+                          to="/segments/$id"
+                          params={{ id: seg.id }}
+                          className="block truncate font-medium hover:text-primary"
+                        >
+                          {seg.starred && (
+                            <Star className="mr-1 inline h-3.5 w-3.5 fill-birch text-birch" />
+                          )}
+                          {nameOf(seg)}
+                        </Link>
+                        <div className="stat-num truncate text-xs text-muted-foreground">
+                          {segmentSummary(seg)}
+                        </div>
+                      </td>
+                      <td className="text-right">{formatClock(at.duration)}</td>
+                      <td className="text-right">
+                        {rank === 1 && of > 1 ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
+                            <Trophy className="h-3 w-3" /> PR
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {rank}
+                            <span className="text-[10px]">/{of}</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="text-right">{r(at.avgWatts, "W")}</td>
+                      <td className="text-right">
+                        {at.avgWatts && weight ? (at.avgWatts / weight).toFixed(2) : "–"}
+                      </td>
+                      <td className="text-right">{r(at.vam)}</td>
+                      <td className="text-right text-fatigue">{r(at.avgHr)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Panel>
     </>
