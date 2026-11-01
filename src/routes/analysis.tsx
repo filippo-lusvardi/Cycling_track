@@ -292,7 +292,6 @@ function PowerSection() {
   );
 }
 
-const BUCKET_LABEL = (b: number) => (b ? `${t("after", "dopo")} ${b} kJ/kg` : t("Fresh", "Fresco"));
 const EFFORT_LABEL = (s: number) => `${s / 60} min`;
 
 /** Power left after hours of work: best 1/5/20 min after 15, 30 and 45 kJ/kg, against fresh. */
@@ -357,49 +356,56 @@ function DurabilitySection() {
               `La tua potenza migliore dopo aver già svolto 15, 30 o 45 kJ per kg di lavoro, da ${data.rides} uscite. Più piccolo il calo rispetto a fresco, più ne hai per il finale.`,
             )}
           </p>
-          <div className="-mx-1 overflow-x-auto">
-            <table className="stat-num w-full min-w-[22rem] text-sm">
-              <thead>
-                <tr className="text-xs text-muted-foreground">
-                  <th className="px-1 py-1 text-left font-normal" />
-                  {BUCKETS.map((b) => (
-                    <th key={b} className="px-1 py-1 text-right font-normal">
-                      {BUCKET_LABEL(b)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {EFFORTS.map((e, k) => (
-                  <tr key={e} className="border-t border-border">
-                    <td className="px-1 py-1.5 font-sans text-muted-foreground">
-                      {EFFORT_LABEL(e)}
-                    </td>
-                    {BUCKETS.map((b) => {
-                      const w = data.best[b][k];
-                      const d = data.drop[b][k];
-                      return (
-                        <td key={b} className="px-1 py-1.5 text-right">
-                          {w != null ? `${Math.round(w)} W` : "–"}
-                          {b > 0 && d != null && (
-                            <span
-                              className={cn(
-                                "ml-1 text-xs",
-                                d < 5 ? "text-pine" : d <= 10 ? "text-fitness" : "text-birch",
-                              )}
-                            >
-                              {d > 0 ? "−" : "+"}
-                              {Math.abs(d).toFixed(0)}%
-                            </span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
+          {/* Fits a phone without scrolling: short column heads, the drop under each value. */}
+          <table className="stat-num w-full table-fixed text-sm">
+            <thead>
+              <tr className="text-[11px] text-muted-foreground">
+                <th className="w-14 font-normal" />
+                <th className="font-normal" />
+                <th colSpan={3} className="pb-0.5 text-center font-sans font-normal">
+                  {t("kJ/kg already done", "kJ/kg già svolti")}
+                </th>
+              </tr>
+              <tr className="text-xs text-muted-foreground">
+                <th className="py-1 text-left font-normal" />
+                {BUCKETS.map((b) => (
+                  <th key={b} className="py-1 text-right font-normal">
+                    {b ? b : t("Fresh", "Fresco")}
+                  </th>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </tr>
+            </thead>
+            <tbody>
+              {EFFORTS.map((e, k) => (
+                <tr key={e} className="border-t border-border align-top">
+                  <td className="py-2 font-sans text-muted-foreground">{EFFORT_LABEL(e)}</td>
+                  {BUCKETS.map((b) => {
+                    const w = data.best[b][k];
+                    const d = data.drop[b][k];
+                    return (
+                      <td key={b} className="py-2 text-right leading-tight">
+                        <div>
+                          {w != null ? Math.round(w) : "–"}
+                          {w != null && <span className="text-xs text-muted-foreground"> W</span>}
+                        </div>
+                        {b > 0 && d != null && (
+                          <div
+                            className={cn(
+                              "text-xs",
+                              d < 5 ? "text-pine" : d <= 10 ? "text-fitness" : "text-birch",
+                            )}
+                          >
+                            {d > 0 ? "−" : "+"}
+                            {Math.abs(d).toFixed(0)}%
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
           {verdict && (
             <p className={cn("text-sm font-medium", VERDICT[verdict].tone)}>
               {VERDICT[verdict].text}
