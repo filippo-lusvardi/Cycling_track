@@ -27,6 +27,7 @@ import { gradeChunks, maxGrade } from "@/lib/profile";
 import { historyYears } from "@/lib/segment-app";
 import { segmentSummary } from "@/lib/segments";
 import { formatClock, isoDate, weightOn } from "@/lib/training";
+import { fitTrend } from "@/lib/trend";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
 
@@ -101,13 +102,33 @@ function SegmentPage() {
     () => (trace ? maxGrade(gradeChunks(trace.dist, trace.alt)) : null),
     [trace],
   );
-  const trend = useMemo(
-    () =>
-      [...efforts]
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .map((e) => ({ date: e.date.slice(0, 10), time: e.duration / 60, watts: e.avgWatts })),
-    [efforts],
-  );
+  // Each effort plus the trend through all of them (fitted on real days, so long gaps count as long).
+  const { trend, degrees } = useMemo(() => {
+    const rows = [...efforts]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((e) => ({
+        date: e.date.slice(0, 10),
+        day: Date.parse(e.date.slice(0, 10)) / 86_400_000,
+        time: e.duration / 60,
+        watts: e.avgWatts,
+      }));
+    const fitOf = (key: "time" | "watts") => {
+      const pts = rows.filter((r) => r[key] != null);
+      return fitTrend(
+        pts.map((r) => r.day),
+        pts.map((r) => r[key]!),
+      );
+    };
+    const [time, watts] = [fitOf("time"), fitOf("watts")];
+    return {
+      trend: rows.map((r) => ({
+        ...r,
+        timeFit: time?.at(r.day) ?? null,
+        wattsFit: watts && r.watts != null ? watts.at(r.day) : null,
+      })),
+      degrees: { time: time?.degree ?? null, watts: watts?.degree ?? null },
+    };
+  }, [efforts]);
   // Plot area inside the chart: YAxis 60 px + margin.left -16, margin.right 8.
   const zoom = useXZoom(trend, { inset: { left: 44, right: 8 } });
 
@@ -308,11 +329,16 @@ function SegmentPage() {
                     borderRadius: 8,
                   }}
                   labelFormatter={(d) => format(parseISO(String(d)), "EEE d MMM yyyy")}
-                  formatter={(v) =>
-                    metric === "time"
-                      ? [formatClock(Number(v) * 60), t("Time", "Tempo")]
-                      : [`${Math.round(Number(v))} W`, t("Power", "Potenza")]
-                  }
+                  formatter={(v, name) => {
+                    const label = String(name).endsWith("Fit")
+                      ? t("Trend", "Tendenza")
+                      : metric === "time"
+                        ? t("Time", "Tempo")
+                        : t("Power", "Potenza");
+                    return metric === "time"
+                      ? [formatClock(Number(v) * 60), label]
+                      : [`${Math.round(Number(v))} W`, label];
+                  }}
                 />
                 <Line
                   type="monotone"
@@ -323,6 +349,19 @@ function SegmentPage() {
                   connectNulls
                   isAnimationActive={false}
                 />
+                {degrees[metric] != null && (
+                  <Line
+                    type="monotone"
+                    dataKey={`${metric}Fit`}
+                    stroke="var(--muted-foreground)"
+                    strokeWidth={2}
+                    strokeDasharray="5 4"
+                    dot={false}
+                    activeDot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                )}
                 {zoom.selection && (
                   <ReferenceArea
                     x1={zoom.view[zoom.selection[0]]!.date}
@@ -336,6 +375,12 @@ function SegmentPage() {
           <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>
               {metric === "time" && `${t("Faster is higher.", "Più in alto = più veloce.")} `}
+              {degrees[metric] != null &&
+                `${t("Dashed: trend", "Tratteggio: tendenza")} (${
+                  degrees[metric] === 1
+                    ? t("linear", "lineare")
+                    : t(`polynomial, degree ${degrees[metric]}`, `polinomiale, grado ${degrees[metric]}`)
+                }). `}
               {t(
                 "Drag to zoom (pinch on a phone); double-click to reset.",
                 "Trascina per ingrandire (pizzica sul telefono); doppio clic per tornare.",

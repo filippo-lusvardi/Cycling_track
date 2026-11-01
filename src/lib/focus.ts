@@ -1,7 +1,7 @@
 // What to train: the focus for the current block, from your upcoming races and your own power, compared only
 // with yourself. Readiness still decides when; this decides what. Pure.
 import { parseISO } from "date-fns";
-import { format, t } from "./i18n";
+import { t } from "./i18n";
 import type { Activity, PowerCurve, RideZones, Wellness } from "./intervals";
 import {
   COMPLETE,
@@ -395,15 +395,13 @@ export function roleText(role: DayRole): string {
 export function focusWhy(r: FocusResult, races: Race[], today: string): string[] {
   if (r.base.length) return r.base;
   const lines: string[] = [];
-  const near = races
-    .filter((x) => raceWeight(x, today) > 0)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 3);
+  // The races themselves are listed next to this; here, only how they weigh.
+  const n = races.filter((x) => raceWeight(x, today) > 0).length;
   lines.push(
-    near.length
+    n
       ? t(
-          `Races ahead: ${near.map((x) => `${x.name} ${format(parseISO(x.date), "d MMM")} (${x.priority})`).join(", ")}.`,
-          `Gare in arrivo: ${near.map((x) => `${x.name} ${format(parseISO(x.date), "d MMM")} (${x.priority})`).join(", ")}.`,
+          `What your ${n === 1 ? "next race needs" : `${n} races in the next 20 weeks need`}, the nearest and the A races counting most.`,
+          `Ciò che ${n === 1 ? "serve alla prossima gara" : `serve alle ${n} gare delle prossime 20 settimane`}, con più peso alle più vicine e alle A.`,
         )
       : t(
           "No races ahead: training the complete cyclist.",

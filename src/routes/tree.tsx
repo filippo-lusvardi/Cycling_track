@@ -87,7 +87,10 @@ function TreePage() {
     () => buildDays(acts, wellness, oldest, today, offDays(offEvents ?? [])),
     [acts, wellness, oldest, today, offEvents],
   );
-  const crown = useMemo(() => crownFor(wellness, acts, today), [wellness, acts, today]);
+  const crown = useMemo(
+    () => crownFor(wellness, acts, today, offEvents ?? []),
+    [wellness, acts, today, offEvents],
+  );
   const limit = crown.score != null && zones ? ceiling(crown.score, zones) : null;
   // Only today's plan buds above the crown.
   const planned = (events ?? []).filter(

@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { PlannedEvent } from "@/lib/intervals";
 import { ceilingText } from "@/lib/readiness";
 import { formatDuration } from "@/lib/training";
@@ -9,7 +9,9 @@ import {
   SEASON_COLOR,
   seedOf,
   WEATHER_WORD,
+  weekRange,
   type Crown as CrownState,
+  type Scar as ScarSpan,
   type TreeYear,
   type Weather,
 } from "@/lib/tree";
@@ -814,19 +816,21 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
     const width = ((wood - 14) * Math.sqrt(y.load + 1)) / total;
     const mid = inner + width / 2;
     const [r0, r1] = [inner, inner + width];
-    const arcs = y.weekLoads.map((l, k) => {
-      const [a0, a1] = [
-        (k / 53) * Math.PI * 2 - Math.PI / 2,
-        ((k + 1) / 53) * Math.PI * 2 - Math.PI / 2,
-      ];
+    // Grain shaded day by day, each day blended between its week and the neighbouring one, so weeks flow into each
+    // other. Solid mixed colours (not opacity) let the slivers overlap a hair without visible seams.
+    const loadAt = (k: number) => y.weekLoads[Math.max(0, Math.min(52, k))]!;
+    const arcs = Array.from({ length: 53 * 7 }, (_, d) => {
+      const p = (d + 0.5) / 7 - 0.5;
+      const k = Math.floor(p);
+      const l = loadAt(k) + (loadAt(k + 1) - loadAt(k)) * (p - k);
+      const [a0, a1] = [((d - 0.6) / 371) * Math.PI * 2 - Math.PI / 2, ((d + 1.6) / 371) * Math.PI * 2 - Math.PI / 2];
       return (
         <path
-          key={k}
+          key={d}
           d={`M${pt(mid, a0)} A${mid},${mid} 0 0 1 ${pt(mid, a1)}`}
           fill="none"
-          stroke="color-mix(in oklab, var(--bark) 45%, black)"
+          stroke={`color-mix(in oklab, ${GRAIN} ${Math.round(5 + 90 * (l / maxWeek))}%, ${LIGHT_WOOD})`}
           strokeWidth={width * 0.9}
-          opacity={0.05 + 0.9 * (l / maxWeek)}
         />
       );
     });
@@ -850,9 +854,15 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
         />
       );
     });
+    const scars = y.scars.map((s) => (
+      <Scar key={s.from} s={s} r0={r0} r1={r1} angle={angle} pt={pt} />
+    ));
     const ring = (
       <g key={y.year}>
         {arcs}
+        <g aria-hidden className="pointer-events-none">
+          {scars}
+        </g>
         <circle cx={c} cy={c} r={r1} fill="none" stroke="var(--background)" strokeOpacity={0.5} />
         {taps}
       </g>
@@ -864,11 +874,14 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
   return (
     <div className="space-y-6">
       <svg width={size} height={size} className="tree-grow mx-auto block">
-        <circle cx={c} cy={c} r={wood} fill="color-mix(in oklab, var(--bark) 80%, var(--birch))" />
+        <circle cx={c} cy={c} r={wood} fill={LIGHT_WOOD} />
         <circle cx={c} cy={c} r={wood} fill="none" stroke="var(--bark)" strokeWidth={8} />
         <circle cx={c} cy={c} r={5} fill="var(--bark)" />
-        <g aria-hidden>{months}</g>
         {rings}
+        {/* Over the rings: the grain is solid, so month lines underneath would be hidden. */}
+        <g aria-hidden className="pointer-events-none">
+          {months}
+        </g>
       </svg>
       <p className="mx-auto max-w-sm text-center text-sm text-muted-foreground">
         {t(
@@ -901,10 +914,109 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
               {t(`${y.count} activities · load`, `${y.count} attività · carico`)}{" "}
               {num(Math.round(y.load))}
             </p>
+            {y.scars.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-sm">
+                {y.scars.map((s) => (
+                  <li key={s.from} className="flex items-center gap-2">
+                    <span className="h-2 w-3 shrink-0 rounded-sm" style={{ background: SCAR }} aria-hidden />
+                    {t("Injured", "Infortunato")} {weekRange(s.start, s.end)}
+                    <span className="text-muted-foreground">
+                      ·{" "}
+                      {s.to - s.from + 1 === 1
+                        ? t("1 day", "1 giorno")
+                        : t(`${s.to - s.from + 1} days`, `${s.to - s.from + 1} giorni`)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         ))}
       </div>
     </div>
+  );
+}
+
+/** The cut wood of the rings, and the dark grain of a heavy week. */
+const LIGHT_WOOD = "color-mix(in oklab, var(--bark) 80%, var(--birch))";
+const GRAIN = "color-mix(in oklab, var(--bark) 45%, black)";
+
+/** The trunk's knot colour, and the darker grain that flows around a knot. */
+const SCAR = "color-mix(in oklab, var(--bark) 75%, black)";
+const KNOT_GRAIN = "color-mix(in oklab, var(--bark) 45%, black)";
+
+/**
+ * An injured stretch on a year's ring, drawn as a knot in wood grain: an oval spiral lying across the ring, with long
+ * grain lines running past it on both sides. The lines bend around the knot, the nearest most and the farther ones
+ * gently, and fade out at their ends. Centred on the injured days and bigger for a longer injury, up to what fits in
+ * the ring.
+ */
+function Scar({
+  s,
+  r0,
+  r1,
+  angle,
+  pt,
+}: {
+  s: ScarSpan;
+  r0: number;
+  r1: number;
+  angle: (doy: number) => number;
+  pt: (rad: number, a: number) => string;
+}) {
+  const fade = useId();
+  const am = angle((s.from + s.to + 1) / 2);
+  const w = r1 - r0;
+  const rm = r0 + w / 2;
+  const length = (angle(s.to + 1) - angle(s.from)) * rm;
+  const r = Math.max(1.8, Math.min(length * 0.05 + 1.5, w * 0.1, 4.5));
+  const [x, y] = pt(rm, am).split(",").map(Number) as [number, number];
+  // Local frame: x across the ring (the grain runs toward the pith), y along it. The lines stay inside the ring.
+  const across = (am * 180) / Math.PI;
+  const half = Math.min(r * 7, w * 0.48);
+  // Two and a half open turns of an oval spiral, longer along the grain.
+  const spiral = Array.from({ length: 51 }, (_, i) => {
+    const a = (i / 50) * 5 * Math.PI;
+    const d = (r * i) / 50;
+    return `${(Math.cos(a) * d * 1.6).toFixed(2)},${(Math.sin(a) * d).toFixed(2)}`;
+  }).join(" ");
+  // Each line sits in its lane and is pushed out around the knot by a smooth bump, less the farther it is.
+  const grain = [1, 2, 3].flatMap((j) =>
+    [-1, 1].map((side) => {
+      const lane = 0.9 * r * j;
+      const push = 1.1 * r * 0.75 ** (j - 1);
+      const spread = r * (2.6 + 0.8 * j);
+      const pts = Array.from({ length: 41 }, (_, k) => {
+        const px = -half + (2 * half * k) / 40;
+        const py = side * (lane + push * Math.exp(-((px / spread) ** 2)));
+        return `${px.toFixed(2)},${py.toFixed(2)}`;
+      });
+      return { key: `${j}${side}`, points: pts.join(" ") };
+    }),
+  );
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${across})`}>
+      <defs>
+        <linearGradient id={fade} gradientUnits="userSpaceOnUse" x1={-half} x2={half} y1={0} y2={0}>
+          <stop offset="0" stopColor={KNOT_GRAIN} stopOpacity={0} />
+          <stop offset="0.3" stopColor={KNOT_GRAIN} stopOpacity={0.85} />
+          <stop offset="0.7" stopColor={KNOT_GRAIN} stopOpacity={0.85} />
+          <stop offset="1" stopColor={KNOT_GRAIN} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      {grain.map((g) => (
+        <polyline
+          key={g.key}
+          points={g.points}
+          fill="none"
+          stroke={`url(#${CSS.escape(fade)})`}
+          strokeWidth={1.1}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+      <polyline points={spiral} fill="none" stroke={SCAR} strokeWidth={1.1} strokeLinecap="round" strokeLinejoin="round" />
+    </g>
   );
 }
 

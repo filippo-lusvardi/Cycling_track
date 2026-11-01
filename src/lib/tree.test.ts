@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { addDays as addDaysT } from "./training";
 import { lastDay, type Activity, type PlannedEvent, type Wellness } from "./intervals";
 import {
   buildDays,
@@ -10,6 +11,9 @@ import {
   intensityLevel,
   offDays,
   offToggle,
+  returningFromBreak,
+  leafSpots,
+  perchSpots,
   seasonLabel,
   seasonOf,
   seasonPhase,
@@ -47,6 +51,7 @@ const act = (
   efficiency: null,
   trainer: false,
   feel: null,
+  brioches: 0,
   ...extra,
 });
 
@@ -320,5 +325,63 @@ describe("knots", () => {
     const through = [off("a", "SICK", "2026-10-07", today)];
     expect(offToggle(through, "SICK", today)).toEqual({ op: "update", id: "a", start: "2026-10-07", last: "2026-10-09" });
     expect(offToggle([off("b", "SICK", today)], "SICK", today)).toEqual({ op: "delete", id: "b" });
+  });
+});
+
+describe("returning from a break", () => {
+  it("counts a recent injury or two weeks without training", () => {
+    const today = "2026-11-01";
+    const riding = Array.from({ length: 60 }, (_, i) => act(`r${i}`, addDaysT(today, -i), 60, 50));
+    expect(returningFromBreak(riding, [], today)).toBe(false);
+    expect(returningFromBreak(riding, [off("i", "INJURED", "2026-09-20", "2026-10-10")], today)).toBe(true);
+    expect(returningFromBreak(riding, [off("i", "INJURED", "2026-08-01", "2026-08-20")], today)).toBe(false);
+    const gap = riding.filter((_, i) => i < 10 || i > 26);
+    expect(returningFromBreak(gap, [], today)).toBe(true);
+  });
+});
+
+describe("bird perches", () => {
+  const len = 200;
+  const bird = 22;
+  const gapsOk = (spots: number[], leaves: number) => {
+    const tops = leafSpots(leaves, 0.4).filter((_, i) => i % 2 === 0);
+    return spots.every((s) => tops.every((l) => Math.abs(l - s) * len >= bird * 0.9));
+  };
+  it("puts a single bird on bare wood, clear of the leaves on top", () => {
+    for (const leaves of [1, 2, 3, 6]) {
+      const [s] = perchSpots(1, leaves, 0.4, len, bird);
+      expect(gapsOk([s!], leaves)).toBe(true);
+    }
+  });
+  it("keeps birds a body apart and on the branch", () => {
+    const spots = perchSpots(4, 2, 0.4, len, bird);
+    expect(spots).toHaveLength(4);
+    spots.slice(1).forEach((s, i) => expect((s - spots[i]!) * len).toBeGreaterThanOrEqual(bird - 1));
+    expect(spots[0]! * len).toBeGreaterThanOrEqual(bird * 0.8 - 1e-6);
+    expect(spots[3]!).toBeLessThanOrEqual(1);
+  });
+  it("still places every bird when the branch is crowded", () => {
+    expect(perchSpots(8, 20, 0.4, 60, bird)).toHaveLength(8);
+    expect(perchSpots(0, 3, 0.4, len, bird)).toEqual([]);
+  });
+});
+
+describe("scars", () => {
+  it("turns each injured stretch into one scar on its year, and ignores sickness", () => {
+    const days = buildDays(
+      [],
+      [],
+      "2026-01-01",
+      "2026-03-31",
+      offDays([
+        off("i1", "INJURED", "2026-01-10", "2026-01-14"),
+        off("i2", "INJURED", "2026-03-01"),
+        off("s", "SICK", "2026-02-02", "2026-02-05"),
+      ]),
+    );
+    expect(buildYears(days)[0]!.scars).toEqual([
+      { start: "2026-01-10", end: "2026-01-14", from: 9, to: 13 },
+      { start: "2026-03-01", end: "2026-03-01", from: 59, to: 59 },
+    ]);
   });
 });

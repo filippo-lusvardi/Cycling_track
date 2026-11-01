@@ -4,7 +4,7 @@ import { t } from "./i18n";
 import type { Wellness } from "./intervals";
 import { addDays } from "./training";
 
-export type Signal = { key: "hrv" | "fatigue" | "stress" | "mood" | "sleep"; text: string };
+export type Signal = { key: "load" | "hrv" | "fatigue" | "stress" | "mood" | "sleep"; text: string };
 
 /** HRV: the last week's mean this far under the four weeks before. */
 const HRV_DROP = 0.08;
@@ -49,12 +49,12 @@ export function earlySignals(rows: Row[], today: string): Signal[] {
       key: "hrv",
       text: loadUp
         ? t(
-            "HRV has been below your usual for a week while load went up.",
-            "L'HRV è sotto il tuo solito da una settimana mentre il carico è salito.",
+            "HRV below your usual for a week, while load went up.",
+            "HRV sotto il tuo solito da una settimana, mentre il carico è salito.",
           )
         : t(
-            "HRV has been below your usual for a week.",
-            "L'HRV è sotto il tuo solito da una settimana.",
+            "HRV below your usual for a week.",
+            "HRV sotto il tuo solito da una settimana.",
           ),
     });
   }
@@ -63,22 +63,22 @@ export function earlySignals(rows: Row[], today: string): Signal[] {
     [
       "fatigue",
       t(
-        "Fatigue has been high on 3 of the last 4 check-ins.",
-        "La fatica è stata alta in 3 degli ultimi 4 check-in.",
+        "Fatigue high in 3 of the last 4 check-ins.",
+        "Fatica alta in 3 degli ultimi 4 check-in.",
       ),
     ],
     [
       "stress",
       t(
-        "Stress has been high on 3 of the last 4 check-ins.",
-        "Lo stress è stato alto in 3 degli ultimi 4 check-in.",
+        "Stress high in 3 of the last 4 check-ins.",
+        "Stress alto in 3 degli ultimi 4 check-in.",
       ),
     ],
     [
       "mood",
       t(
-        "Mood has been low on 3 of the last 4 check-ins.",
-        "L'umore è stato basso in 3 degli ultimi 4 check-in.",
+        "Mood low in 3 of the last 4 check-ins.",
+        "Umore basso in 3 degli ultimi 4 check-in.",
       ),
     ],
   ];
@@ -98,8 +98,8 @@ export function earlySignals(rows: Row[], today: string): Signal[] {
       signals.push({
         key: "sleep",
         text: t(
-          "You've slept well under your usual on 3 of the last 4 nights.",
-          "Hai dormito molto meno del solito in 3 delle ultime 4 notti.",
+          "Short nights: 3 of the last 4 well under your usual.",
+          "Notti corte: 3 delle ultime 4 molto sotto il tuo solito.",
         ),
       });
   }

@@ -1,6 +1,7 @@
 // What a tap on the tree opens: today (crown), one or more days (branches, buds of rest), or a planned workout.
 import { useQueryClient } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
+import { ChevronDown, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ActivityRow } from "@/components/ActivityRow";
@@ -8,7 +9,7 @@ import { CheckInForm, isCheckedIn, useCheckInState } from "@/components/CheckIn"
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import type { FocusInfo } from "@/hooks/use-focus";
 import { roleText } from "@/lib/focus";
-import { FOCUS_LABEL, FOCUSES, raceSummary, type Focus } from "@/lib/races";
+import { FOCUS_LABEL, FOCUS_PURPOSE, FOCUSES, raceSummary, type Focus } from "@/lib/races";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -20,7 +21,7 @@ import {
   type PlannedEvent,
   type Wellness,
 } from "@/lib/intervals";
-import { advice, ceilingText, readinessFor, recommendation } from "@/lib/readiness";
+import { advice, readinessFor, recommendation } from "@/lib/readiness";
 import { computeForm, formatDuration, formZoneLabel, isoDate } from "@/lib/training";
 import {
   crownFor,
@@ -44,7 +45,12 @@ export type Sheet =
   | { kind: "days"; title: string; dates: string[] }
   | { kind: "plan"; event: PlannedEvent };
 
-const LEVEL = [t("low", "bassa"), t("average", "media"), t("high", "alta"), t("extreme", "estrema")];
+const LEVEL = [
+  t("low", "bassa"),
+  t("average", "media"),
+  t("high", "alta"),
+  t("extreme", "estrema"),
+];
 
 export function TreeSheet({
   sheet,
@@ -93,7 +99,10 @@ export function TreeSheet({
   );
 }
 
-const OFF_LABEL: Record<OffKind, string> = { SICK: t("Sick", "Malato"), INJURED: t("Injured", "Infortunato") };
+const OFF_LABEL: Record<OffKind, string> = {
+  SICK: t("Sick", "Malato"),
+  INJURED: t("Injured", "Infortunato"),
+};
 
 /** Writes a sick/injured change to the intervals.icu calendar; needs the network (events aren't queued offline). */
 function useOffChange() {
@@ -101,7 +110,9 @@ function useOffChange() {
   const [busy, setBusy] = useState(false);
   const run = async (kind: OffKind, c: OffChange) => {
     if (!navigator.onLine) {
-      toast.error(t("You're offline: try again when connected", "Sei offline: riprova quando sei connesso"));
+      toast.error(
+        t("You're offline: try again when connected", "Sei offline: riprova quando sei connesso"),
+      );
       return;
     }
     setBusy(true);
@@ -110,7 +121,9 @@ function useOffChange() {
       else if (c.op === "update") await updateOffEvent(c.id, c.start, c.last);
       else await deleteEvent(c.id);
       await qc.invalidateQueries({ queryKey: ["events"] });
-      toast.success(t("Saved to the intervals.icu calendar", "Salvato nel calendario di intervals.icu"));
+      toast.success(
+        t("Saved to the intervals.icu calendar", "Salvato nel calendario di intervals.icu"),
+      );
     } catch {
       toast.error(t("Couldn't save. Try again", "Salvataggio non riuscito. Riprova"));
     } finally {
@@ -143,71 +156,33 @@ function TodayBody({
   const [, setState] = useCheckInState(today);
   // Same numbers as the crown: this morning's fitness and fatigue until today has an activity, and the
   // score estimated from HRV, sleep and form until the check-in is done.
+  const crown = crownFor(wellness, acts, today, offEvents);
   const r = readinessFor(morningWellness(wellness, acts, today), today);
-  const crown = crownFor(wellness, acts, today);
-  const adv = crown.score != null ? advice(crown.score) : null;
   const rec = crown.score != null ? recommendation(crown.score, crown.form) : null;
+  // A day ready for intensity, without a race nearby: today's session is the block's.
+  const quality = !focus.role && rec?.zones === "Z4–Z5";
   const done = isCheckedIn(row);
   return (
-    <div className="space-y-5">
-      {crown.signals.length > 0 && (
-        <div className="space-y-1 rounded-md border border-border p-3">
-          <div className="eyebrow">{t("Worth watching", "Da tenere d'occhio")}</div>
-          {crown.signals.map((s) => (
-            <p key={s.key} className="text-sm">
-              {s.text}
-            </p>
-          ))}
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "A trend over several days, before it shows in readiness. An easier day or two now protects the weeks ahead.",
-              "Una tendenza di più giorni, prima che si veda nella prontezza. Un giorno o due più leggeri ora proteggono le settimane a venire.",
-            )}
-          </p>
-        </div>
+    <div className="space-y-4 pb-1">
+      {crown.score != null && crown.season && rec ? (
+        <PlanCard crown={crown} rec={rec} limit={limit} focus={focus} quality={quality} />
+      ) : (
+        <p className="text-[15px] text-muted-foreground">
+          {t(
+            "Not enough data for today yet. Do the check-in to get advice.",
+            "Non ci sono ancora abbastanza dati per oggi. Fai il check-in per avere un consiglio.",
+          )}
+        </p>
       )}
-      {adv && crown.season && (
-        <div className="space-y-2">
-          <span
-            className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold text-background"
-            style={{ background: SEASON_COLOR[crown.season] }}
-          >
-            {adv.title} · {crown.score}
-            {crown.estimated ? t(" · estimated", " · stimato") : ""}
-          </span>
-          <p className="text-sm text-muted-foreground">{adv.text}</p>
-          {limit && (
-            <p className="stat-num text-lg font-semibold" style={{ color: SEASON_COLOR[crown.season] }}>
-              {ceilingText(limit)}
-            </p>
-          )}
-          {focus.role ? (
-            // Race days, the day after and the taper come before the block and the season.
-            <p className="text-sm font-medium text-birch">{roleText(focus.role)}</p>
-          ) : (
-            rec && (
-              <p className="text-sm">
-                <span className="stat-num font-semibold">{rec.zones}</span> ·{" "}
-                <span className="stat-num">{rec.duration}</span>
-                <span className="text-muted-foreground">
-                  {" "}
-                  · {rec.zones === "Z4–Z5" ? focus.session : rec.text}
-                </span>
-              </p>
-            )
-          )}
-          {r.components.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {r.components.map((c) => `${c.label} ${Math.round(c.score)}`).join(" · ")}
-            </p>
-          )}
-        </div>
-      )}
-      <FocusPanel focus={focus} />
+      {crown.signals.length > 0 && <WatchCard crown={crown} />}
+      {r.components.length > 0 && <ScoreDetails r={r} crown={crown} />}
+      <FocusPanel focus={focus} quality={quality} />
       <Collapsible>
         <CollapsibleTrigger asChild>
-          <Button variant="secondary" className="w-full">
-            {done ? t("Edit check-in", "Modifica check-in") : t("Check in", "Fai il check-in")}
+          <Button variant="secondary" className="h-11 w-full text-[15px]">
+            {done
+              ? t("Edit today's check-in", "Modifica il check-in di oggi")
+              : t("Do today's check-in", "Fai il check-in di oggi")}
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4">
@@ -222,8 +197,10 @@ function TodayBody({
           />
         </CollapsibleContent>
       </Collapsible>
-      <div className="space-y-2">
-        <div className="eyebrow">{t("Off the bike today?", "Fermo oggi?")}</div>
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium text-muted-foreground">
+          {t("Not riding today because you're…", "Oggi non pedali perché sei…")}
+        </h3>
         <div className="grid grid-cols-2 gap-2">
           {(["SICK", "INJURED"] as const).map((k) => (
             <Button
@@ -231,99 +208,327 @@ function TodayBody({
               variant="outline"
               disabled={busy}
               aria-pressed={offToday === k}
-              className={cn(offToday === k && "border-lingon text-lingon")}
+              className={cn("h-11 text-[15px]", offToday === k && "border-lingon text-lingon")}
               onClick={() => change(k, offToggle(offEvents, k, today))}
             >
-              {offToday === k ? t(`${OFF_LABEL[k]} · undo`, `${OFF_LABEL[k]} · annulla`) : OFF_LABEL[k]}
+              {offToday === k
+                ? t(`${OFF_LABEL[k]} · undo`, `${OFF_LABEL[k]} · annulla`)
+                : OFF_LABEL[k]}
             </Button>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-/** The training block: what it is, why, the races ahead, and a pin to choose it by hand. */
-function FocusPanel({ focus }: { focus: FocusInfo }) {
+/** One labelled fact: a small label above a clear value. */
+function Fact({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div className={cn("min-w-0", wide && "col-span-2 sm:col-span-1")}>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="stat-num whitespace-nowrap text-base font-semibold">{value}</dd>
+    </div>
+  );
+}
+
+/** What to do today: the season's advice, the facts to ride by, and the block's session on a quality day. */
+function PlanCard({
+  crown,
+  rec,
+  limit,
+  focus,
+  quality,
+}: {
+  crown: ReturnType<typeof crownFor>;
+  rec: ReturnType<typeof recommendation>;
+  limit: { watts: number | null; bpm: number | null } | null;
+  focus: FocusInfo;
+  quality: boolean;
+}) {
+  const color = SEASON_COLOR[crown.season!];
+  const under =
+    limit &&
+    [limit.watts != null && `${limit.watts} W`, limit.bpm != null && `${limit.bpm} bpm`]
+      .filter(Boolean)
+      .join(" · ");
+  return (
+    <section
+      className="space-y-4 rounded-xl border p-4"
+      style={{ borderColor: `color-mix(in oklab, ${color} 45%, var(--border))` }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium" style={{ color }}>
+            {crown.seasonLabel}
+          </div>
+          <h3 className="text-2xl font-semibold leading-tight">{advice(crown.score!).title}</h3>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="stat-num text-2xl font-semibold leading-none" style={{ color }}>
+            {crown.score}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {crown.estimated
+              ? t("readiness, estimated", "prontezza, stimata")
+              : t("readiness", "prontezza")}
+          </div>
+        </div>
+      </div>
+      <p className="text-[15px] leading-relaxed">
+        {focus.role
+          ? roleText(focus.role)
+          : quality
+            ? t(
+                "You're ready for intensity: do this block's session.",
+                "Sei pronto per l'intensità: fai la seduta del blocco.",
+              )
+            : rec.text}
+      </p>
+      {!focus.role && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-[auto_auto_1fr] sm:gap-x-8">
+          <Fact label={t("Zones", "Zone")} value={rec.zones} />
+          <Fact label={t("Duration", "Durata")} value={rec.duration} />
+          {under && <Fact label={t("Stay under", "Resta sotto")} value={under} wide />}
+        </dl>
+      )}
+      {quality && (
+        <div className="rounded-lg bg-secondary/60 p-3">
+          <div className="text-xs text-muted-foreground">
+            {t(
+              `Session · ${FOCUS_LABEL[focus.focus]} block`,
+              `Seduta · blocco ${FOCUS_LABEL[focus.focus]}`,
+            )}
+          </div>
+          <p className="mt-1 text-[15px] leading-relaxed">{focus.session}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Trends worth acting on: load rising too fast (which already caps the score), or body signals. */
+function WatchCard({ crown }: { crown: ReturnType<typeof crownFor> }) {
+  const load = crown.signals.some((s) => s.key === "load");
+  return (
+    <section className="space-y-2 rounded-xl border border-birch/40 bg-birch/5 p-4">
+      <h3 className="flex items-center gap-2 text-base font-semibold text-birch">
+        <TriangleAlert className="size-4 shrink-0" aria-hidden />
+        {load
+          ? t("Load is rising too fast", "Il carico sale troppo in fretta")
+          : t("Worth watching", "Da tenere d'occhio")}
+      </h3>
+      <ul className="list-disc space-y-1 pl-5 text-[15px] leading-relaxed">
+        {crown.signals.map((s) => (
+          <li key={s.key}>{s.text}</li>
+        ))}
+      </ul>
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        {load
+          ? [
+              t(
+                "Easy rides count too: fatigue builds with volume, not only intensity. Today's advice stays capped until it settles.",
+                "Contano anche le uscite facili: la fatica cresce col volume, non solo con l'intensità. Il consiglio di oggi resta limitato finché non si assesta.",
+              ),
+              crown.load.returning
+                ? t(
+                    " You're coming back from a break, so the limits are stricter.",
+                    " Stai rientrando da uno stop, quindi i limiti sono più severi.",
+                  )
+                : "",
+            ].join("")
+          : t(
+              "These show up before readiness drops. An easier day or two now protects the weeks ahead.",
+              "Si vedono prima che la prontezza cali. Un giorno o due più leggeri ora proteggono le settimane a venire.",
+            )}
+      </p>
+    </section>
+  );
+}
+
+const scoreWord = (v: number) =>
+  v >= 75
+    ? t("good", "buono")
+    : v >= 55
+      ? t("fair", "discreto")
+      : v >= 40
+        ? t("low", "basso")
+        : t("poor", "scarso");
+const scoreColor = (v: number) => LEVEL_COLOR[v >= 75 ? 0 : v >= 55 ? 1 : v >= 40 ? 2 : 3]!;
+
+/** What the score is made of, one row per part. */
+function ScoreDetails({
+  r,
+  crown,
+}: {
+  r: ReturnType<typeof readinessFor>;
+  crown: ReturnType<typeof crownFor>;
+}) {
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-medium text-muted-foreground">
+        {t("What's in the score", "Cosa c'è nel punteggio")}
+      </h3>
+      {r.components.map((c) => (
+        <div
+          key={c.key}
+          className="grid grid-cols-[7.5rem_1fr] items-center gap-x-3 gap-y-1 sm:grid-cols-[9rem_1fr]"
+        >
+          <div className="text-sm font-medium">{c.label}</div>
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${Math.round(c.score)}%`, background: scoreColor(c.score) }}
+              />
+            </div>
+            <span className="w-16 text-right text-sm" style={{ color: scoreColor(c.score) }}>
+              {scoreWord(c.score)}
+            </span>
+          </div>
+          <div className="stat-num col-start-2 text-xs text-muted-foreground">{c.detail}</div>
+        </div>
+      ))}
+      {crown.load.level > 0 && r.uncapped != null && (
+        <p className="text-sm text-muted-foreground">
+          {t(
+            `Together they make ${r.uncapped}; the load cap brings it to ${crown.score}.`,
+            `Insieme fanno ${r.uncapped}; il limite di carico lo porta a ${crown.score}.`,
+          )}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The training block, folded to its name until tapped: what it trains, its session, why it was chosen, the races
+ * ahead, and a hand override.
+ */
+function FocusPanel({ focus, quality }: { focus: FocusInfo; quality: boolean }) {
   const next = focus.races.filter((r) => r.date >= isoDate(new Date())).slice(0, 3);
   return (
-    <div className="space-y-2 rounded-md border border-border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="eyebrow">{t("Training focus", "Focus di allenamento")}</div>
-        <select
-          aria-label={t("Choose the focus", "Scegli il focus")}
-          value={focus.pinned ?? ""}
-          onChange={(e) => focus.setPin((e.target.value || null) as Focus | null)}
-          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
-        >
-          <option value="" className="bg-popover">
-            {t("Automatic", "Automatico")}
-          </option>
-          {FOCUSES.map((f) => (
-            <option key={f} value={f} className="bg-popover">
-              {FOCUS_LABEL[f]}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="font-semibold">
-        {t(`${FOCUS_LABEL[focus.focus]} block`, `Blocco ${FOCUS_LABEL[focus.focus]}`)}
-        <span className="font-normal text-muted-foreground">
-          {focus.pinned
-            ? t(" · chosen by you", " · scelto da te")
-            : focus.since
-              ? t(` · since ${format(parseISO(focus.since), "d MMM")}`, ` · dal ${format(parseISO(focus.since), "d MMM")}`)
-              : ""}
-        </span>
-      </div>
-      <p className="text-sm">
-        <span className="text-muted-foreground">{t("On a summer day: ", "In un giorno d'estate: ")}</span>
-        {focus.session}
-      </p>
-      {!focus.pinned && (
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button size="sm" variant="ghost" className="-ml-3">
-              {t("Why", "Perché")}
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-1">
-            {focus.why.map((l) => (
-              <p key={l} className="text-sm text-muted-foreground">
-                {l}
-              </p>
-            ))}
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-      {next.length > 0 && (
-        <div className="space-y-0.5 pt-1">
-          <div className="eyebrow">{t("Next races", "Prossime gare")}</div>
-          {next.map((r) => (
-            <p key={r.id} className="text-sm">
-              <span className="stat-num">{format(parseISO(r.date), "d MMM")}</span> · {r.name}{" "}
-              <span className={r.info ? "text-muted-foreground" : "text-birch"}>· {raceSummary(r)}</span>
-            </p>
-          ))}
+    <Collapsible className="rounded-xl border border-border">
+      <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-xl p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <div className="min-w-0">
+          <div className="text-sm text-muted-foreground">
+            {t("Training block", "Blocco di allenamento")}
+          </div>
+          <h3 className="text-lg font-semibold leading-tight">{FOCUS_LABEL[focus.focus]}</h3>
         </div>
-      )}
-    </div>
+        <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+          {focus.pinned
+            ? t("chosen by you", "scelto da te")
+            : focus.since
+              ? t(
+                  `since ${format(parseISO(focus.since), "d MMM")}`,
+                  `dal ${format(parseISO(focus.since), "d MMM")}`,
+                )
+              : ""}
+          <ChevronDown
+            className="size-4 transition-transform group-data-[state=open]:rotate-180"
+            aria-hidden
+          />
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-3 px-4 pb-4">
+        <p className="text-[15px] leading-relaxed">{FOCUS_PURPOSE[focus.focus]}</p>
+        {!quality && (
+          <div className="rounded-lg bg-secondary/60 p-3">
+            <div className="text-xs text-muted-foreground">
+              {t(
+                "Its session, on a day you're ready for intensity",
+                "La sua seduta, in un giorno pronto per l'intensità",
+              )}
+            </div>
+            <p className="mt-1 text-[15px] leading-relaxed">{focus.session}</p>
+          </div>
+        )}
+        {!focus.pinned && focus.why.length > 0 && (
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button size="sm" variant="ghost" className="group -ml-3 text-sm">
+                {t("Why this block", "Perché questo blocco")}
+                <ChevronDown className="transition-transform group-data-[state=open]:rotate-180" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-muted-foreground">
+                {focus.why.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+        {next.length > 0 && (
+          <div className="space-y-2 border-t border-border pt-3">
+            <h4 className="text-sm text-muted-foreground">{t("Next races", "Prossime gare")}</h4>
+            <ul className="space-y-2">
+              {next.map((r) => (
+                <li key={r.id} className="grid grid-cols-[3.75rem_1fr] gap-x-3">
+                  <span className="stat-num text-sm font-semibold">
+                    {format(parseISO(r.date), "d MMM")}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px]">{r.name}</span>
+                    <span
+                      className={cn(
+                        "block text-sm",
+                        r.info ? "text-muted-foreground" : "text-birch",
+                      )}
+                    >
+                      {r.info
+                        ? raceSummary(r)
+                        : t(
+                            "Kind not set: set it in Calendar",
+                            "Tipo non impostato: impostalo nel Calendario",
+                          )}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <label className="flex items-center justify-between gap-3 border-t border-border pt-3 text-sm text-muted-foreground">
+          {t("Choose the block yourself", "Scegli tu il blocco")}
+          <select
+            value={focus.pinned ?? ""}
+            onChange={(e) => focus.setPin((e.target.value || null) as Focus | null)}
+            className="h-10 rounded-md border border-input bg-transparent px-2 text-sm text-foreground"
+          >
+            <option value="" className="bg-popover">
+              {t("Automatic", "Automatico")}
+            </option>
+            {FOCUSES.map((f) => (
+              <option key={f} value={f} className="bg-popover">
+                {FOCUS_LABEL[f]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
-/** Plain-text reading of a day's wellness: the text equivalent of the trunk and buds. */
-function dayLine(w: Wellness | undefined): string | null {
-  if (!w) return null;
+/** A day's wellness as labelled facts: the text equivalent of the trunk and buds. */
+function dayFacts(w: Wellness | undefined): [string, string][] {
+  if (!w) return [];
   const tsb = w.ctl != null && w.atl != null ? computeForm(w.ctl, w.atl) : null;
-  return [
-    w.ctl != null && `${t("Fitness", "Forma fisica")} ${Math.round(w.ctl)}`,
-    tsb != null && `${t("form", "forma")} ${Math.round(tsb)} (${formZoneLabel(tsb).toLowerCase()})`,
-    w.sleepSecs && `${t("slept", "dormito")} ${formatDuration(w.sleepSecs)}`,
-    w.fatigue != null && `${t("fatigue", "fatica")} ${LEVEL[w.fatigue - 1]}`,
-    w.stress != null && `stress ${LEVEL[w.stress - 1]}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const facts: [string, string | false | null][] = [
+    [t("Fitness", "Forma fisica"), w.ctl != null && String(Math.round(w.ctl))],
+    [
+      t("Form", "Forma"),
+      tsb != null &&
+        `${tsb > 0 ? "+" : ""}${Math.round(tsb)} · ${formZoneLabel(tsb).toLowerCase()}`,
+    ],
+    [t("Sleep", "Sonno"), !!w.sleepSecs && formatDuration(w.sleepSecs)],
+    [t("Fatigue", "Fatica"), w.fatigue != null && LEVEL[w.fatigue - 1]!],
+    ["Stress", w.stress != null && LEVEL[w.stress - 1]!],
+  ];
+  return facts.filter((f): f is [string, string] => !!f[1]);
 }
 
 /** A sick or injured stretch: when, and what it did to fitness. */
@@ -333,14 +538,16 @@ function OffLine({ e, wellness }: { e: PlannedEvent; wellness: Wellness[] }) {
   const ctl = (d: string) => wellness.find((w) => w.id === d)?.ctl;
   const [from, to] = [ctl(e.date), ctl(last)];
   return (
-    <p className="text-sm">
-      <span className="font-medium">{offTitle(kind, e.date, last)}.</span>{" "}
-      {from != null && to != null && (
-        <span className="stat-num">
-          {t("Fitness", "Forma fisica")} {Math.round(from)} → {Math.round(to)}.{" "}
-        </span>
-      )}
-      <span className="text-muted-foreground">
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <span className="text-base font-semibold">{offTitle(kind, e.date, last)}</span>
+        {from != null && to != null && (
+          <span className="stat-num text-sm text-muted-foreground">
+            {t("Fitness", "Forma fisica")} {Math.round(from)} → {Math.round(to)}
+          </span>
+        )}
+      </div>
+      <p className="text-[15px] leading-relaxed text-muted-foreground">
         {kind === "SICK"
           ? t(
               "A dip after illness is normal; come back with a few easy days.",
@@ -350,8 +557,8 @@ function OffLine({ e, wellness }: { e: PlannedEvent; wellness: Wellness[] }) {
               "Fitness waits for you; let the injury heal before it asks for load.",
               "La forma ti aspetta; lascia guarire l'infortunio prima di caricarlo.",
             )}
-      </span>
-    </p>
+      </p>
+    </div>
   );
 }
 
@@ -367,7 +574,9 @@ function DaysBody({
   offEvents: PlannedEvent[];
 }) {
   const [change, busy] = useOffChange();
-  const stretches = offEvents.filter((e) => dates.some((d) => e.date <= d && d <= (e.end ?? e.date)));
+  const stretches = offEvents.filter((e) =>
+    dates.some((d) => e.date <= d && d <= (e.end ?? e.date)),
+  );
   // Only a run of rest days can be marked; days with rides are left as they are.
   const markable =
     !stretches.length && dates.every((d) => !acts.some((a) => a.start_date_local.startsWith(d)));
@@ -406,14 +615,23 @@ function DaysBody({
       )}
       {dates.map((d) => {
         const day = acts.filter((a) => a.start_date_local.startsWith(d));
-        const line = dayLine(wellness.find((w) => w.id === d));
-        if (dates.length > 1 && !day.length && !line) return null;
+        const facts = dayFacts(wellness.find((w) => w.id === d));
+        if (dates.length > 1 && !day.length && !facts.length) return null;
         return (
           <div key={d} className="space-y-1">
             {dates.length > 1 && (
               <div className="eyebrow">{format(parseISO(d), "EEEE d MMMM")}</div>
             )}
-            {line && <p className="text-sm text-muted-foreground">{line}</p>}
+            {facts.length > 0 && (
+              <dl className="flex flex-wrap gap-x-5 gap-y-1">
+                {facts.map(([label, value]) => (
+                  <div key={label} className="flex items-baseline gap-1.5">
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
+                    <dd className="text-sm font-medium">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
             {day.length === 0 && <p className="text-sm">{t("Rest day.", "Giorno di riposo.")}</p>}
             <div className="-mx-3">
               {day.map((a) => {
@@ -430,7 +648,8 @@ function DaysBody({
                             {INTENSITY_WORD[intensity - 1]}
                           </span>
                         )}
-                        {climb >= 50 && `${intensity ? " · " : ""}${Math.round(climb)} ${t("m climbed", "m di dislivello")}`}
+                        {climb >= 50 &&
+                          `${intensity ? " · " : ""}${Math.round(climb)} ${t("m climbed", "m di dislivello")}`}
                         {feel && (
                           <>
                             {intensity || climb >= 50 ? " · " : ""}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ceiling, ceilingText, computeReadiness, formScore, hrvScore, readinessInputFor, recommendation } from "./readiness";
+import { capForLoad, ceiling, ceilingText, computeReadiness, loadCheck, readinessFor, formScore, hrvScore, readinessInputFor, recommendation } from "./readiness";
 
 const base = { hrvToday: null, hrvBaseline: null, sleepSecs: null, sleepQuality: null, ctl: null, atl: null, stress: null, fatigue: null, mood: null };
 
@@ -74,5 +74,35 @@ describe("ceiling", () => {
     expect(ceiling(60, { power: [], hr: [128, 142] })).toEqual({ watts: null, bpm: 142 });
     expect(ceilingText({ watts: null, bpm: 142 })).toBe("Stay under 142 bpm");
     expect(ceiling(60, { power: [], hr: [] })).toBeNull();
+  });
+});
+
+describe("load check", () => {
+  const day = (id: string, ctl: number, atl: number) => ({ ...base, id, hrv: null, ctl, atl });
+  // Coming back: fitness 36 → 42 in a week, fatigue 64 (the ramp in the Analysis chart, 1 Nov 2026).
+  const rows = [day("2026-10-25", 36, 40), day("2026-11-01", 42, 64)];
+  it("flags fatigue far above fitness and a steep ramp, easy rides or not", () => {
+    const l = loadCheck(rows, "2026-11-01");
+    expect(l.ratio).toBeCloseTo(1.52, 2);
+    expect(l.ramp).toBe(6);
+    expect(l.level).toBe(2);
+    expect(l.reasons).toHaveLength(2);
+  });
+  it("is stricter coming back from a break", () => {
+    const mild = [day("2026-10-25", 40, 44), day("2026-11-01", 44.5, 55)];
+    expect(loadCheck(mild, "2026-11-01").level).toBe(0);
+    expect(loadCheck(mild, "2026-11-01", true).level).toBe(1);
+  });
+  it("caps readiness: no intensity on caution, go easy when it's too much", () => {
+    const fresh = { ...base, sleepSecs: 8 * 3600, sleepQuality: 1, fatigue: 1, stress: 1, mood: 1 };
+    const r = readinessFor([{ ...fresh, id: "2026-10-25", hrv: null, ctl: 36, atl: 40 }, { ...fresh, id: "2026-11-01", hrv: null, ctl: 42, atl: 64 }], "2026-11-01");
+    expect(r.uncapped).toBeGreaterThan(54);
+    expect(r.score).toBe(54);
+    expect(r.advice?.title).toBe("Go easy");
+    expect(capForLoad(90, { level: 1, ratio: 1.35, ramp: 2, returning: false, reasons: [] })).toBe(74);
+  });
+  it("leaves a steady load alone, and ignores tiny fitness", () => {
+    expect(loadCheck([day("2026-10-25", 50, 52), day("2026-11-01", 52, 58)], "2026-11-01").level).toBe(0);
+    expect(loadCheck([day("2026-11-01", 5, 20)], "2026-11-01").ratio).toBeNull();
   });
 });

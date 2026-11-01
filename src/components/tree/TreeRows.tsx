@@ -3,12 +3,14 @@
 import { parseISO } from "date-fns";
 import { useId, type CSSProperties, type ReactNode } from "react";
 import { dayHeight, LANE, MONTH_H, REST_STEP, restHeight, WEEK_H } from "./geometry";
-import { KINDS } from "@/lib/activity-kind";
+import { KINDS, type Kind } from "@/lib/activity-kind";
 import type { OffKind } from "@/lib/intervals";
 import { FOCUS_LABEL, type Focus } from "@/lib/races";
 import { formatDuration } from "@/lib/training";
 import {
+  leafSpots,
   LEVEL_COLOR,
+  perchSpots,
   rng,
   type Chapter,
   type TreeBranch,
@@ -197,8 +199,8 @@ function Leaves({
   const fill = leafColor(b);
   return (
     <>
-      {Array.from({ length: b.leaves }, (_, i) => {
-        const [x, y] = at(from + ((1 - from) * (i + 1)) / b.leaves);
+      {leafSpots(b.leaves, from).map((t, i) => {
+        const [x, y] = at(t);
         const off = (i % 2 ? 1 : -1) * (2 + r() * size);
         return (
           <ellipse
@@ -217,6 +219,59 @@ function Leaves({
   );
 }
 
+/** Most birds drawn on one branch; more would hide it. */
+const MAX_BIRDS = 8;
+
+/**
+ * A small sparrow perched facing outward, its feet at (x, y). Drawn facing right in a unit box (feet at the origin,
+ * about 16 × 10) and mirrored for the left side.
+ */
+function Bird({ x, y, side, s = 1 }: { x: number; y: number; side: -1 | 1; s?: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${side * s} ${s})`}>
+      <path d="M0.4,-0.9 L0.2,0 M1.7,-0.9 L1.6,0" stroke="var(--birch)" strokeWidth={0.7} strokeLinecap="round" />
+      {/* Tail, back, head, breast and belly as one outline. */}
+      <path
+        d="M-6.6,-2.3 L-7.1,-4 L-3.4,-4.6 C-2.2,-7.6 1.4,-8.4 3,-7.6 C3.3,-9.8 6.8,-10 7.2,-7.5 C7.4,-6.3 6.6,-5.4 5.6,-5 C5.4,-2.4 3.2,-0.8 0.7,-0.8 C-1.4,-0.7 -2.8,-1.7 -3.5,-2.7 Z"
+        fill={BIRD}
+      />
+      <ellipse cx={2.6} cy={-2.8} rx={2.5} ry={1.6} fill={BIRD_BELLY} />
+      <path d="M-2.8,-3.7 C-1,-6.6 2.4,-6.5 3.3,-4.5 C1.7,-3.4 -0.6,-3 -2.8,-3.7 Z" fill={BIRD_WING} />
+      <path d="M7.1,-7.4 L9,-6.8 L7,-6.3 Z" fill="var(--birch)" />
+      <circle cx={5.7} cy={-7.7} r={0.6} fill="var(--background)" />
+    </g>
+  );
+}
+
+/** Size of a bird on a daily branch with room to spare (the drawing is about 16 units wide). */
+const BIRD_SCALE = 1.4;
+
+/** One bird per brioche, on free stretches of the branch (clear of the leaves on top), sitting on it. */
+function Birds({
+  b,
+  at,
+  length,
+  from,
+}: {
+  b: TreeBranch;
+  at: (t: number) => readonly [number, number];
+  length: number;
+  from: number;
+}) {
+  const n = Math.min(b.brioches, MAX_BIRDS);
+  // On a short branch (a phone, a short ride) birds shrink a little so they fit side by side, down to 2/3 size.
+  const scale = Math.max(BIRD_SCALE * 0.65, Math.min(BIRD_SCALE, (length * 0.8) / (n * 16 * 1.1)));
+  const spots = perchSpots(n, b.leaves, from, length, 16 * scale);
+  return (
+    <>
+      {spots.map((t, i) => {
+        const [x, y] = at(t);
+        return <Bird key={i} x={x} y={y - b.thickness / 2} side={b.side} s={scale} />;
+      })}
+    </>
+  );
+}
+
 const quad =
   (x0: number, y0: number, qx: number, qy: number, x1: number, y1: number) => (t: number) =>
     [
@@ -230,20 +285,21 @@ function Branch({ b, cx, trunk, y0 }: { b: TreeBranch; cx: number; trunk: number
   const x0 = cx + b.side * (trunk / 2 - 1);
   const [qx, qy] = [x0 + b.side * reach * 0.55, y0 - rise * 0.1];
   const [x1, y1] = [x0 + b.side * reach, y0 - rise];
-  const kind = KINDS[b.kind];
   return (
     <g>
       <path
         d={`M${x0},${y0} Q${qx},${qy} ${x1},${y1}`}
         fill="none"
-        stroke={`color-mix(in oklab, var(--bark) 65%, ${kind.color})`}
+        stroke={YOUNG_WOOD}
         strokeWidth={b.thickness}
         strokeLinecap="round"
       />
-      {b.kind === "gym" && (
-        <circle cx={x1} cy={y1} r={b.thickness} fill={kind.color} opacity={0.8} />
-      )}
       <Leaves b={b} at={quad(x0, y0, qx, qy, x1, y1)} from={0.4} size={4.2} />
+      <Birds b={b} at={quad(x0, y0, qx, qy, x1, y1)} length={Math.hypot(x1 - x0, y1 - y0)} from={0.4} />
+      {/* Not a ride: a bud at the tip in the activity's colour. Rides are plain wood. */}
+      {!RIDES.has(b.kind) && (
+        <circle cx={x1} cy={y1} r={Math.max(2.4, b.thickness * 0.55)} fill={KINDS[b.kind].color} />
+      )}
     </g>
   );
 }
@@ -540,6 +596,13 @@ export function WeekRow({
 }
 
 const OLD_WOOD = "color-mix(in oklab, var(--bark) 80%, black)";
+/** A sparrow: warm light brown body, darker wing, cream belly, all readable on the dark sky and on the wood. */
+const BIRD = "color-mix(in oklab, var(--autumn) 55%, color-mix(in oklab, var(--foreground) 55%, var(--bark)))";
+const BIRD_WING = "color-mix(in oklab, var(--bark) 55%, var(--autumn))";
+const BIRD_BELLY = "color-mix(in oklab, var(--foreground) 85%, var(--birch))";
+const RIDES = new Set<Kind>(["road", "gravel", "mtb", "indoor", "ebike"]);
+/** This week's branches: new growth, a warmer, lighter brown than the old wood of past weeks. */
+const YOUNG_WOOD = "color-mix(in oklab, var(--bark) 82%, var(--birch))";
 
 function Bough({ week, cx }: { week: TreeWeek; cx: number }) {
   const side = week.side;
@@ -577,6 +640,7 @@ function Bough({ week, cx }: { week: TreeWeek; cx: number }) {
               strokeLinecap="round"
             />
             <Leaves b={{ ...t, side }} at={at} from={0.2} size={3} />
+            {t.brioches > 0 && <Bird x={bx + side * 4} y={by - 1} side={side} s={0.95} />}
           </g>
         );
       })}

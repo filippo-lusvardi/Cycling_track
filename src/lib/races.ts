@@ -14,6 +14,27 @@ export const FOCUS_LABEL: Record<Focus, string> = {
   sprint: "Sprint",
 };
 
+/** What each focus trains, in one line. */
+export const FOCUS_PURPOSE: Record<Focus, string> = {
+  base: t(
+    "Long steady rides that build the aerobic engine and durability.",
+    "Uscite lunghe e regolari che costruiscono il motore aerobico e la resistenza.",
+  ),
+  aerobic: t(
+    "Sustained efforts near threshold: the power you hold for 20–60 minutes.",
+    "Sforzi prolungati vicino alla soglia: la potenza che tieni per 20–60 minuti.",
+  ),
+  vo2: t(
+    "Hard 3–8 minute efforts that raise your aerobic ceiling.",
+    "Sforzi duri di 3–8 minuti che alzano il tuo tetto aerobico.",
+  ),
+  anaerobic: t(
+    "Very hard efforts of 30 s–2 min, for attacks and repeated surges.",
+    "Sforzi molto duri da 30 s a 2 min, per scatti e accelerazioni ripetute.",
+  ),
+  sprint: t("All-out efforts of 5–15 s, for finishes and jumps.", "Sforzi massimali di 5–15 s, per volate e scatti secchi."),
+};
+
 /** Share of a race's demand per focus, summing to 100. */
 export type Profile = Record<Focus, number>;
 const p = (

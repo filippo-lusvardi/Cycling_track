@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
-import { ArrowLeft, ChevronDown, Plus, Star, Trophy } from "lucide-react";
+import { ArrowLeft, ChevronDown, Minus, Plus, Star, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CAT_COLOR, ElevationProfile } from "@/components/ElevationProfile";
@@ -17,7 +17,8 @@ import { useSegmentNames } from "@/hooks/use-segment-names";
 import { useSegmentLibrary } from "@/hooks/use-segments";
 import { decoupling } from "@/lib/analysis";
 import { detectClimbs } from "@/lib/climbs";
-import type { ActivityDetail, RideStreams } from "@/lib/intervals";
+import { briochesIn, withBrioches, withoutBrioches } from "@/lib/brioches";
+import { setActivityDescription, type ActivityDetail, type RideStreams } from "@/lib/intervals";
 import { activityQuery, streamsQuery, wellnessRangeQuery } from "@/lib/queries";
 import { segmentEngine } from "@/lib/segment-app";
 import { cellOf, mayPass } from "@/lib/segment-index";
@@ -85,7 +86,11 @@ function RideDetail() {
           · {a.type}
         </div>
         <h1 className="text-3xl font-bold tracking-tight">{a.name ?? t("Activity", "Attività")}</h1>
-        {a.description && <p className="mt-2 text-sm text-muted-foreground">{a.description}</p>}
+        {withoutBrioches(a.description) && (
+          <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">
+            {withoutBrioches(a.description)}
+          </p>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label={t("Distance", "Distanza")} value={formatKm(a.distance)} />
@@ -226,7 +231,80 @@ function RideDetail() {
           )}
         </Panel>
       )}
+      <Brioches a={a} />
     </div>
+  );
+}
+
+/**
+ * Brioches eaten on the ride, saved as a "Brioches: n" line in its intervals.icu description. Each one perches as a
+ * bird on the ride's branch in the tree.
+ */
+function Brioches({ a }: { a: ActivityDetail }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const saved = briochesIn(a.description);
+  const [count, setCount] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setCount(saved), [saved]);
+
+  async function set(n: number) {
+    const prev = count;
+    setCount(n);
+    setBusy(true);
+    try {
+      await setActivityDescription(a.id, withBrioches(a.description, n));
+      await qc.invalidateQueries({ queryKey: ["activity", a.id] });
+      await qc.invalidateQueries({ queryKey: ["activities"] });
+    } catch {
+      setCount(prev);
+      toast.error(t("Couldn't save to intervals.icu", "Impossibile salvare su intervals.icu"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel
+      title={`${t("Brioches", "Brioche")}${saved ? ` · ${saved}` : ""}`}
+      action={<ShowHide open={open} onToggle={() => setOpen((v) => !v)} />}
+    >
+      {open && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-center gap-6">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-11"
+              aria-label={t("One less", "Una in meno")}
+              disabled={busy || count === 0}
+              onClick={() => set(count - 1)}
+            >
+              <Minus />
+            </Button>
+            <span className="stat-num w-12 text-center text-4xl font-semibold" aria-live="polite">
+              {count}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-11"
+              aria-label={t("One more", "Una in più")}
+              disabled={busy || count >= 99}
+              onClick={() => set(count + 1)}
+            >
+              <Plus />
+            </Button>
+          </div>
+          <p className="text-center text-sm text-muted-foreground">
+            {t(
+              "Each brioche perches as a bird on this ride's branch. Saved in the ride's description on intervals.icu.",
+              "Ogni brioche si posa come un uccellino sul ramo di questa uscita. Salvata nella descrizione dell'uscita su intervals.icu.",
+            )}
+          </p>
+        </div>
+      )}
+    </Panel>
   );
 }
 

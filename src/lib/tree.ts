@@ -3,7 +3,7 @@ import { parseISO } from "date-fns";
 import { format, t } from "./i18n";
 import { activityKind, type Kind } from "./activity-kind";
 import type { Activity, OffKind, PlannedEvent, Wellness } from "./intervals";
-import { advice, formScore, readinessFor } from "./readiness";
+import { advice, capForLoad, formScore, readinessFor, type LoadCheck } from "./readiness";
 import { earlySignals, type Signal } from "./signals";
 import { addDays, computeForm, formZone } from "./training";
 
@@ -51,6 +51,8 @@ export type TreeBranch = {
   climb: number;
   /** Deterministic 0–1 value from the activity id, for the branch's own curve. */
   seed: number;
+  /** Brioches eaten on the way: one bird each on the branch. */
+  brioches: number;
 };
 
 export type TreeDay = {
@@ -95,7 +97,12 @@ export type TreeYear = {
   distance: number;
   climb: number;
   weekLoads: number[];
+  /** Injured stretches inside the year: scars on its ring. */
+  scars: Scar[];
 };
+
+/** An injured stretch on a year's ring: first and last day as dates and as day of the year (0-based). */
+export type Scar = { start: string; end: string; from: number; to: number };
 
 export type Season = "summer" | "spring" | "autumn" | "winter";
 export type Weather = "sun" | "partly" | "clouds" | "rain";
@@ -120,6 +127,8 @@ export type Crown = {
   weatherPhase: number;
   /** Trends worth watching before they show in readiness: wind in the crown. */
   signals: Signal[];
+  /** How fast load is rising; above level 0 it caps the score. */
+  load: LoadCheck;
 };
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -238,6 +247,7 @@ export function buildDays(
         distance: a.distance ?? 0,
         climb,
         seed: seedOf(a.id),
+        brioches: a.brioches ?? 0, // older cached rows have no count
       };
     });
     days.push({ date: d, ctl, trunk: 0, branches, budSide: turn % 2 ? -1 : 1, off: off.get(d) ?? null });
@@ -341,8 +351,16 @@ export function buildYears(days: TreeDay[]): TreeYear[] {
       distance: 0,
       climb: 0,
       weekLoads: Array<number>(53).fill(0),
+      scars: [],
     };
     const doy = Math.round((Date.parse(d.date) - Date.parse(`${year}-01-01`)) / 86_400_000);
+    if (d.off === "INJURED") {
+      // Consecutive injured days grow one scar, in whichever order the days come.
+      const s = y.scars.find((x) => x.from === doy + 1 || x.to === doy - 1);
+      if (s && s.from === doy + 1) Object.assign(s, { from: doy, start: d.date });
+      else if (s) Object.assign(s, { to: doy, end: d.date });
+      else y.scars.push({ start: d.date, end: d.date, from: doy, to: doy });
+    }
     for (const b of d.branches) {
       y.load += b.load;
       y.minutes += b.minutes;
@@ -353,6 +371,7 @@ export function buildYears(days: TreeDay[]): TreeYear[] {
     }
     map.set(year, y);
   }
+  for (const y of map.values()) y.scars.sort((a, b) => a.from - b.from);
   return [...map.values()].sort((a, b) => a.year - b.year);
 }
 
@@ -494,13 +513,39 @@ const EMPTY_DAY = {
  * Today's crown, from fitness and fatigue as of this morning until you've trained today (see morningWellness).
  * Without the check-in the score still comes from HRV, sleep and form; with none of those, from form alone.
  */
-export function crownFor(allWellness: Wellness[], acts: Activity[], today: string): Crown {
+/** Days back that still count as coming back from a break, and the gap without training that counts as one. */
+const RETURN_DAYS = 42;
+const BREAK_DAYS = 14;
+
+/**
+ * Coming back from injury, illness or a long break: a sick/injured stretch that ended in the last six weeks, or two
+ * weeks or more without training in the last eight. The load limits are stricter then.
+ */
+export function returningFromBreak(acts: Activity[], offEvents: PlannedEvent[], today: string): boolean {
+  const since = addDays(today, -RETURN_DAYS);
+  if (offEvents.some((e) => (e.end ?? e.date) >= since && e.date <= today)) return true;
+  const days = new Set(acts.map(dayOf));
+  let gap = 0;
+  for (let d = addDays(today, -56); d < today; d = addDays(d, 1)) {
+    gap = days.has(d) ? 0 : gap + 1;
+    if (gap >= BREAK_DAYS) return true;
+  }
+  return false;
+}
+
+export function crownFor(
+  allWellness: Wellness[],
+  acts: Activity[],
+  today: string,
+  offEvents: PlannedEvent[] = [],
+): Crown {
   const wellness = morningWellness(allWellness, acts, today);
   const row = wellness.find((w) => w.id === today);
   const form = row?.ctl != null && row.atl != null ? computeForm(row.ctl, row.atl) : null;
   const checkedIn = !!row && (row.sleepQuality ?? row.fatigue ?? row.stress ?? row.mood) != null;
-  const r = readinessFor(wellness, today);
-  const score = r.score ?? (form != null ? Math.round(formScore(form)) : null);
+  const r = readinessFor(wellness, today, returningFromBreak(acts, offEvents, today));
+  // Without readiness inputs the score comes from form alone, still under the load cap.
+  const score = r.score ?? (form != null ? capForLoad(Math.round(formScore(form)), r.load) : null);
   const season = score != null ? seasonOf(score) : null;
   const phase = score != null ? seasonPhase(score) : 0;
   return {
@@ -516,7 +561,12 @@ export function crownFor(allWellness: Wellness[], acts: Activity[], today: strin
     form,
     weather: form != null ? weatherOf(form) : null,
     weatherPhase: form != null ? weatherPhase(form) : 0,
-    signals: earlySignals(allWellness, today),
+    // Load first: it's the one that already holds readiness down.
+    signals: [
+      ...r.load.reasons.map((text) => ({ key: "load" as const, text })),
+      ...earlySignals(allWellness, today),
+    ],
+    load: r.load,
   };
 }
 
@@ -566,4 +616,41 @@ export function offToggle(events: PlannedEvent[], kind: OffKind, today: string):
 export function offTitle(kind: OffKind, start: string, last: string): string {
   const word = kind === "SICK" ? t("Sick", "Malato") : t("Injured", "Infortunato");
   return `${word} ${weekRange(start, last)}`;
+}
+
+/** Where each leaf sits along its branch (0 at the trunk, 1 at the tip), from `from` outward; even ones on top. */
+export const leafSpots = (leaves: number, from: number) =>
+  Array.from({ length: leaves }, (_, i) => from + ((1 - from) * (i + 1)) / leaves);
+
+/**
+ * Spots along a branch (0–1) for `n` perched birds of `bird` px on a branch `length` px long: as far as possible from
+ * the leaves on top of the branch and from each other, never against the trunk or past the tip. Greedy max–min over
+ * a fine grid, so a single bird on a flat ride lands on bare wood, and many birds spread out.
+ */
+export function perchSpots(n: number, leaves: number, from: number, length: number, bird: number): number[] {
+  if (n <= 0 || length <= 0) return [];
+  const lo = Math.min(0.5, (bird * 0.8) / length);
+  const hi = Math.max(lo, 1 - (bird * 0.5) / length);
+  // Leaves on top get in the way of a whole bird; those underneath only of its feet.
+  // The trunk and the tip count too, so a lone bird sits mid-stretch instead of against either end.
+  const blocks = [
+    { t: 0, room: 0.6 * bird },
+    { t: 1, room: 0.3 * bird },
+    ...leafSpots(leaves, from).map((t, i) => ({ t, room: (i % 2 ? 0.2 : 0.9) * bird })),
+  ];
+  const spots: number[] = [];
+  for (let k = 0; k < n; k++) {
+    let best = { t: (lo + hi) / 2, score: -Infinity };
+    for (let t = lo; t <= hi + 1e-9; t += 0.005) {
+      const px = t * length;
+      const fromLeaves = Math.min(Infinity, ...blocks.map((b) => Math.abs(b.t * length - px) - b.room));
+      const fromBirds = Math.min(Infinity, ...spots.map((s) => Math.abs(s * length - px) - bird));
+      // Room from other birds comes first: when a branch is crowded a bird may half-cover a leaf, never a bird.
+      // Ties go outward, where a bird reads as sitting on the branch rather than on the trunk.
+      const score = Math.min(fromLeaves + 0.5 * bird, fromBirds) + t * 0.01;
+      if (score > best.score) best = { t, score };
+    }
+    spots.push(best.t);
+  }
+  return spots.sort((a, b) => a - b);
 }

@@ -253,6 +253,10 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
       t("Spring (≥ 55): endurance day", "Primavera (≥ 55): giornata di fondo"),
       t("Autumn (≥ 40): go easy", "Autunno (≥ 40): vai piano"),
       t("Winter: rest", "Inverno: riposo"),
+      t(
+        "Held at spring when fatigue is 1.3× fitness or fitness rises 6 in a week, and at autumn from 1.5× or +8 (stricter for six weeks after injury, illness or two weeks off): volume counts, not only intensity",
+        "Ferma alla primavera quando la fatica è 1,3× la forma fisica o la forma fisica sale di 6 in una settimana, e all'autunno da 1,5× o +8 (più severa nelle sei settimane dopo infortunio, malattia o due settimane di stop): conta il volume, non solo l'intensità",
+      ),
     ],
   },
   {
@@ -325,7 +329,10 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
     points: [
       t("Length: duration", "Lunghezza: durata"),
       t("Thickness: load", "Spessore: carico"),
-      t("Colour: kind of activity", "Colore: tipo di attività"),
+      t(
+        "A coloured bud at the tip: not a ride (run, gym, walk, swim)",
+        "Una gemma colorata in punta: non è un'uscita in bici (corsa, palestra, camminata, nuoto)",
+      ),
     ],
   },
   {
@@ -340,6 +347,13 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
       t("Gold: tempo", "Oro: tempo"),
       t("Red: hard", "Rosso: dura"),
     ],
+  },
+  {
+    term: t("Birds", "Uccellini"),
+    text: t(
+      "One per brioche eaten on that ride (set it at the bottom of the ride's page).",
+      "Uno per ogni brioche mangiata in quell'uscita (impostala in fondo alla pagina dell'uscita).",
+    ),
   },
   {
     term: t("Small green dots", "Puntini verdi"),
@@ -374,6 +388,10 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
       t("One ring per year, the inner ones older", "Un anello per anno, i più interni sono i più vecchi"),
       t("A wider ring is a bigger year", "Un anello più largo è un anno più intenso"),
       t("Darker grain is a heavier week", "Le venature scure sono le settimane più pesanti"),
+      t(
+        "A knot with the grain flowing around it, the same spiral as on the trunk: an injury, bigger the longer it lasted",
+        "Un nodo con le venature che gli girano attorno, la stessa spirale del tronco: un infortunio, più grande quanto più è durato",
+      ),
       t("Tap a month to open it in the calendar", "Tocca un mese per aprirlo nel calendario"),
     ],
   },

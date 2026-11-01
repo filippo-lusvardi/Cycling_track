@@ -1,6 +1,7 @@
 // intervals.icu API, called straight from the browser (the API allows CORS).
 import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { z } from "zod";
+import { briochesIn } from "./brioches";
 import { API_KEY, readSetting } from "./settings";
 import type { RideRef } from "./segment-engine";
 import { trackFromStreams, type TrackLike } from "./segments";
@@ -78,6 +79,8 @@ export type Activity = {
   trainer: boolean;
   /** How the ride felt, intervals.icu's 1–5 scale (1 strong … 5 weak); null when not rated. */
   feel: number | null;
+  /** Brioches eaten on the way, from the "Brioches: n" line in the description: birds on its branch. */
+  brioches: number;
 };
 
 export type ActivityDetail = Activity & {
@@ -148,6 +151,7 @@ const pickActivity = (a: Record<string, unknown>): Activity => ({
   efficiency: (a["icu_efficiency_factor"] as number) ?? null,
   trainer: !!a["trainer"],
   feel: (a["feel"] as number) ?? null,
+  brioches: briochesIn((a["description"] as string) ?? null),
 });
 
 function zoneSecs(a: Record<string, unknown>): number[] {
@@ -467,4 +471,12 @@ export async function createRace(r: RaceEntry) {
 
 export async function updateRace(id: string, r: RaceEntry) {
   await icu(`/athlete/0/events/${idSchema.parse(id)}`, { method: "PUT", body: raceBody(r) });
+}
+
+/** Replaces an activity's description on intervals.icu. */
+export async function setActivityDescription(id: string, description: string) {
+  await icu(`/activity/${idSchema.parse(id)}`, {
+    method: "PUT",
+    body: JSON.stringify({ description: z.string().max(10000).parse(description) }),
+  });
 }
