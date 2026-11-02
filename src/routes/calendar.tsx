@@ -1,6 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, parseISO, startOfMonth, startOfWeek } from "date-fns";
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ActivityRow } from "@/components/ActivityRow";
@@ -180,7 +188,11 @@ function CalendarPage() {
             variant="ghost"
             size="icon"
             asChild
-            aria-label={weekView ? t("Previous week", "Settimana precedente") : t("Previous month", "Mese precedente")}
+            aria-label={
+              weekView
+                ? t("Previous week", "Settimana precedente")
+                : t("Previous month", "Mese precedente")
+            }
           >
             <Link
               to="/calendar"
@@ -198,7 +210,9 @@ function CalendarPage() {
             variant="ghost"
             size="icon"
             asChild
-            aria-label={weekView ? t("Next week", "Settimana successiva") : t("Next month", "Mese successivo")}
+            aria-label={
+              weekView ? t("Next week", "Settimana successiva") : t("Next month", "Mese successivo")
+            }
           >
             <Link
               to="/calendar"
@@ -329,7 +343,10 @@ function CalendarPage() {
         open={logging}
         onOpenChange={setLogging}
         title={t("Log a workout", "Registra un allenamento")}
-        description={t("For sessions the watch didn't record.", "Per le sessioni che l'orologio non ha registrato.")}
+        description={t(
+          "For sessions the watch didn't record.",
+          "Per le sessioni che l'orologio non ha registrato.",
+        )}
       >
         {sourceKind() === "native" && (
           <div className="mb-4">
@@ -480,7 +497,9 @@ function WeekSummary({ totals }: { totals: WeekRow | undefined }) {
           <div>{Math.round(totals.elevation)} m</div>
         </>
       ) : (
-        <div className="font-sans text-muted-foreground">{t("Rest week", "Settimana di riposo")}</div>
+        <div className="font-sans text-muted-foreground">
+          {t("Rest week", "Settimana di riposo")}
+        </div>
       )}
     </div>
   );
@@ -531,7 +550,9 @@ function DayDetail({ d }: { d: DayData }) {
                   key={e.id}
                   className="rounded-lg border border-dashed border-birch/50 p-3 text-sm"
                 >
-                  <div className="font-medium text-birch">{e.name ?? t("Planned workout", "Allenamento pianificato")}</div>
+                  <div className="font-medium text-birch">
+                    {e.name ?? t("Planned workout", "Allenamento pianificato")}
+                  </div>
                   <div className="stat-num text-xs text-muted-foreground">
                     {race
                       ? raceSummary(race)
@@ -552,7 +573,9 @@ function DayDetail({ d }: { d: DayData }) {
                         setTab("race");
                       }}
                     >
-                      {race.info ? t("Edit race", "Modifica gara") : t("Set the race kind", "Imposta il tipo di gara")}
+                      {race.info
+                        ? t("Edit race", "Modifica gara")
+                        : t("Set the race kind", "Imposta il tipo di gara")}
                     </Button>
                   )}
                 </div>
@@ -569,7 +592,12 @@ function DayDetail({ d }: { d: DayData }) {
       )}
       {tab === "log" && <LogWorkoutForm date={d.date} onSaved={() => setTab("day")} />}
       {tab === "race" && (
-        <RaceForm key={editing?.id ?? "new"} date={d.date} race={editing} onSaved={() => setTab("day")} />
+        <RaceForm
+          key={editing?.id ?? "new"}
+          date={d.date}
+          race={editing}
+          onSaved={() => setTab("day")}
+        />
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ClimbWorld } from "@/components/forest/ClimbWorld";
+import { OpenScene } from "@/components/forest/ForestScene";
 import { Panel } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { useSegmentNames } from "@/hooks/use-segment-names";
@@ -31,17 +32,22 @@ export function ForestClimbs({ forest, members }: { forest: Forest; members: Mem
   return (
     <div className="space-y-4">
       {climbs && climbs.length > 0 && (
-        <div className="-mx-4 overflow-hidden sm:mx-auto sm:max-w-xl sm:rounded-xl sm:border sm:border-border">
-          <ClimbWorld
-            climbs={climbs.map((c) => {
-              const l = leaders[c.sid];
-              return { climb: c, leader: l ? { ...l, name: names.get(l.uid) ?? "…" } : null };
-            })}
-            onOpen={(sid) =>
-              navigate({ to: "/forest/$fid/climb/$sid", params: { fid: forest.id, sid } })
-            }
-          />
-        </div>
+        <OpenScene>
+          {(w, fit) => (
+            <ClimbWorld
+              w={w}
+              // Room under it for the "Add one of my climbs" button (about 64 px).
+              fit={fit - 43}
+              climbs={climbs.map((c) => {
+                const l = leaders[c.sid];
+                return { climb: c, leader: l ? { ...l, name: names.get(l.uid) ?? "…" } : null };
+              })}
+              onOpen={(sid) =>
+                navigate({ to: "/forest/$fid/climb/$sid", params: { fid: forest.id, sid } })
+              }
+            />
+          )}
+        </OpenScene>
       )}
       {climbs && climbs.length === 0 && (
         <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">

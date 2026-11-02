@@ -281,7 +281,9 @@ function DeleteRide({ id }: { id: string }) {
           navigate({ to: "/rides" });
         }}
       >
-        {confirm ? t("Delete for good", "Elimina definitivamente") : t("Delete ride", "Elimina uscita")}
+        {confirm
+          ? t("Delete for good", "Elimina definitivamente")
+          : t("Delete ride", "Elimina uscita")}
       </Button>
     </div>
   );

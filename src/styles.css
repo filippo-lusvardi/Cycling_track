@@ -127,6 +127,8 @@
     background-repeat: no-repeat;
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    /* The forest scenes span the window (100vw, scrollbar included): never a sideways scroll for it. */
+    overflow-x: clip;
   }
 }
 
@@ -248,6 +250,16 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+}
+
+/* A night scene (forests, climbs) across the whole window, whatever column it sits in: on a wide screen the land
+   itself extends (see OpenScene), and its foot melts into the page. */
+@utility open-scene {
+  margin-inline: calc(50% - 50vw);
+  overflow: hidden;
+  @media (width >= 40rem) {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+  }
 }
 
 @utility eyebrow {

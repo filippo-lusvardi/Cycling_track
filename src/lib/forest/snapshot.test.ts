@@ -105,6 +105,7 @@ describe("visibility and leaderboard", () => {
     sharePast: true,
     joinedDay: "2026-06-01",
     shareRoutes: false,
+    shareEffort: false,
   };
   const ride = (id: string, day: string) => ({ id, day });
 
@@ -137,8 +138,10 @@ describe("visibility and leaderboard", () => {
       sharePast: true,
       joinedDay: "",
       shareRoutes: false,
+      shareEffort: false,
     });
     expect(prefsOf({ shareRoutes: true }).shareRoutes).toBe(true);
+    expect(prefsOf({ shareEffort: true }).shareEffort).toBe(true);
   });
 
   it("takes the best time among shared rides only", () => {

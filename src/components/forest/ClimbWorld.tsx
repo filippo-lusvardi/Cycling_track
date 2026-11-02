@@ -1,13 +1,13 @@
 import { useId, useMemo } from "react";
 import type { ForestClimb, ForestTime } from "@/lib/forest/leaderboard";
 import { t } from "@/lib/i18n";
-import { farRidge } from "@/lib/ridge";
+import { WildPines } from "@/components/forest/ForestScene";
+import { ridgeAcross } from "@/lib/ridge";
 import { formatClock } from "@/lib/training";
 import { rng, seedOf } from "@/lib/tree";
 
 export type WorldClimb = { climb: ForestClimb; leader: (ForestTime & { name: string }) | null };
 
-const W = 360;
 const TOP = 70;
 const ROW = 190;
 /** Snow lies above this altitude (m), as on the summit book's cover. */
@@ -15,24 +15,48 @@ const SNOWLINE = 1800;
 
 /**
  * The forest's climbs as a little mountain range at night: each climb a peak drawn from its own profile (taller for
- * more climbing, snow above the snowline, a cross on top), its name and leader below. Tap a peak for its page.
+ * more climbing, snow above the snowline, a cross on top), its name and leader below; two to a row on the phone, as
+ * many as fit on a wide scene. Tap a peak for its page.
  */
 export function ClimbWorld({
   climbs,
   onOpen,
+  w: W = 360,
+  fit = 0,
 }: {
   climbs: WorldClimb[];
   onOpen: (sid: string) => void;
+  w?: number;
+  /** The height that fits on screen (see OpenScene): a wide range stands lower, down to it. */
+  fit?: number;
 }) {
   const uid = `climbs${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const rows = Math.max(1, Math.ceil(climbs.length / 2));
-  const H = TOP + rows * ROW;
+  // Each peak is 160 wide; a slot is at least 176, so peaks never touch.
+  const cols = Math.max(2, Math.floor((W - 40) / 176));
+  const slot = (W - 40) / cols;
+  const rows = Math.max(1, Math.ceil(climbs.length / cols));
+  // A short range stands mid-field on a wide scene (the phone's two columns are always full width).
+  const inset = W <= 360 ? 0 : (W - 40 - Math.min(climbs.length, cols) * slot) / 2;
+  // A wide scene fills the window down to its bottom edge: the range stands low, nearer mountains and wild pines
+  // fill the land behind it.
+  const lift = W <= 360 ? 0 : Math.max(0, Math.round(Math.min(fit, W * 0.5) - (TOP + rows * ROW)));
+  const H = TOP + rows * ROW + lift;
+  const mid = ridgeAcross("climb-mid", W, 1.2);
+  // The nearer range fades out at its foot, above the highest summit, so the climbs stand clear of it.
+  const ridgeAt = (i: number) => TOP + 10 + (1 - mid[i]!) * lift * 0.35;
+  const foot = TOP + lift - 16;
+  const nearer = lift > 60;
+  // With the nearer range in front, the far one reaches down behind it and fades out there.
+  const farFoot = nearer ? TOP + 50 + lift * 0.35 : TOP + 40;
   const maxGain = Math.max(300, ...climbs.map((c) => c.climb.gain ?? 0));
   const stars = useMemo(() => {
     const r = rng(seedOf("climb-stars"));
-    return Array.from({ length: 26 }, () => [r() * W, r() * H * 0.9, 0.2 + r() * 0.5] as const);
-  }, [H]);
-  const far = farRidge("climb-world", 32, 1.4);
+    return Array.from(
+      { length: Math.round((26 * W) / 360) },
+      () => [r() * W, r() * H * 0.9, 0.2 + r() * 0.5] as const,
+    );
+  }, [H, W]);
+  const far = ridgeAcross("climb-world", W, 1.4);
 
   return (
     <svg
@@ -49,6 +73,18 @@ export function ClimbWorld({
             style={{ stopColor: "color-mix(in oklab, var(--primary) 8%, var(--card))" }}
           />
         </linearGradient>
+        {/* Behind the nearer range the far one fades out downward, so no hard edge shows in its valleys. */}
+        <linearGradient
+          id={`${uid}far`}
+          x1="0"
+          y1="10"
+          x2="0"
+          y2={farFoot}
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0.5" stopColor="var(--border)" stopOpacity={0.4} />
+          <stop offset="1" stopColor="var(--border)" stopOpacity={0} />
+        </linearGradient>
         <linearGradient id={`${uid}rock`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="var(--secondary)" />
           <stop offset="1" stopColor="var(--background)" />
@@ -59,19 +95,54 @@ export function ClimbWorld({
         <circle key={i} cx={x} cy={y} r={0.7} fill="var(--snow)" opacity={o} />
       ))}
       <polygon
-        points={`0,${TOP + 40} ${far.map((y, i) => `${((i / 32) * W).toFixed(1)},${(10 + (1 - y) * 50).toFixed(1)}`).join(" ")} ${W},${TOP + 40}`}
-        fill="var(--border)"
-        opacity={0.4}
+        points={`0,${farFoot} ${far.map((y, i) => `${((i / (far.length - 1)) * W).toFixed(1)},${(10 + (1 - y) * 50).toFixed(1)}`).join(" ")} ${W},${farFoot}`}
+        fill={nearer ? `url(#${uid}far)` : "var(--border)"}
+        opacity={nearer ? 1 : 0.4}
       />
+      {nearer && (
+        <>
+          <defs>
+            <linearGradient
+              id={`${uid}mid`}
+              x1="0"
+              y1={TOP + 10}
+              x2="0"
+              y2={foot}
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0" stopColor="var(--muted)" stopOpacity={1} />
+              <stop offset="0.45" stopColor="var(--muted)" stopOpacity={0.75} />
+              <stop offset="1" stopColor="var(--muted)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <polygon
+            points={`0,${foot} ${mid.map((_, i) => `${((i / (mid.length - 1)) * W).toFixed(1)},${ridgeAt(i).toFixed(1)}`).join(" ")} ${W},${foot}`}
+            fill={`url(#${uid}mid)`}
+          />
+          <WildPines
+            seed="climb-world"
+            w={W}
+            count={Math.round(W / 9)}
+            at={(r) => {
+              const x = r() * W;
+              // On the range's upper slopes only, where it's still solid.
+              const ridge = ridgeAt(Math.round((x / W) * (mid.length - 1)));
+              return [x, ridge + 12 + r() ** 1.5 * (foot - ridge) * 0.55];
+            }}
+            size={0.8}
+          />
+        </>
+      )}
       {climbs.map((c, i) => {
-        const row = Math.floor(i / 2);
-        const right = i % 2 === 1;
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const right = col % 2 === 1;
         return (
           <Peak
             key={c.climb.sid}
             c={c}
-            x0={right ? 188 : 12}
-            base={TOP + row * ROW + 118 + (right ? 14 : 0)}
+            x0={20 + inset + col * slot + (slot - 160) / 2}
+            base={TOP + lift + row * ROW + 118 + (right ? 14 : 0)}
             height={34 + 74 * Math.min(1, (c.climb.gain ?? 0) / maxGain)}
             fill={`url(#${uid}rock)`}
             onOpen={onOpen}

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ForestScene } from "@/components/forest/ForestScene";
+import { ForestScene, OpenScene } from "@/components/forest/ForestScene";
 import { Panel } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,9 +43,11 @@ function JoinForest() {
           {name ?? (name === null ? t("Invite expired", "Invito scaduto") : "…")}
         </h1>
       </div>
-      <div className="-mx-4 overflow-hidden sm:mx-0 sm:rounded-xl sm:border sm:border-border">
-        <ForestScene seed={fid} trees={[{ uid: "you", name: "", header: undefined }]} />
-      </div>
+      <OpenScene>
+        {(w) => (
+          <ForestScene seed={fid} trees={[{ uid: "you", name: "", header: undefined }]} w={w} />
+        )}
+      </OpenScene>
       {name === null ? (
         <p className="text-sm text-muted-foreground">
           {t(
@@ -82,6 +84,8 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
   const [consent, setConsent] = useState(false);
   const [past, setPast] = useState(true);
   const [maps, setMaps] = useState(true);
+  // Heart rate is health data: off until they turn it on.
+  const [effort, setEffort] = useState(false);
   const [busy, setBusy] = useState(false);
   return (
     <Panel title={t("Ask to join", "Chiedi di entrare")}>
@@ -91,7 +95,7 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
           e.preventDefault();
           setBusy(true);
           try {
-            await requestToJoin(fid, forestKey, me, past, maps);
+            await requestToJoin(fid, forestKey, me, past, maps, effort);
           } catch {
             toast.error(t("Couldn't send the request", "Impossibile inviare la richiesta"));
           } finally {
@@ -139,6 +143,20 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
           </span>
           <Switch checked={maps} onCheckedChange={setMaps} />
         </label>
+        <label className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block">
+              {t("Show my heart rate and power", "Mostra frequenza cardiaca e potenza")}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {t(
+                "On those rides: average and max heart rate, average and max power, normalized power.",
+                "Su quelle uscite: frequenza cardiaca media e massima, potenza media e massima, potenza normalizzata.",
+              )}
+            </span>
+          </span>
+          <Switch checked={effort} onCheckedChange={setEffort} />
+        </label>
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"
@@ -148,8 +166,8 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
           />
           <span>
             {t(
-              `I agree to share my tree with the members of "${forest}": the rides I choose to show (with their maps if I turn that on above), my fitness, and my crown each day, which reflects my readiness and form (from my check-in, HRV and sleep). I can hide rides, and leaving the forest removes my tree from it. See the`,
-              `Acconsento a condividere il mio albero con i membri di "${forest}": le uscite che scelgo di mostrare (con le mappe se lo attivo qui sopra), la mia forma fisica e la mia chioma di ogni giorno, che riflette prontezza e forma (da check-in, HRV e sonno). Posso nascondere le uscite, e lasciando il bosco il mio albero viene rimosso. Vedi l'`,
+              `I agree to share my tree with the members of "${forest}": the rides I choose to show (with their maps, heart rate and power if I turn those on above), my fitness, and my crown each day, which reflects my readiness and form (from my check-in, HRV and sleep). I can hide rides, and leaving the forest removes my tree from it. See the`,
+              `Acconsento a condividere il mio albero con i membri di "${forest}": le uscite che scelgo di mostrare (con mappe, frequenza cardiaca e potenza se le attivo qui sopra), la mia forma fisica e la mia chioma di ogni giorno, che riflette prontezza e forma (da check-in, HRV e sonno). Posso nascondere le uscite, e lasciando il bosco il mio albero viene rimosso. Vedi l'`,
             )}{" "}
             <Link to="/privacy" className="underline">
               {t("privacy notice", "informativa privacy")}

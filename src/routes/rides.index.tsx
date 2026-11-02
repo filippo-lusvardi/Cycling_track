@@ -101,9 +101,17 @@ function Rides() {
         <h1 className="text-3xl font-bold tracking-tight">{t("Rides", "Attività")}</h1>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("28d distance", "Distanza 28g")} value={Math.round(totals.km)} unit="km" />
+        <StatCard
+          label={t("28d distance", "Distanza 28g")}
+          value={Math.round(totals.km)}
+          unit="km"
+        />
         <StatCard label={t("28d time", "Tempo 28g")} value={formatDuration(totals.time)} />
-        <StatCard label={t("28d load", "Carico 28g")} value={Math.round(totals.load)} tone="fitness" />
+        <StatCard
+          label={t("28d load", "Carico 28g")}
+          value={Math.round(totals.load)}
+          tone="fitness"
+        />
         <StatCard label={t("28d activities", "Attività 28g")} value={totals.count} />
       </div>
       <div className="flex flex-wrap gap-2">
@@ -166,7 +174,10 @@ function Rides() {
         {filtered.length > limit && (
           <div className="mt-4 flex justify-center">
             <Button variant="secondary" onClick={() => setLimit((l) => l + PAGE)}>
-              {t(`Show more (${filtered.length - limit} left)`, `Mostra altre (${filtered.length - limit} rimanenti)`)}
+              {t(
+                `Show more (${filtered.length - limit} left)`,
+                `Mostra altre (${filtered.length - limit} rimanenti)`,
+              )}
             </Button>
           </div>
         )}

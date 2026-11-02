@@ -190,7 +190,9 @@ function Segments() {
             />
           ) : (
             <div className="flex h-[30dvh] min-h-40 items-center justify-center rounded-lg bg-background/50 text-sm text-muted-foreground lg:h-auto lg:min-h-0 lg:flex-1">
-              {isLoading ? t("Loading rides…", "Caricamento attività…") : t("No segments to show", "Nessun segmento da mostrare")}
+              {isLoading
+                ? t("Loading rides…", "Caricamento attività…")
+                : t("No segments to show", "Nessun segmento da mostrare")}
             </div>
           )}
           <div className="mt-2 hidden shrink-0 gap-4 text-[11px] text-muted-foreground lg:flex">
@@ -207,7 +209,10 @@ function Segments() {
           </div>
         </Panel>
 
-        <Panel title={`${shown.length} ${t("segments", "segmenti")}`} className="flex min-h-0 flex-col">
+        <Panel
+          title={`${shown.length} ${t("segments", "segmenti")}`}
+          className="flex min-h-0 flex-col"
+        >
           <div className="relative mb-2 shrink-0">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -224,7 +229,11 @@ function Segments() {
                   e.currentTarget.blur();
                 }
               }}
-              placeholder={touch ? t("Search segments", "Cerca segmenti") : t("Search segments  ( / )", "Cerca segmenti  ( / )")}
+              placeholder={
+                touch
+                  ? t("Search segments", "Cerca segmenti")
+                  : t("Search segments  ( / )", "Cerca segmenti  ( / )")
+              }
               aria-label={t("Search segments by name", "Cerca segmenti per nome")}
               className="pl-8 pr-8"
             />
@@ -257,7 +266,10 @@ function Segments() {
             {!isLoading && shown.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 {query.trim()
-                  ? t(`No segment matches “${query.trim()}”.`, `Nessun segmento corrisponde a “${query.trim()}”.`)
+                  ? t(
+                      `No segment matches “${query.trim()}”.`,
+                      `Nessun segmento corrisponde a “${query.trim()}”.`,
+                    )
                   : t(
                       "No segments yet. Star a climb or draw a segment on any ride's elevation profile.",
                       "Ancora nessun segmento. Aggiungi una salita ai preferiti o traccia un segmento sul profilo altimetrico di un'attività.",
@@ -287,7 +299,11 @@ function Segments() {
                   }}
                 >
                   <button
-                    aria-label={s.starred ? t("Unstar", "Togli dai preferiti") : t("Star", "Aggiungi ai preferiti")}
+                    aria-label={
+                      s.starred
+                        ? t("Unstar", "Togli dai preferiti")
+                        : t("Star", "Aggiungi ai preferiti")
+                    }
                     onClick={() => lib.toggleStar(s)}
                     className="p-1"
                   >
@@ -316,14 +332,24 @@ function Segments() {
                         {segmentSummary(s)}
                       </div>
                       {touch && focused === s.id && (
-                        <div className="text-[11px] text-primary">{t("Tap again to open", "Tocca di nuovo per aprire")}</div>
+                        <div className="text-[11px] text-primary">
+                          {t("Tap again to open", "Tocca di nuovo per aprire")}
+                        </div>
                       )}
                     </div>
                     <div className="shrink-0 text-right text-xs text-muted-foreground">
                       <div>
-                        {s.saved ? (s.source === "custom" ? t("Manual", "Manuale") : t("Saved", "Salvato")) : "Auto"}
+                        {s.saved
+                          ? s.source === "custom"
+                            ? t("Manual", "Manuale")
+                            : t("Saved", "Salvato")
+                          : "Auto"}
                       </div>
-                      {s.rides != null && <div className="stat-num">{t(`${s.rides} rides`, `${s.rides} attività`)}</div>}
+                      {s.rides != null && (
+                        <div className="stat-num">
+                          {t(`${s.rides} rides`, `${s.rides} attività`)}
+                        </div>
+                      )}
                     </div>
                   </Link>
                 </div>
@@ -351,7 +377,10 @@ function NamingStatus() {
   return (
     <p className="shrink-0 text-xs text-muted-foreground">
       {left === 1
-        ? t("Naming 1 segment from OpenStreetMap… (keep Cirmolo open)", "Assegnazione nome a 1 segmento da OpenStreetMap… (tieni Cirmolo aperto)")
+        ? t(
+            "Naming 1 segment from OpenStreetMap… (keep Cirmolo open)",
+            "Assegnazione nome a 1 segmento da OpenStreetMap… (tieni Cirmolo aperto)",
+          )
         : t(
             `Naming ${left} segments from OpenStreetMap… (keep Cirmolo open)`,
             `Assegnazione nomi a ${left} segmenti da OpenStreetMap… (tieni Cirmolo aperto)`,

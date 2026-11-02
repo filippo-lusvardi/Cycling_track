@@ -276,6 +276,26 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
             }}
           />
         </label>
+        <label className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block">
+              {t("Show my heart rate and power", "Mostra frequenza cardiaca e potenza")}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {t(
+                "On your shared rides of the last year: average and max heart rate, average and max power, normalized power.",
+                "Sulle tue uscite condivise dell'ultimo anno: frequenza cardiaca media e massima, potenza media e massima, potenza normalizzata.",
+              )}
+            </span>
+          </span>
+          <Switch
+            checked={me.shareEffort === true}
+            onCheckedChange={async (v) => {
+              await setMyForestPrefs(forest.id, { shareEffort: v });
+              republish();
+            }}
+          />
+        </label>
         <div className="flex gap-2">
           {confirm && (
             <Button variant="ghost" onClick={() => setConfirm(false)}>

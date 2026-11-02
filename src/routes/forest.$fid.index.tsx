@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ForestClimbs } from "@/components/forest/ForestClimbs";
 import { ForestMembers } from "@/components/forest/ForestMembers";
 import { Back, ForestLayout, TABS, type Tab } from "@/components/forest/ForestLayout";
-import { type SceneTree } from "@/components/forest/ForestScene";
+import { OpenScene, type SceneTree } from "@/components/forest/ForestScene";
 import { ForestGrove } from "@/components/forest/ForestGrove";
 import {
   watchForest,
@@ -66,9 +66,11 @@ function ForestDetail() {
       onTab={(next) => navigate({ to: "/forest/$fid", params: { fid }, search: { tab: next } })}
     >
       {tab === "trees" && (
-        <div className="-mx-4 overflow-hidden sm:mx-auto sm:max-w-xl sm:rounded-xl sm:border sm:border-border">
-          <ForestGrove seed={forest.id} trees={trees} onTree={openTree} />
-        </div>
+        <OpenScene>
+          {(w, fit) => (
+            <ForestGrove seed={forest.id} trees={trees} onTree={openTree} w={w} fit={fit} />
+          )}
+        </OpenScene>
       )}
       {tab === "climbs" && <ForestClimbs forest={forest} members={members} />}
       {tab === "members" && <ForestMembers forest={forest} members={members} requests={requests} />}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ridePage, trimEnds } from "./rides";
+import { effortOf, ridePage, trimEnds } from "./rides";
 import type { SharedRide } from "./types";
 
 const track = (km: number) => {
@@ -45,5 +45,33 @@ describe("ride pages for the forest", () => {
     const p = ridePage(ride, track(60), true);
     expect(p.route!.lat.length).toBe(400);
     expect(p.name).toBe("Bondone");
+  });
+});
+
+describe("effortOf", () => {
+  const a = {
+    average_heartrate: 148.6,
+    max_heartrate: 181,
+    icu_average_watts: 212.4,
+    icu_weighted_avg_watts: 236,
+  };
+  it("rounds the ride's numbers and takes max power from the track", () => {
+    expect(effortOf(a, { watts: [100, null, 640, 300] })).toEqual({
+      avgHr: 149,
+      maxHr: 181,
+      avgWatts: 212,
+      maxWatts: 640,
+      np: 236,
+    });
+  });
+  it("leaves max power out without a track, and is null when nothing was recorded", () => {
+    expect(effortOf(a, null)?.maxWatts).toBeNull();
+    const none = {
+      average_heartrate: null,
+      max_heartrate: null,
+      icu_average_watts: null,
+      icu_weighted_avg_watts: null,
+    };
+    expect(effortOf(none, { watts: [null, 0] })).toBeNull();
   });
 });

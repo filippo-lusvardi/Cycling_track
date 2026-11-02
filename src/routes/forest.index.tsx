@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { OpenScene } from "@/components/forest/ForestScene";
 import { ForestWorld } from "@/components/forest/ForestWorld";
 import { ZoomSwitch } from "@/components/tree/ZoomSwitch";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
@@ -59,21 +60,24 @@ function ForestPage() {
         </p>
       )}
       {/* Always drawn, even before the forests arrive or with none: its clearing is where the first one is planted. */}
-      <div className="-mx-4 overflow-hidden sm:mx-auto sm:max-w-xl sm:rounded-xl sm:border sm:border-border">
-        <ForestWorld
-          woods={(forests ?? []).map((f) => ({
-            forest: f,
-            trees: f.members.map((uid) => ({
-              uid,
-              name: live[f.id]?.members.find((m) => m.uid === uid)?.name ?? "",
-              header: live[f.id]?.headers[uid],
-            })),
-            waiting: live[f.id]?.waiting ?? 0,
-          }))}
-          onOpen={(fid) => navigate({ to: "/forest/$fid", params: { fid } })}
-          onPlant={() => setPlanting(true)}
-        />
-      </div>
+      <OpenScene>
+        {(w) => (
+          <ForestWorld
+            w={w}
+            woods={(forests ?? []).map((f) => ({
+              forest: f,
+              trees: f.members.map((uid) => ({
+                uid,
+                name: live[f.id]?.members.find((m) => m.uid === uid)?.name ?? "",
+                header: live[f.id]?.headers[uid],
+              })),
+              waiting: live[f.id]?.waiting ?? 0,
+            }))}
+            onOpen={(fid) => navigate({ to: "/forest/$fid", params: { fid } })}
+            onPlant={() => setPlanting(true)}
+          />
+        )}
+      </OpenScene>
 
       {!forests?.length && (
         <p className="mx-auto max-w-xl text-sm text-muted-foreground">

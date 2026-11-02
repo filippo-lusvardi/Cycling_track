@@ -26,7 +26,14 @@ import { activitiesQuery, wellnessQuery } from "@/lib/queries";
 import { ACCURACY_MIN_RIDES, HRV_BAND_DAYS, readinessAccuracy } from "@/lib/readiness";
 import { addDays, isoDate } from "@/lib/training";
 import { historyYears, segmentEngine, startSegments } from "@/lib/segment-app";
-import { API_KEY, QUIET_TREE, SEGMENT_HISTORY, SOURCE, readSetting, writeSetting } from "@/lib/settings";
+import {
+  API_KEY,
+  QUIET_TREE,
+  SEGMENT_HISTORY,
+  SOURCE,
+  readSetting,
+  writeSetting,
+} from "@/lib/settings";
 import type { SourceKind } from "@/lib/source";
 import { rideZonesQuery } from "@/lib/queries";
 import { UploadRides } from "@/components/UploadRides";
@@ -258,7 +265,9 @@ function Athlete() {
             "ftp",
             "FTP",
             "W",
-            !form.ftp && zones?.ftp ? t(`estimated ${zones.ftp}`, `stimata ${zones.ftp}`) : undefined,
+            !form.ftp && zones?.ftp
+              ? t(`estimated ${zones.ftp}`, `stimata ${zones.ftp}`)
+              : undefined,
           )}
           {field("lthr", t("Threshold HR", "FC di soglia"), "bpm")}
           {field("maxHr", t("Max HR", "FC massima"), "bpm")}
@@ -273,9 +282,17 @@ function Athlete() {
           <Button type="submit" disabled={!loaded}>
             {t("Save", "Salva")}
           </Button>
-          <Button type="button" variant="outline" disabled={!!progress} onClick={() => void recompute()}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!!progress}
+            onClick={() => void recompute()}
+          >
             {progress
-              ? t(`Recalculating ${progress[0]}/${progress[1]}…`, `Ricalcolo ${progress[0]}/${progress[1]}…`)
+              ? t(
+                  `Recalculating ${progress[0]}/${progress[1]}…`,
+                  `Ricalcolo ${progress[0]}/${progress[1]}…`,
+                )
               : t("Recalculate all rides", "Ricalcola tutte le uscite")}
           </Button>
         </div>
@@ -388,7 +405,9 @@ function Account() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={busy != null || !current || next.length < 8}>
-              {busy === "password" ? t("Saving…", "Salvataggio…") : t("Change password", "Cambia password")}
+              {busy === "password"
+                ? t("Saving…", "Salvataggio…")
+                : t("Change password", "Cambia password")}
             </Button>
             {confirmDelete ? (
               <>
@@ -398,7 +417,9 @@ function Account() {
                   disabled={busy != null || !current}
                   onClick={() => void deleteAccount()}
                 >
-                  {busy === "delete" ? t("Deleting…", "Eliminazione…") : t("Delete for good", "Elimina definitivamente")}
+                  {busy === "delete"
+                    ? t("Deleting…", "Eliminazione…")
+                    : t("Delete for good", "Elimina definitivamente")}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setConfirmDelete(false)}>
                   {t("Cancel", "Annulla")}

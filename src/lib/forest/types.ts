@@ -1,5 +1,6 @@
-// What a member publishes into a forest: enough to draw their tree, nothing more. Raw HRV, sleep, heart rate and
-// power never leave their device; the crown arrives already computed.
+// What a member publishes into a forest: enough to draw their tree, nothing more. Raw HRV and sleep never leave
+// their device, and heart rate and power only reach ride pages if they share them; the crown arrives already
+// computed.
 //   forests/{fid}/trees/{uid}              TreeHeader
 //   forests/{fid}/trees/{uid}/years/{yyyy} TreeYearDoc
 import type { Crown } from "../tree";

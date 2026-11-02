@@ -16,6 +16,8 @@ export type SharePrefs = {
   joinedDay: string;
   /** Ride pages carry the route (ends hidden). Off unless agreed to: earlier members joined without maps. */
   shareRoutes: boolean;
+  /** Ride pages carry heart rate and power. Health data, so off unless agreed to. */
+  shareEffort: boolean;
 };
 
 export const prefsOf = (m: Record<string, unknown> | undefined): SharePrefs => ({
@@ -23,6 +25,7 @@ export const prefsOf = (m: Record<string, unknown> | undefined): SharePrefs => (
   sharePast: m?.["sharePast"] !== false,
   joinedDay: typeof m?.["joinedAt"] === "number" ? isoDate(new Date(m["joinedAt"])) : "",
   shareRoutes: m?.["shareRoutes"] === true,
+  shareEffort: m?.["shareEffort"] === true,
 });
 
 /** Is a ride (its id, and its day as YYYY-MM-DD) visible in a forest? */

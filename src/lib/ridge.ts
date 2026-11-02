@@ -16,3 +16,23 @@ export function farRidge(seed: string, n: number, rough: number): number[] {
   const hi = Math.max(...ys);
   return ys.map((y) => (y - lo) / (hi - lo || 1));
 }
+
+/**
+ * A far ridge across a scene `w` wide: one farRidge per 360 units (the phone's width), each picking up where the
+ * last left off, so a wider scene gets more mountains rather than the same ones stretched. 32 points per 360.
+ */
+export function ridgeAcross(seed: string, w: number, rough: number): number[] {
+  const tiles = Math.max(1, Math.round(w / 360));
+  const ys: number[] = [];
+  for (let k = 0; k < tiles; k++) {
+    const tile = farRidge(k ? `${seed}${k}` : seed, 32, rough);
+    const shift = k ? ys.at(-1)! - tile[0]! : 0;
+    // Bend the new range's start onto the previous one's end, easing back to its own shape.
+    const bent = tile.map((y, j) => y + shift * (1 - j / 32));
+    ys.push(...(k ? bent.slice(1) : bent));
+  }
+  if (tiles === 1) return ys;
+  const lo = Math.min(...ys);
+  const hi = Math.max(...ys);
+  return ys.map((y) => (y - lo) / (hi - lo || 1));
+}

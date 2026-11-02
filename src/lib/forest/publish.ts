@@ -16,7 +16,7 @@ import type { Activity, PlannedEvent, Wellness } from "../intervals";
 import { storedTrack } from "../segment-app";
 import { addDays } from "../training";
 import type { Crown } from "../tree";
-import { ridePage, RIDE_PAGE_DAYS } from "./rides";
+import { effortOf, ridePage, RIDE_PAGE_DAYS } from "./rides";
 import { fingerprint, offStretches, toSharedCrown, toSharedRide, yearDocs } from "./snapshot";
 import type { SharedRide, TreeHeader } from "./types";
 import { isShared, prefsOf, readOverrides } from "./visibility";
@@ -35,19 +35,26 @@ export type TreeInput = {
 };
 
 let latest: TreeInput | null = null;
+/** A republish asked for before the Tree page handed over its data: the next publish runs at once. */
+let pending = false;
 
 /** Keep the forests' copies of my tree current. Safe to call on every Tree render: it throttles itself. */
 export function publishTree(input: TreeInput, force = false) {
   latest = input;
+  if (pending) force = true;
   if (running || !navigator.onLine || (!force && Date.now() - last < EVERY)) return;
   last = Date.now();
+  pending = false;
   running = run(input)
     .catch((e) => console.warn("Forest publish failed", e))
     .finally(() => (running = null));
 }
 
-/** Publish again now with the last data the Tree page had (after hiding or showing a ride). */
-export const republish = () => latest && publishTree(latest, true);
+/** Publish again now with the last data the Tree page had (after a sharing change), or as soon as it has some. */
+export function republish() {
+  if (latest) publishTree(latest, true);
+  else pending = true;
+}
 
 async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
   const me = uid();
@@ -74,7 +81,7 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
       await setDoc(doc(db, "forests", fid, "trees", me, "years", y), content);
       await idbSet(key, fp).catch(() => {});
     }
-    await publishRidePages(me, fid, shared, prefs.shareRoutes, today);
+    await publishRidePages(me, fid, shared, acts, prefs.shareRoutes, prefs.shareEffort, today);
     const header: Omit<TreeHeader, "updatedAt"> = {
       crown: toSharedCrown(crown),
       day: today,
@@ -90,22 +97,28 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
 }
 
 /**
- * A page for each shared ride of the last year (route with its ends hidden, when maps are shared), from the tracks
- * the segment analysis keeps on this device; pages of rides no longer shared, or too old, are taken down.
+ * A page for each shared ride of the last year (route with its ends hidden, when maps are shared; heart rate and
+ * power, when those are), from the tracks the segment analysis keeps on this device; pages of rides no longer
+ * shared, or too old, are taken down.
  */
 async function publishRidePages(
   me: string,
   fid: string,
   shared: SharedRide[],
+  acts: Activity[],
   maps: boolean,
+  effort: boolean,
   today: string,
 ) {
+  const byId = new Map(acts.map((a) => [a.id, a]));
   const since = addDays(today, -RIDE_PAGE_DAYS);
   const recent = shared.filter((r) => r.start_date_local.slice(0, 10) >= since);
   const listKey = `forest-pub:${me}:${fid}:rides`;
   const before = new Set((await idbGet<string[]>(listKey).catch(() => undefined)) ?? []);
   for (const r of recent) {
-    const page = ridePage(r, maps && !r.trainer ? await storedTrack(r.id) : null, maps);
+    const track = (maps || effort) && !r.trainer ? await storedTrack(r.id) : null;
+    const a = byId.get(r.id);
+    const page = ridePage(r, track, maps, effort && a ? effortOf(a, track) : null);
     const key = `forest-pub:${me}:${fid}:ride:${r.id}`;
     const fp = fingerprint(page);
     before.delete(r.id);

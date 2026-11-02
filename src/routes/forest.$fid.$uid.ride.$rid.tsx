@@ -18,7 +18,7 @@ export const Route = createFileRoute("/forest/$fid/$uid/ride/$rid")({
 
 /**
  * A friend's shared ride: its summary, and the route and altitude profile when they share maps, with the first and
- * last kilometre cut off (where rides usually start: home). No power, heart rate or load.
+ * last kilometre cut off (where rides usually start: home); heart rate and power when they share those. No load.
  */
 function FriendRide() {
   const { fid, uid, rid } = Route.useParams();
@@ -57,6 +57,10 @@ function FriendRide() {
       </div>
     );
   const speed = ride.distance && ride.moving_time ? (ride.distance / ride.moving_time) * 3.6 : null;
+  // Pages published before heart rate and power could be shared have no effort field.
+  const effort = ride.effort ?? null;
+  const n = (v: number | null) => (v != null ? String(v) : "–");
+  const hidden = effort ? undefined : t("Not shared", "Non condivisi");
 
   return (
     <div className="space-y-6">
@@ -83,6 +87,25 @@ function FriendRide() {
           label={t("Avg speed", "Velocità media")}
           value={speed != null ? speed.toFixed(1) : "–"}
           unit="km/h"
+        />
+        <StatCard
+          label={t("Avg / max HR", "FC media / max")}
+          value={effort ? `${n(effort.avgHr)} / ${n(effort.maxHr)}` : "–"}
+          unit="bpm"
+          tone="fatigue"
+          hint={hidden}
+        />
+        <StatCard
+          label={t("Avg / max power", "Potenza media / max")}
+          value={effort ? `${n(effort.avgWatts)} / ${n(effort.maxWatts)}` : "–"}
+          unit="W"
+          hint={hidden}
+        />
+        <StatCard
+          label={t("Norm. power", "Potenza norm.")}
+          value={effort ? n(effort.np) : "–"}
+          unit="W"
+          hint={hidden}
         />
       </div>
       {route ? (

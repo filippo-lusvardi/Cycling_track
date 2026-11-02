@@ -170,6 +170,10 @@ function RootComponent() {
   });
   // The Segments list fills the screen exactly: a footer after it would sit on top of the list.
   const fullScreen = useRouterState({ select: (s) => /^\/segments\/?$/.test(s.location.pathname) });
+  // On the phone the tree and the forests end in their landscape, not in a line of credits (desktop keeps it).
+  const scenic = useRouterState({
+    select: (s) => /^\/(tree|forest)(\/|$)/.test(s.location.pathname),
+  });
 
   if (bare)
     return (
@@ -211,7 +215,6 @@ function RootComponent() {
           </nav>
         </div>
       </header>
-      {/* Clip anything too wide, so a stray long line never makes the phone zoom the whole page out. */}
       {/* Phone only: the icon and name on a transparent line that scrolls away with the page. */}
       <header className="pt-[env(safe-area-inset-top)] lg:hidden">
         <div className="flex h-12 items-center px-4">
@@ -221,9 +224,15 @@ function RootComponent() {
           </Link>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl overflow-x-clip px-4 pb-32 pt-2 lg:pb-12 lg:pt-6">
+      {/* Clip anything too wide, so a stray long line never makes the phone zoom the whole page out. On wider
+          screens the body clips instead, so the forest scenes can reach the window's edges past this column. */}
+      <main className="mx-auto max-w-5xl overflow-x-clip px-4 sm:overflow-x-visible pb-32 pt-2 lg:pb-12 lg:pt-6">
         <Outlet />
-        {!fullScreen && <AppFooter className="mt-10 border-t border-border pt-4" />}
+        {!fullScreen && (
+          <AppFooter
+            className={cn("mt-10 border-t border-border pt-4", scenic && "hidden lg:flex")}
+          />
+        )}
       </main>
       <nav
         className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"

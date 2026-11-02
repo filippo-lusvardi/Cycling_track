@@ -47,6 +47,8 @@ export type Member = {
   sharePast?: boolean;
   /** Ride pages show the route with its first and last kilometre hidden (missing = no). */
   shareRoutes?: boolean;
+  /** Ride pages show heart rate and power (avg / max, NP). Health data: missing = no. */
+  shareEffort?: boolean;
 };
 export type JoinRequest = {
   uid: string;
@@ -57,6 +59,8 @@ export type JoinRequest = {
   sharePast?: boolean;
   /** Chosen on the join page: show ride maps (ends hidden). */
   shareRoutes?: boolean;
+  /** Chosen on the join page: show heart rate and power on ride pages. */
+  shareEffort?: boolean;
 };
 
 const forestDoc = (fid: string) => doc(db, "forests", fid);
@@ -158,6 +162,7 @@ export async function requestToJoin(
   name: string,
   sharePast: boolean,
   shareRoutes: boolean,
+  shareEffort: boolean,
 ) {
   const now = Date.now();
   await setDoc(doc(sub(fid, "requests"), uid()), {
@@ -167,6 +172,7 @@ export async function requestToJoin(
     consentAt: now,
     sharePast,
     shareRoutes,
+    shareEffort,
   });
 }
 
@@ -188,6 +194,7 @@ export async function approve(fid: string, r: JoinRequest) {
     defaultShared: true,
     sharePast: r.sharePast !== false,
     shareRoutes: r.shareRoutes === true,
+    shareEffort: r.shareEffort === true,
   });
   b.delete(doc(sub(fid, "requests"), r.uid));
   await b.commit();
@@ -200,7 +207,9 @@ export const renameForest = (fid: string, name: string) =>
 
 export const setMyForestPrefs = (
   fid: string,
-  patch: Partial<Pick<Member, "name" | "defaultShared" | "sharePast" | "shareRoutes">>,
+  patch: Partial<
+    Pick<Member, "name" | "defaultShared" | "sharePast" | "shareRoutes" | "shareEffort">
+  >,
 ) => updateDoc(doc(sub(fid, "members"), uid()), patch);
 
 /**
