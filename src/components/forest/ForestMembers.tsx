@@ -49,10 +49,27 @@ export function ForestMembers({
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Button size="sm" disabled={full} onClick={() => void approve(forest.id, r)}>
+                  <Button
+                    size="sm"
+                    disabled={full}
+                    onClick={() =>
+                      void approve(forest.id, r).catch((e) => {
+                        console.warn("Couldn't let in", e);
+                        toast.error(t("Couldn't let them in", "Impossibile accoglierlo"));
+                      })
+                    }
+                  >
                     {t("Let in", "Accogli")}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => void decline(forest.id, r)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      void decline(forest.id, r).catch(() =>
+                        toast.error(t("Couldn't decline", "Impossibile rifiutare")),
+                      )
+                    }
+                  >
                     {t("Decline", "Rifiuta")}
                   </Button>
                 </div>

@@ -29,18 +29,19 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["members", "name"])
         && request.resource.data.name is string && request.resource.data.name.size() <= 40
         && request.resource.data.members.size() <= 30
-        && membersChangeOk(resource.data, request.resource.data.members.toSet());
+        && membersChangeOk(resource.data, request.resource.data.members);
       // The last member leaving takes the forest with them.
       allow delete: if signedIn() && resource.data.members == [me()];
 
       // At most one newcomer at a time, and only one who asked; members leave by themselves (the creator may also
       // remove someone).
       function membersChangeOk(before, after) {
-        let added = after.difference(before.members.toSet());
-        let removed = before.members.toSet().difference(after);
+        // Lists, not sets: a set can't be indexed, so the newcomer is read as added[0].
+        let added = after.removeAll(before.members);
+        let removed = before.members.removeAll(after);
         return added.size() <= 1
-          && (added.size() == 0 || asked(added.toList()[0]))
-          && (removed.size() == 0 || removed == [me()].toSet() || before.createdBy == me());
+          && (added.size() == 0 || asked(added[0]))
+          && (removed.size() == 0 || removed == [me()] || before.createdBy == me());
       }
 
       match /invites/{key} {
