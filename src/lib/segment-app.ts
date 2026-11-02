@@ -1,6 +1,6 @@
 // The segment engine wired to this browser: IndexedDB storage and intervals.icu downloads.
 import { createStore, del, get, keys, set, type UseStore } from "idb-keyval";
-import { packTrack } from "./compact";
+import { packTrack, unpackTrack, type PackedTrack } from "./compact";
 import type { Track } from "./intervals";
 import { downloadRideTrack, listOutdoorRides } from "./source";
 import { createSegmentEngine, type KV } from "./segment-engine";
@@ -17,6 +17,12 @@ const kv = (store: UseStore): KV => ({
 const trackStore = createStore("cadence-tracks", "tracks");
 
 export const historyYears = () => readSetting<number>(SEGMENT_HISTORY) ?? 2;
+
+/** A ride's 20 m track as the segment analysis stored it on this device (outdoor rides it has analysed), or null. */
+export async function storedTrack(id: string): Promise<Track | null> {
+  const p = await get<PackedTrack | 0>(id, trackStore).catch(() => undefined);
+  return p ? unpackTrack(p) : null;
+}
 
 export const segmentEngine = createSegmentEngine({
   meta: kv(createStore("cadence-segments", "meta")),

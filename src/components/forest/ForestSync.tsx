@@ -5,7 +5,13 @@ import { forestKey, forestSegments } from "@/lib/forest/engine-link";
 import { watchMyForests, type Forest } from "@/lib/forest/forests";
 import { bestShared, publishTime, watchClimbs, type ForestClimb } from "@/lib/forest/leaderboard";
 import { fingerprint } from "@/lib/forest/snapshot";
-import { isShared, watchOverrides, type Overrides } from "@/lib/forest/visibility";
+import {
+  isShared,
+  prefsOf,
+  watchOverrides,
+  type Overrides,
+  type SharePrefs,
+} from "@/lib/forest/visibility";
 import { db, uid } from "@/lib/firebase";
 import { segmentEngine, startSegments } from "@/lib/segment-app";
 import { liveSegments, type SavedSegment } from "@/lib/segment-store";
@@ -20,7 +26,7 @@ export function ForestSync() {
     const me = uid();
     let forests: Forest[] = [];
     const climbs = new Map<string, ForestClimb[]>();
-    const shareByDefault = new Map<string, boolean>();
+    const prefs = new Map<string, SharePrefs>();
     let overrides: Overrides = {};
     const stops = new Map<string, (() => void)[]>();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -44,14 +50,14 @@ export function ForestSync() {
     async function publishAll() {
       const snap = segmentEngine.getSnapshot();
       for (const f of forests) {
-        const byDefault = shareByDefault.get(f.id);
-        if (byDefault == null) continue;
+        const p = prefs.get(f.id);
+        if (!p) continue;
         for (const c of climbs.get(f.id) ?? []) {
           const id = forestKey(f.id, c.sid);
           const rec = snap.efforts[snap.links[id] ?? id];
           if (!rec) continue;
-          const best = bestShared(rec.attempts, (ride) =>
-            isShared(ride, f.id, byDefault, overrides),
+          const best = bestShared(rec.attempts, (a) =>
+            isShared({ id: a.trackId, day: a.date.slice(0, 10) }, f.id, p, overrides),
           );
           const key = `forest-time:${me}:${f.id}:${c.sid}`;
           const fp = fingerprint(best && [best.trackId, best.duration]);
@@ -80,7 +86,7 @@ export function ForestSync() {
             onSnapshot(
               doc(db, "forests", f.id, "members", me),
               (m) => {
-                shareByDefault.set(f.id, m.get("defaultShared") !== false);
+                prefs.set(f.id, prefsOf(m.data()));
                 schedule();
               },
               () => {},

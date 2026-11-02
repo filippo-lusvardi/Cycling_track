@@ -142,8 +142,12 @@ several forests.
   to share their tree), and any member lets them in. *New link* makes the old one stop working. Up to 30 trees.
 - **Trees**: the forest's members as a little grove, each tree in today's season; tap one to see it whole.
 - **What's shared**: each member's own app publishes a copy of their tree into each forest when they open the
-  Tree: the rides they show there (no GPS, heart rate or power), daily fitness/fatigue, sick days and today's crown.
-  **Members → Share new rides** sets the default per forest; a ride's page has **Visible in** to show or hide it.
+  Tree: the rides they show there (no heart rate or power), daily fitness/fatigue, sick days and today's crown.
+  Friends see that tree in plain bark, without numbers.
+- **Ride pages**: with **Show my ride maps** on for a forest (asked when joining, or under Members), members can
+  open your shared rides of the last year: route and altitude profile without the first and last kilometre.
+  Per forest, **Members → Share new rides** and **Show rides from before I joined** (also asked when joining) set what
+  shows; a ride's page has **Visible in** to show or hide that one ride, whatever those say.
 - **Climbs**: any member adds one of their saved climbs; each member's app finds their efforts on it and publishes
   their best time from the rides they share there.
 

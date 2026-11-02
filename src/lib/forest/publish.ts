@@ -1,13 +1,25 @@
 // Publishing my tree into every forest I'm in, from the data my Tree page already has. Each forest gets only the
 // rides I share with it; only documents whose content changed are written (fingerprints kept on this device).
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
-import { get as idbGet, set as idbSet } from "idb-keyval";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
+import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { db, uid } from "../firebase";
 import type { Activity, PlannedEvent, Wellness } from "../intervals";
+import { storedTrack } from "../segment-app";
+import { addDays } from "../training";
 import type { Crown } from "../tree";
+import { ridePage, RIDE_PAGE_DAYS } from "./rides";
 import { fingerprint, offStretches, toSharedCrown, toSharedRide, yearDocs } from "./snapshot";
-import type { TreeHeader } from "./types";
-import { isShared, readOverrides } from "./visibility";
+import type { SharedRide, TreeHeader } from "./types";
+import { isShared, prefsOf, readOverrides } from "./visibility";
 
 /** Not more often than this, unless asked (a ride's visibility changed). */
 const EVERY = 30 * 60_000;
@@ -48,8 +60,11 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
     const fid = f.id;
     const member = await getDoc(doc(db, "forests", fid, "members", me));
     if (!member.exists()) continue;
+    const prefs = prefsOf(member.data());
     const shared = acts
-      .filter((a) => isShared(a.id, fid, member.get("defaultShared") !== false, overrides))
+      .filter((a) =>
+        isShared({ id: a.id, day: a.start_date_local.slice(0, 10) }, fid, prefs, overrides),
+      )
       .map(toSharedRide);
     const years = yearDocs(shared, wellness);
     for (const [y, content] of Object.entries(years)) {
@@ -59,6 +74,7 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
       await setDoc(doc(db, "forests", fid, "trees", me, "years", y), content);
       await idbSet(key, fp).catch(() => {});
     }
+    await publishRidePages(me, fid, shared, prefs.shareRoutes, today);
     const header: Omit<TreeHeader, "updatedAt"> = {
       crown: toSharedCrown(crown),
       day: today,
@@ -71,4 +87,41 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
     await setDoc(doc(db, "forests", fid, "trees", me), { ...header, updatedAt: Date.now() });
     await idbSet(key, fp).catch(() => {});
   }
+}
+
+/**
+ * A page for each shared ride of the last year (route with its ends hidden, when maps are shared), from the tracks
+ * the segment analysis keeps on this device; pages of rides no longer shared, or too old, are taken down.
+ */
+async function publishRidePages(
+  me: string,
+  fid: string,
+  shared: SharedRide[],
+  maps: boolean,
+  today: string,
+) {
+  const since = addDays(today, -RIDE_PAGE_DAYS);
+  const recent = shared.filter((r) => r.start_date_local.slice(0, 10) >= since);
+  const listKey = `forest-pub:${me}:${fid}:rides`;
+  const before = new Set((await idbGet<string[]>(listKey).catch(() => undefined)) ?? []);
+  for (const r of recent) {
+    const page = ridePage(r, maps && !r.trainer ? await storedTrack(r.id) : null, maps);
+    const key = `forest-pub:${me}:${fid}:ride:${r.id}`;
+    const fp = fingerprint(page);
+    before.delete(r.id);
+    if ((await idbGet<string>(key).catch(() => undefined)) === fp) continue;
+    await setDoc(
+      doc(db, "forests", fid, "trees", me, "rides", r.id),
+      JSON.parse(JSON.stringify(page)),
+    );
+    await idbSet(key, fp).catch(() => {});
+  }
+  for (const gone of before) {
+    await deleteDoc(doc(db, "forests", fid, "trees", me, "rides", gone)).catch(() => {});
+    await idbDel(`forest-pub:${me}:${fid}:ride:${gone}`).catch(() => {});
+  }
+  await idbSet(
+    listKey,
+    recent.map((r) => r.id),
+  ).catch(() => {});
 }

@@ -6,6 +6,7 @@ import { Panel } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { auth } from "@/lib/firebase";
 import {
   defaultName,
@@ -79,6 +80,8 @@ function JoinForest() {
 function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; forest: string }) {
   const [me, setMe] = useState(defaultName);
   const [consent, setConsent] = useState(false);
+  const [past, setPast] = useState(true);
+  const [maps, setMaps] = useState(true);
   const [busy, setBusy] = useState(false);
   return (
     <Panel title={t("Ask to join", "Chiedi di entrare")}>
@@ -88,7 +91,7 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
           e.preventDefault();
           setBusy(true);
           try {
-            await requestToJoin(fid, forestKey, me);
+            await requestToJoin(fid, forestKey, me, past, maps);
           } catch {
             toast.error(t("Couldn't send the request", "Impossibile inviare la richiesta"));
           } finally {
@@ -108,6 +111,34 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
             onChange={(e) => setMe(e.target.value)}
           />
         </div>
+        <label className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block">
+              {t("Show my rides from before joining", "Mostra le mie uscite di prima")}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {t(
+                "Off: your tree here starts from the day you join. You can change it later.",
+                "Spento: qui il tuo albero parte dal giorno in cui entri. Puoi cambiarlo dopo.",
+              )}
+            </span>
+          </span>
+          <Switch checked={past} onCheckedChange={setPast} />
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block">
+              {t("Show my ride maps", "Mostra le mappe delle mie uscite")}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {t(
+                "Members can open your rides of the last year: the route without its first and last kilometre, and its altitude profile.",
+                "I membri possono aprire le tue uscite dell'ultimo anno: il percorso senza il primo e l'ultimo chilometro, e l'altimetria.",
+              )}
+            </span>
+          </span>
+          <Switch checked={maps} onCheckedChange={setMaps} />
+        </label>
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"
@@ -117,8 +148,8 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
           />
           <span>
             {t(
-              `I agree to share my tree with the members of "${forest}": the rides I choose to show, my fitness, and my crown each day, which reflects my readiness and form (from my check-in, HRV and sleep). I can hide rides, and leaving the forest removes my tree from it. See the`,
-              `Acconsento a condividere il mio albero con i membri di "${forest}": le uscite che scelgo di mostrare, la mia forma fisica e la mia chioma di ogni giorno, che riflette prontezza e forma (da check-in, HRV e sonno). Posso nascondere le uscite, e lasciando il bosco il mio albero viene rimosso. Vedi l'`,
+              `I agree to share my tree with the members of "${forest}": the rides I choose to show (with their maps if I turn that on above), my fitness, and my crown each day, which reflects my readiness and form (from my check-in, HRV and sleep). I can hide rides, and leaving the forest removes my tree from it. See the`,
+              `Acconsento a condividere il mio albero con i membri di "${forest}": le uscite che scelgo di mostrare (con le mappe se lo attivo qui sopra), la mia forma fisica e la mia chioma di ogni giorno, che riflette prontezza e forma (da check-in, HRV e sonno). Posso nascondere le uscite, e lasciando il bosco il mio albero viene rimosso. Vedi l'`,
             )}{" "}
             <Link to="/privacy" className="underline">
               {t("privacy notice", "informativa privacy")}

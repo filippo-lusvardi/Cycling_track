@@ -4,7 +4,7 @@
 //   forests/{fid}                 { name, createdBy, createdAt, members: [uid] }
 //   forests/{fid}/invites/{key}   { name, by }            the secret in an invite link
 //   forests/{fid}/requests/{uid}  { name, key, at, consentAt }
-//   forests/{fid}/members/{uid}   { name, joinedAt, consentAt, defaultShared }
+//   forests/{fid}/members/{uid}   { name, joinedAt, consentAt, defaultShared, sharePast }
 import {
   arrayRemove,
   arrayUnion,
@@ -43,8 +43,21 @@ export type Member = {
   consentAt: number;
   /** New rides are visible in this forest unless hidden one by one. */
   defaultShared: boolean;
+  /** Rides from before joining are visible too (missing = yes, as before the setting existed). */
+  sharePast?: boolean;
+  /** Ride pages show the route with its first and last kilometre hidden (missing = no). */
+  shareRoutes?: boolean;
 };
-export type JoinRequest = { uid: string; name: string; at: number; consentAt: number };
+export type JoinRequest = {
+  uid: string;
+  name: string;
+  at: number;
+  consentAt: number;
+  /** Chosen on the join page: show the rides from before joining. */
+  sharePast?: boolean;
+  /** Chosen on the join page: show ride maps (ends hidden). */
+  shareRoutes?: boolean;
+};
 
 const forestDoc = (fid: string) => doc(db, "forests", fid);
 const sub = (fid: string, name: "invites" | "requests" | "members" | "trees" | "segments") =>
@@ -112,6 +125,8 @@ export async function createForest(name: string, myName: string) {
     joinedAt: now,
     consentAt: now,
     defaultShared: true,
+    sharePast: true,
+    shareRoutes: true,
   });
   return ref.id;
 }
@@ -137,13 +152,21 @@ export async function readInvite(fid: string, key: string): Promise<string | nul
   return s?.exists() ? (s.get("name") as string) : null;
 }
 
-export async function requestToJoin(fid: string, key: string, name: string) {
+export async function requestToJoin(
+  fid: string,
+  key: string,
+  name: string,
+  sharePast: boolean,
+  shareRoutes: boolean,
+) {
   const now = Date.now();
   await setDoc(doc(sub(fid, "requests"), uid()), {
     name: name.trim().slice(0, 40),
     key,
     at: now,
     consentAt: now,
+    sharePast,
+    shareRoutes,
   });
 }
 
@@ -163,6 +186,8 @@ export async function approve(fid: string, r: JoinRequest) {
     joinedAt: Date.now(),
     consentAt: r.consentAt,
     defaultShared: true,
+    sharePast: r.sharePast !== false,
+    shareRoutes: r.shareRoutes === true,
   });
   b.delete(doc(sub(fid, "requests"), r.uid));
   await b.commit();
@@ -175,7 +200,7 @@ export const renameForest = (fid: string, name: string) =>
 
 export const setMyForestPrefs = (
   fid: string,
-  patch: Partial<Pick<Member, "name" | "defaultShared">>,
+  patch: Partial<Pick<Member, "name" | "defaultShared" | "sharePast" | "shareRoutes">>,
 ) => updateDoc(doc(sub(fid, "members"), uid()), patch);
 
 /**
@@ -188,6 +213,10 @@ export async function leaveForest(f: Forest) {
     () => null,
   );
   for (const d of years?.docs ?? []) await deleteDoc(d.ref);
+  const pages = await getDocs(collection(db, "forests", f.id, "trees", me, "rides")).catch(
+    () => null,
+  );
+  for (const d of pages?.docs ?? []) await deleteDoc(d.ref);
   await deleteDoc(doc(sub(f.id, "trees"), me)).catch(() => {});
   const segs = await getDocs(sub(f.id, "segments")).catch(() => null);
   for (const s of segs?.docs ?? []) await deleteDoc(doc(s.ref, "times", me)).catch(() => {});

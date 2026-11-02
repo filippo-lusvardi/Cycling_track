@@ -20,6 +20,7 @@ import {
   type JoinRequest,
   type Member,
 } from "@/lib/forest/forests";
+import { republish } from "@/lib/forest/publish";
 import { format, t } from "@/lib/i18n";
 
 /** Inviting, approving, my settings for this forest, and leaving it. */
@@ -212,7 +213,50 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
           </span>
           <Switch
             checked={me.defaultShared}
-            onCheckedChange={(v) => void setMyForestPrefs(forest.id, { defaultShared: v })}
+            onCheckedChange={async (v) => {
+              await setMyForestPrefs(forest.id, { defaultShared: v });
+              republish();
+            }}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block">
+              {t("Show rides from before I joined", "Mostra le uscite di prima del mio ingresso")}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {t(
+                `Rides before ${format(me.joinedAt, "d MMM yyyy")}. Off: your tree here starts that day.`,
+                `Uscite prima del ${format(me.joinedAt, "d MMM yyyy")}. Spento: qui il tuo albero parte da quel giorno.`,
+              )}
+            </span>
+          </span>
+          <Switch
+            checked={me.sharePast !== false}
+            onCheckedChange={async (v) => {
+              await setMyForestPrefs(forest.id, { sharePast: v });
+              republish();
+            }}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block">
+              {t("Show my ride maps", "Mostra le mappe delle mie uscite")}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {t(
+                "Members can open your shared rides of the last year: the route without its first and last kilometre, and its altitude profile.",
+                "I membri possono aprire le tue uscite condivise dell'ultimo anno: il percorso senza il primo e l'ultimo chilometro, e l'altimetria.",
+              )}
+            </span>
+          </span>
+          <Switch
+            checked={me.shareRoutes === true}
+            onCheckedChange={async (v) => {
+              await setMyForestPrefs(forest.id, { shareRoutes: v });
+              republish();
+            }}
           />
         </label>
         <div className="flex gap-2">

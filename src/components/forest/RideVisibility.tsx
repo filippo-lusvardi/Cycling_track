@@ -5,14 +5,21 @@ import { Switch } from "@/components/ui/switch";
 import { db, uid } from "@/lib/firebase";
 import { watchMyForests, type Forest } from "@/lib/forest/forests";
 import { republish } from "@/lib/forest/publish";
-import { isShared, setRideShared, watchOverrides, type Overrides } from "@/lib/forest/visibility";
+import {
+  isShared,
+  prefsOf,
+  setRideShared,
+  watchOverrides,
+  type Overrides,
+  type SharePrefs,
+} from "@/lib/forest/visibility";
 import { t } from "@/lib/i18n";
 
 /** On a ride's page: in which of my forests this ride shows. Nothing when I'm in no forest. */
-export function RideVisibility({ rideId }: { rideId: string }) {
+export function RideVisibility({ rideId, day }: { rideId: string; day: string }) {
   const [forests, setForests] = useState<Forest[]>([]);
   const [overrides, setOverrides] = useState<Overrides>({});
-  const [defaults, setDefaults] = useState<Record<string, boolean>>({});
+  const [prefs, setPrefs] = useState<Record<string, SharePrefs>>({});
   useEffect(() => watchMyForests(setForests), []);
   useEffect(() => watchOverrides(setOverrides), []);
   const ids = forests.map((f) => f.id).join(",");
@@ -20,7 +27,7 @@ export function RideVisibility({ rideId }: { rideId: string }) {
     const stops = forests.map((f) =>
       onSnapshot(
         doc(db, "forests", f.id, "members", uid()),
-        (m) => setDefaults((d) => ({ ...d, [f.id]: m.get("defaultShared") !== false })),
+        (m) => setPrefs((p) => ({ ...p, [f.id]: prefsOf(m.data()) })),
         () => {},
       ),
     );
@@ -33,7 +40,12 @@ export function RideVisibility({ rideId }: { rideId: string }) {
     <Panel title={t("Visible in", "Visibile in")}>
       <ul className="divide-y divide-border">
         {forests.map((f) => {
-          const shown = isShared(rideId, f.id, defaults[f.id] ?? true, overrides);
+          const shown = isShared(
+            { id: rideId, day },
+            f.id,
+            prefs[f.id] ?? prefsOf(undefined),
+            overrides,
+          );
           return (
             <li key={f.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <span className="truncate">{f.name}</span>

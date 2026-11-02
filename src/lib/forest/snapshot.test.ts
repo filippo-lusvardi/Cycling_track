@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Activity, Wellness } from "../intervals";
 import { bestShared } from "./leaderboard";
 import { fingerprint, fromSnapshot, offStretches, toSharedRide, yearDocs } from "./snapshot";
-import { isShared } from "./visibility";
+import { isShared, prefsOf } from "./visibility";
 
 const act = (id: string, date: string): Activity => ({
   id,
@@ -100,19 +100,52 @@ describe("forest snapshot", () => {
 });
 
 describe("visibility and leaderboard", () => {
-  it("follows the forest's default unless the ride says otherwise", () => {
+  const joined = {
+    defaultShared: true,
+    sharePast: true,
+    joinedDay: "2026-06-01",
+    shareRoutes: false,
+  };
+  const ride = (id: string, day: string) => ({ id, day });
+
+  it("follows the forest's settings unless the ride says otherwise", () => {
     const o = { r1: { f1: false }, r2: { f1: true } };
-    expect(isShared("r1", "f1", true, o)).toBe(false);
-    expect(isShared("r2", "f1", false, o)).toBe(true);
-    expect(isShared("r3", "f1", true, o)).toBe(true);
-    expect(isShared("r1", "f2", false, o)).toBe(false);
+    expect(isShared(ride("r1", "2026-07-01"), "f1", joined, o)).toBe(false);
+    expect(isShared(ride("r2", "2026-07-01"), "f1", { ...joined, defaultShared: false }, o)).toBe(
+      true,
+    );
+    expect(isShared(ride("r3", "2026-07-01"), "f1", joined, o)).toBe(true);
+    expect(isShared(ride("r1", "2026-07-01"), "f2", { ...joined, defaultShared: false }, o)).toBe(
+      false,
+    );
+  });
+
+  it("treats rides from before joining by their own setting", () => {
+    const noPast = { ...joined, sharePast: false };
+    expect(isShared(ride("old", "2026-05-31"), "f1", noPast, {})).toBe(false);
+    expect(isShared(ride("new", "2026-06-01"), "f1", noPast, {})).toBe(true);
+    expect(isShared(ride("old", "2026-05-31"), "f1", noPast, { old: { f1: true } })).toBe(true);
+    const onlyPast = { ...joined, defaultShared: false };
+    expect(isShared(ride("old", "2026-05-31"), "f1", onlyPast, {})).toBe(true);
+    expect(isShared(ride("new", "2026-06-02"), "f1", onlyPast, {})).toBe(false);
+  });
+
+  it("reads missing settings as shared, as before they existed", () => {
+    expect(prefsOf({ defaultShared: true, joinedAt: Date.UTC(2026, 5, 1, 12) })).toEqual(joined);
+    expect(prefsOf(undefined)).toEqual({
+      defaultShared: true,
+      sharePast: true,
+      joinedDay: "",
+      shareRoutes: false,
+    });
+    expect(prefsOf({ shareRoutes: true }).shareRoutes).toBe(true);
   });
 
   it("takes the best time among shared rides only", () => {
     const at = (trackId: string, duration: number) =>
       ({ trackId, duration }) as Parameters<typeof bestShared>[0][number];
     const tries = [at("hidden", 900), at("a", 1000), at("b", 950)];
-    expect(bestShared(tries, (id) => id !== "hidden")?.trackId).toBe("b");
+    expect(bestShared(tries, (a) => a.trackId !== "hidden")?.trackId).toBe("b");
     expect(bestShared(tries, () => false)).toBeNull();
   });
 });

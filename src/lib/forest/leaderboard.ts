@@ -83,13 +83,9 @@ export async function addClimb(fid: string, s: Segment, name: string, trace: Tra
 export const removeClimb = (fid: string, sid: string) => deleteDoc(doc(segs(fid), sid));
 
 /** My best effort among the attempts, counting only the rides I share with the forest. */
-export function bestShared(
-  attempts: Attempt[],
-  shared: (rideId: string) => boolean,
-): Attempt | null {
+export function bestShared(attempts: Attempt[], shared: (a: Attempt) => boolean): Attempt | null {
   let best: Attempt | null = null;
-  for (const a of attempts)
-    if (shared(a.trackId) && (!best || a.duration < best.duration)) best = a;
+  for (const a of attempts) if (shared(a) && (!best || a.duration < best.duration)) best = a;
   return best;
 }
 

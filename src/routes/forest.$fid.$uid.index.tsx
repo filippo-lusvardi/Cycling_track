@@ -12,9 +12,10 @@ import { readTree } from "@/lib/forest/trees";
 import { format, t } from "@/lib/i18n";
 import type { Activity } from "@/lib/intervals";
 import { addDays, formatDuration, formatKm, isoDate } from "@/lib/training";
+import { RIDE_PAGE_DAYS } from "@/lib/forest/rides";
 import { buildDays, offDays, WEATHER_WORD, type Crown } from "@/lib/tree";
 
-export const Route = createFileRoute("/forest/$fid/$uid")({
+export const Route = createFileRoute("/forest/$fid/$uid/")({
   head: () => ({ meta: [{ title: t("Forest — Cirmolo", "Bosco — Cirmolo") }] }),
   component: MemberTree,
 });
@@ -81,12 +82,12 @@ function MemberTree() {
                 trunk={days[0]!.trunk}
                 w={w}
                 limit={null}
-                quiet={false}
+                quiet
                 block=""
                 onOpen={() => setSheet({ kind: "today" })}
               />
             )}
-            <TreeBody days={days} w={w} today={today} quiet={false} blocks={[]} open={setSheet} />
+            <TreeBody days={days} w={w} today={today} quiet blocks={[]} open={setSheet} plain />
           </>
         )}
       </div>
@@ -99,6 +100,8 @@ function MemberTree() {
       >
         {sheet?.kind === "days" && tree && (
           <DayRides
+            fid={fid}
+            member={uid}
             acts={tree.acts.filter((a) => sheet.dates.includes(a.start_date_local.slice(0, 10)))}
           />
         )}
@@ -108,68 +111,62 @@ function MemberTree() {
   );
 }
 
-/** The rides of a day (or a week) on a member's tree: what they chose to share. */
-function DayRides({ acts }: { acts: Activity[] }) {
+/** The rides of a day (or a week) on a member's tree; the last year's open their page. */
+function DayRides({ fid, member, acts }: { fid: string; member: string; acts: Activity[] }) {
   if (!acts.length)
     return (
       <p className="text-sm text-muted-foreground">{t("A rest day.", "Un giorno di riposo.")}</p>
     );
+  const since = addDays(isoDate(new Date()), -RIDE_PAGE_DAYS);
   return (
-    <ul className="divide-y divide-border text-sm">
-      {acts.map((a) => (
-        <li key={a.id} className="flex items-center justify-between gap-3 py-2.5">
-          <span className="min-w-0">
-            <span className="block truncate">{a.name ?? a.type}</span>
-            <span className="block text-xs text-muted-foreground">
-              {format(parseISO(a.start_date_local), "EEE d MMM")}
+    <ul className="-mx-4 divide-y divide-border text-sm">
+      {acts.map((a) => {
+        const row = (
+          <>
+            <span className="min-w-0">
+              <span className="block truncate">{a.name ?? a.type}</span>
+              <span className="block text-xs text-muted-foreground">
+                {format(parseISO(a.start_date_local), "EEE d MMM")}
+              </span>
             </span>
-          </span>
-          <span className="stat-num shrink-0 text-right text-xs text-muted-foreground">
-            <span className="block text-sm text-foreground">{formatDuration(a.moving_time)}</span>
-            {[
-              formatKm(a.distance),
-              a.total_elevation_gain ? `${Math.round(a.total_elevation_gain)} m` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
-        </li>
-      ))}
+            <span className="stat-num shrink-0 text-right text-xs text-muted-foreground">
+              <span className="block text-sm text-foreground">{formatDuration(a.moving_time)}</span>
+              {[
+                formatKm(a.distance),
+                a.total_elevation_gain ? `${Math.round(a.total_elevation_gain)} m` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </>
+        );
+        const cls = "flex items-center justify-between gap-3 px-4 py-2.5";
+        return (
+          <li key={a.id}>
+            {a.start_date_local.slice(0, 10) >= since ? (
+              <Link
+                to="/forest/$fid/$uid/ride/$rid"
+                params={{ fid, uid: member, rid: a.id }}
+                className={`${cls} hover:bg-secondary/40`}
+              >
+                {row}
+              </Link>
+            ) : (
+              <div className={cls}>{row}</div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
-/** Today's crown in words: season and sky, fitness, fatigue and form. */
+/** Today's crown in words: the season (readiness) and the sky (form), no numbers. */
 function CrownFacts({ crown }: { crown: Crown }) {
-  const fact = (label: string, value: string, tone?: string) => (
-    <div className="rounded-lg bg-secondary/60 p-3">
-      <div className="eyebrow">{label}</div>
-      <div className={`stat-num mt-1 text-xl font-semibold ${tone ?? ""}`}>{value}</div>
-    </div>
-  );
   return (
-    <div className="space-y-3 text-sm">
-      <p className="text-muted-foreground">
-        {crown.seasonLabel}
-        {crown.weather && ` · ${WEATHER_WORD[crown.weather]}`}
-      </p>
-      <div className="grid grid-cols-3 gap-2">
-        {fact(
-          t("Fitness", "Forma fisica"),
-          crown.ctl != null ? `${Math.round(crown.ctl)}` : "–",
-          "text-fitness",
-        )}
-        {fact(
-          t("Fatigue", "Fatica"),
-          crown.atl != null ? `${Math.round(crown.atl)}` : "–",
-          "text-fatigue",
-        )}
-        {fact(
-          t("Form", "Forma"),
-          crown.form != null ? `${crown.form > 0 ? "+" : ""}${Math.round(crown.form)}` : "–",
-          "text-form",
-        )}
-      </div>
-    </div>
+    <p className="text-sm text-muted-foreground">
+      {crown.seasonLabel}
+      {crown.weather && ` · ${WEATHER_WORD[crown.weather]}`}
+    </p>
   );
 }

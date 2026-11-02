@@ -50,7 +50,7 @@ service cloud.firestore {
 
       match /requests/{uid} {
         allow create: if signedIn() && me() == uid
-          && request.resource.data.keys().hasOnly(["name", "key", "at", "consentAt"])
+          && request.resource.data.keys().hasOnly(["name", "key", "at", "consentAt", "sharePast", "shareRoutes"])
           && request.resource.data.name is string && request.resource.data.name.size() <= 40
           && exists(/databases/$(database)/documents/forests/$(fid)/invites/$(request.resource.data.key));
         allow read, delete: if isMember() || (signedIn() && me() == uid);
@@ -69,6 +69,12 @@ service cloud.firestore {
         allow write: if isMember() && me() == uid;
         allow delete: if signedIn() && me() == uid;
         match /years/{year} {
+          allow read: if isMember();
+          allow write: if isMember() && me() == uid;
+          allow delete: if signedIn() && me() == uid;
+        }
+        // A shared ride's page: summary, and the route with its ends hidden if the member shares maps.
+        match /rides/{ride} {
           allow read: if isMember();
           allow write: if isMember() && me() == uid;
           allow delete: if signedIn() && me() == uid;

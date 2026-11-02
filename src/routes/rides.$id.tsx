@@ -249,7 +249,7 @@ function RideDetail() {
         </Panel>
       )}
       <Brioches a={a} />
-      <RideVisibility rideId={a.id} />
+      <RideVisibility rideId={a.id} day={a.start_date_local.slice(0, 10)} />
       {sourceKind() === "native" && <DeleteRide id={a.id} />}
     </div>
   );

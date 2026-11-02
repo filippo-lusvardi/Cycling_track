@@ -1,0 +1,15 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    { "collectionGroup": "rides", "fieldPath": "route", "indexes": [] },
+    { "collectionGroup": "years", "fieldPath": "rides", "indexes": [] },
+    { "collectionGroup": "years", "fieldPath": "ctl", "indexes": [] },
+    { "collectionGroup": "years", "fieldPath": "atl", "indexes": [] },
+    { "collectionGroup": "trees", "fieldPath": "off", "indexes": [] },
+    { "collectionGroup": "segments", "fieldPath": "trace", "indexes": [] },
+    { "collectionGroup": "streams", "fieldPath": "gz", "indexes": [] },
+    { "collectionGroup": "activities", "fieldPath": "curve", "indexes": [] },
+    { "collectionGroup": "activities", "fieldPath": "zoneTimes", "indexes": [] },
+    { "collectionGroup": "activities", "fieldPath": "icu_intervals", "indexes": [] }
+  ]
+}

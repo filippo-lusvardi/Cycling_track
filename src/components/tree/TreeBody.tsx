@@ -115,6 +115,7 @@ export function TreeBody({
   quiet,
   blocks,
   open,
+  plain = false,
 }: {
   days: TreeDay[];
   w: number;
@@ -123,9 +124,14 @@ export function TreeBody({
   /** Training blocks this device remembers, labelled on the week each one started. */
   blocks: Block[];
   open: (s: Sheet) => void;
+  /** Plain bark all the way down: no build/rest tints or labels (a friend's tree in a forest). */
+  plain?: boolean;
 }) {
   const recent = useMemo(() => days.slice(0, RECENT_DAYS), [days]);
-  const weeks = useMemo(() => buildWeeks(days.slice(RECENT_DAYS)), [days]);
+  const weeks = useMemo(() => {
+    const all = buildWeeks(days.slice(RECENT_DAYS));
+    return plain ? all.map((wk) => ({ ...wk, chapter: "steady" as const })) : all;
+  }, [days, plain]);
   const items = useMemo(() => {
     // Every row is one piece of trunk; pieces are collected first so their joins can be smoothed.
     const pieces: Piece[] = [];
