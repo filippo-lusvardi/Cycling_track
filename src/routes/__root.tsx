@@ -154,7 +154,7 @@ function RootComponent() {
   const bare = useRouterState({
     select: (s) => s.location.pathname === "/login" || s.location.pathname === "/privacy",
   });
-  // The Segments list fills the screen exactly, so it carries the footer inside its own layout.
+  // The Segments list fills the screen exactly: a footer after it would sit on top of the list.
   const fullScreen = useRouterState({ select: (s) => /^\/segments\/?$/.test(s.location.pathname) });
 
   if (bare)

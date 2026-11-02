@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Search, Star, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AppFooter } from "@/components/AppFooter";
 import { gradientLines } from "@/components/GradientProfile";
 import { RouteMap, type MapLine } from "@/components/RouteMap";
 import { Panel } from "@/components/StatCard";
@@ -332,7 +331,6 @@ function Segments() {
           </div>
         </Panel>
       </div>
-      <AppFooter className="shrink-0" />
     </div>
   );
 }
