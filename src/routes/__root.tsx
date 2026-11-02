@@ -29,8 +29,8 @@ import { useLastSynced, useOnline } from "@/hooks/use-online";
 import { sessionReady } from "@/lib/account";
 import { auth, authReady } from "@/lib/firebase";
 import { AuthError } from "@/lib/intervals";
-import { useLocalStore } from "@/hooks/use-local-store";
-import { GARMIN, hasApiKey } from "@/lib/settings";
+import { AppFooter } from "@/components/AppFooter";
+import { hasApiKey } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
@@ -154,7 +154,8 @@ function RootComponent() {
   const bare = useRouterState({
     select: (s) => s.location.pathname === "/login" || s.location.pathname === "/privacy",
   });
-  const [garmin] = useLocalStore<boolean>(GARMIN, false);
+  // The Segments list fills the screen exactly, so it carries the footer inside its own layout.
+  const fullScreen = useRouterState({ select: (s) => /^\/segments\/?$/.test(s.location.pathname) });
 
   if (bare)
     return (
@@ -198,19 +199,7 @@ function RootComponent() {
       {/* Clip anything too wide, so a stray long line never makes the phone zoom the whole page out. */}
       <main className="mx-auto max-w-5xl overflow-x-clip px-4 pb-32 pt-6 lg:pb-12">
         <Outlet />
-        <footer className="mt-10 flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-border pt-4 text-xs text-muted-foreground">
-          <span>
-            {t("Data from intervals.icu", "Dati da intervals.icu")}
-            {garmin &&
-              t(
-                " · Insights derived in part from Garmin device-sourced data",
-                " · Analisi derivate in parte da dati di dispositivi Garmin",
-              )}
-          </span>
-          <Link to="/privacy" className="underline hover:text-foreground">
-            {t("Privacy", "Privacy")}
-          </Link>
-        </footer>
+        {!fullScreen && <AppFooter className="mt-10 border-t border-border pt-4" />}
       </main>
       <nav
         className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
