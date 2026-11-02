@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 
 // Who answers for the data (the "controller" under the GDPR) and how to reach them.
 const CONTROLLER = "Filippo Lusvardi";
-const CONTACT = "privacy@example.com";
+const CONTACT = "lusvardi.filippo@gmail.com";
 const UPDATED = "2 November 2026";
 
 export const Route = createFileRoute("/privacy")({
