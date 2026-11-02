@@ -10,6 +10,85 @@ service cloud.firestore {
       }
     }
 
+    // Forests: friends' trees side by side. Only members see a forest; a link's secret key lets someone ask to
+    // join, and any member approves. Each member writes only their own tree, times and settings.
+    match /forests/{fid} {
+      function signedIn() { return request.auth != null; }
+      function me() { return request.auth.uid; }
+      function forest() { return get(/databases/$(database)/documents/forests/$(fid)).data; }
+      function isMember() { return signedIn() && me() in forest().members; }
+      function asked(uid) { return exists(/databases/$(database)/documents/forests/$(fid)/requests/$(uid)); }
+
+      allow read: if signedIn() && me() in resource.data.members;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(["name", "createdBy", "createdAt", "members"])
+        && request.resource.data.createdBy == me()
+        && request.resource.data.members == [me()]
+        && request.resource.data.name is string && request.resource.data.name.size() <= 40;
+      allow update: if signedIn() && me() in resource.data.members
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["members", "name"])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 40
+        && request.resource.data.members.size() <= 30
+        && membersChangeOk(resource.data, request.resource.data.members.toSet());
+      // The last member leaving takes the forest with them.
+      allow delete: if signedIn() && resource.data.members == [me()];
+
+      // At most one newcomer at a time, and only one who asked; members leave by themselves (the creator may also
+      // remove someone).
+      function membersChangeOk(before, after) {
+        let added = after.difference(before.members.toSet());
+        let removed = before.members.toSet().difference(after);
+        return added.size() <= 1
+          && (added.size() == 0 || asked(added.toList()[0]))
+          && (removed.size() == 0 || removed == [me()].toSet() || before.createdBy == me());
+      }
+
+      match /invites/{key} {
+        allow get: if signedIn();
+        allow list, create, delete: if isMember();
+      }
+
+      match /requests/{uid} {
+        allow create: if signedIn() && me() == uid
+          && request.resource.data.keys().hasOnly(["name", "key", "at", "consentAt"])
+          && request.resource.data.name is string && request.resource.data.name.size() <= 40
+          && exists(/databases/$(database)/documents/forests/$(fid)/invites/$(request.resource.data.key));
+        allow read, delete: if isMember() || (signedIn() && me() == uid);
+      }
+
+      match /members/{uid} {
+        allow read: if isMember();
+        // Created by the member themselves (the creator) or by whoever approves their request.
+        allow create: if isMember() && (me() == uid || asked(uid));
+        allow update: if isMember() && me() == uid;
+        allow delete: if signedIn() && (me() == uid || forest().createdBy == me());
+      }
+
+      match /trees/{uid} {
+        allow read: if isMember();
+        allow write: if isMember() && me() == uid;
+        allow delete: if signedIn() && me() == uid;
+        match /years/{year} {
+          allow read: if isMember();
+          allow write: if isMember() && me() == uid;
+          allow delete: if signedIn() && me() == uid;
+        }
+      }
+
+      match /segments/{sid} {
+        allow read: if isMember();
+        allow create: if isMember() && request.resource.data.addedBy == me();
+        // By whoever added it, the creator, or the last member leaving.
+        allow delete: if isMember()
+          && (resource.data.addedBy == me() || forest().createdBy == me() || forest().members == [me()]);
+        match /times/{uid} {
+          allow read: if isMember();
+          allow write: if isMember() && me() == uid;
+          allow delete: if signedIn() && me() == uid;
+        }
+      }
+    }
+
     // OpenStreetMap names for climbs, shared by every signed-in user. A found name is never replaced by "none".
     match /places/{key} {
       allow read: if request.auth != null;

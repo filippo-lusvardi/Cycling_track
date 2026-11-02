@@ -1,0 +1,216 @@
+// Forests: friends and teammates whose trees grow side by side. Membership lives in Firestore; each member's own
+// app publishes a filtered copy of their tree into every forest they're in (./publish.ts), since training data
+// never passes through a server.
+//   forests/{fid}                 { name, createdBy, createdAt, members: [uid] }
+//   forests/{fid}/invites/{key}   { name, by }            the secret in an invite link
+//   forests/{fid}/requests/{uid}  { name, key, at, consentAt }
+//   forests/{fid}/members/{uid}   { name, joinedAt, consentAt, defaultShared }
+import {
+  arrayRemove,
+  arrayUnion,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch,
+} from "firebase/firestore";
+import { del, keys } from "idb-keyval";
+import { auth, db, uid } from "../firebase";
+
+/** A name to start from: the part of the account's email before the @. */
+export const defaultName = () => auth.currentUser?.email?.split("@")[0] ?? "";
+
+/** Most trees a forest holds: enough for a team, still readable as one landscape. */
+export const MAX_MEMBERS = 30;
+
+export type Forest = {
+  id: string;
+  name: string;
+  createdBy: string;
+  createdAt: number;
+  members: string[];
+};
+export type Member = {
+  uid: string;
+  name: string;
+  joinedAt: number;
+  consentAt: number;
+  /** New rides are visible in this forest unless hidden one by one. */
+  defaultShared: boolean;
+};
+export type JoinRequest = { uid: string; name: string; at: number; consentAt: number };
+
+const forestDoc = (fid: string) => doc(db, "forests", fid);
+const sub = (fid: string, name: "invites" | "requests" | "members" | "trees" | "segments") =>
+  collection(db, "forests", fid, name);
+
+/** A long random key for invite links (knowing it is what lets someone ask to join). */
+function secret() {
+  const b = crypto.getRandomValues(new Uint8Array(18));
+  return btoa(String.fromCharCode(...b)).replace(
+    /[+/=]/g,
+    (c) => ({ "+": "-", "/": "_", "=": "" })[c]!,
+  );
+}
+
+/** The forests I'm in, live, by name; `onError` when they can't be read (offline on first load, rules). */
+export const watchMyForests = (cb: (f: Forest[]) => void, onError?: (e: Error) => void) =>
+  onSnapshot(
+    query(collection(db, "forests"), where("members", "array-contains", uid())),
+    (s) =>
+      cb(
+        s.docs
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<Forest, "id">) }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      ),
+    (e) => {
+      console.warn("Forests unavailable", e);
+      onError?.(e);
+    },
+  );
+
+export const watchForest = (fid: string, cb: (f: Forest | null) => void) =>
+  onSnapshot(
+    forestDoc(fid),
+    (s) => cb(s.exists() ? { id: s.id, ...(s.data() as Omit<Forest, "id">) } : null),
+    () => cb(null),
+  );
+
+export const watchMembers = (fid: string, cb: (m: Member[]) => void) =>
+  onSnapshot(
+    sub(fid, "members"),
+    (s) => cb(s.docs.map((d) => ({ uid: d.id, ...(d.data() as Omit<Member, "uid">) }))),
+    (e) => console.warn("Members unavailable", e),
+  );
+
+export const watchRequests = (fid: string, cb: (r: JoinRequest[]) => void) =>
+  onSnapshot(
+    sub(fid, "requests"),
+    (s) => cb(s.docs.map((d) => ({ uid: d.id, ...(d.data() as Omit<JoinRequest, "uid">) }))),
+    (e) => console.warn("Join requests unavailable", e),
+  );
+
+/** Plant a forest: me as its first member, and an invite to pass on. */
+export async function createForest(name: string, myName: string) {
+  const me = uid();
+  const ref = doc(collection(db, "forests"));
+  const now = Date.now();
+  await setDoc(ref, {
+    name: name.trim().slice(0, 40),
+    createdBy: me,
+    createdAt: now,
+    members: [me],
+  });
+  await setDoc(doc(sub(ref.id, "members"), me), {
+    name: myName.trim().slice(0, 40),
+    joinedAt: now,
+    consentAt: now,
+    defaultShared: true,
+  });
+  return ref.id;
+}
+
+/** The forest's invite link, making one the first time it's asked for. */
+export async function inviteLink(f: Forest): Promise<string> {
+  const mine = await getDocs(sub(f.id, "invites"));
+  const key = mine.docs[0]?.id ?? secret();
+  if (!mine.docs.length) await setDoc(doc(sub(f.id, "invites"), key), { name: f.name, by: uid() });
+  return `${window.location.origin}/forest/join/${f.id}/${key}`;
+}
+
+/** A fresh link; the old one stops working (for a link that went further than meant). */
+export async function renewInvite(f: Forest): Promise<string> {
+  const old = await getDocs(sub(f.id, "invites"));
+  for (const d of old.docs) await deleteDoc(d.ref);
+  return inviteLink(f);
+}
+
+/** What an invite link shows before joining: the forest's name, or null when the link is no longer valid. */
+export async function readInvite(fid: string, key: string): Promise<string | null> {
+  const s = await getDoc(doc(sub(fid, "invites"), key)).catch(() => null);
+  return s?.exists() ? (s.get("name") as string) : null;
+}
+
+export async function requestToJoin(fid: string, key: string, name: string) {
+  const now = Date.now();
+  await setDoc(doc(sub(fid, "requests"), uid()), {
+    name: name.trim().slice(0, 40),
+    key,
+    at: now,
+    consentAt: now,
+  });
+}
+
+/** My pending request to a forest, live (null once approved, declined or withdrawn). */
+export const watchMyRequest = (fid: string, cb: (pending: boolean) => void) =>
+  onSnapshot(
+    doc(sub(fid, "requests"), uid()),
+    (s) => cb(s.exists()),
+    () => cb(false),
+  );
+
+export async function approve(fid: string, r: JoinRequest) {
+  const b = writeBatch(db);
+  b.update(forestDoc(fid), { members: arrayUnion(r.uid) });
+  b.set(doc(sub(fid, "members"), r.uid), {
+    name: r.name,
+    joinedAt: Date.now(),
+    consentAt: r.consentAt,
+    defaultShared: true,
+  });
+  b.delete(doc(sub(fid, "requests"), r.uid));
+  await b.commit();
+}
+
+export const decline = (fid: string, r: JoinRequest) => deleteDoc(doc(sub(fid, "requests"), r.uid));
+
+export const renameForest = (fid: string, name: string) =>
+  updateDoc(forestDoc(fid), { name: name.trim().slice(0, 40) });
+
+export const setMyForestPrefs = (
+  fid: string,
+  patch: Partial<Pick<Member, "name" | "defaultShared">>,
+) => updateDoc(doc(sub(fid, "members"), uid()), patch);
+
+/**
+ * Leave a forest: my copy of the tree, my times and my membership go first (afterwards I can't reach them), then
+ * my place in the forest. The last one out takes the forest with them.
+ */
+export async function leaveForest(f: Forest) {
+  const me = uid();
+  const years = await getDocs(collection(db, "forests", f.id, "trees", me, "years")).catch(
+    () => null,
+  );
+  for (const d of years?.docs ?? []) await deleteDoc(d.ref);
+  await deleteDoc(doc(sub(f.id, "trees"), me)).catch(() => {});
+  const segs = await getDocs(sub(f.id, "segments")).catch(() => null);
+  for (const s of segs?.docs ?? []) await deleteDoc(doc(s.ref, "times", me)).catch(() => {});
+  await deleteDoc(doc(sub(f.id, "members"), me));
+  // Forget what was published there, so coming back publishes the tree afresh.
+  for (const k of (await keys().catch(() => [])).map(String))
+    if (k.startsWith(`forest-pub:${me}:${f.id}:`) || k.startsWith(`forest-time:${me}:${f.id}:`))
+      await del(k);
+  if (f.members.length <= 1) {
+    for (const s of segs?.docs ?? []) await deleteDoc(s.ref).catch(() => {});
+    const inv = await getDocs(sub(f.id, "invites")).catch(() => null);
+    for (const d of inv?.docs ?? []) await deleteDoc(d.ref).catch(() => {});
+    await deleteDoc(forestDoc(f.id));
+  } else await updateDoc(forestDoc(f.id), { members: arrayRemove(me) });
+}
+
+/** Every forest I'm in, left (account deletion). */
+export async function leaveAllForests() {
+  const mine = await getDocs(
+    query(collection(db, "forests"), where("members", "array-contains", uid())),
+  );
+  for (const d of mine.docs)
+    await leaveForest({ id: d.id, ...(d.data() as Omit<Forest, "id">) }).catch((e) =>
+      console.warn("Couldn't leave", d.id, e),
+    );
+}

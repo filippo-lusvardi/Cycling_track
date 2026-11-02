@@ -1,0 +1,332 @@
+import { useId, useMemo } from "react";
+import { MiniTree, type SceneTree } from "@/components/forest/ForestScene";
+import type { Forest } from "@/lib/forest/forests";
+import { t } from "@/lib/i18n";
+import { farRidge } from "@/lib/ridge";
+import { rng, seedOf } from "@/lib/tree";
+
+export type WorldWood = { forest: Forest; trees: SceneTree[]; waiting: number };
+
+const W = 360;
+const TOP = 96;
+const STEP = 158;
+
+/**
+ * My forests as one little world at night: a trail winds down the valley from the mountains, past a wood on its own
+ * hill for each forest (its members' trees in their seasons), to a clearing where a new forest can be planted.
+ */
+export function ForestWorld({
+  woods,
+  onOpen,
+  onPlant,
+}: {
+  woods: WorldWood[];
+  onOpen: (fid: string) => void;
+  onPlant: () => void;
+}) {
+  const uid = `world${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const H = TOP + (woods.length + 1) * STEP;
+  // Woods sit left and right of the trail in turn; the clearing comes last.
+  const spots = [...woods.map((_, i) => i), woods.length].map((i) => ({
+    x: i % 2 === 0 ? 112 : 248,
+    y: TOP + i * STEP + 70,
+  }));
+  // The trail: a smooth centre line (Catmull-Rom through points beside each wood, ending in the clearing), drawn
+  // as a band that is a thread where it leaves the mountains and widens as it comes toward you.
+  const trail = useMemo(() => {
+    const pts = [
+      { x: W / 2 + 18, y: TOP - 30 },
+      ...spots.map((s, i) =>
+        i < woods.length ? { x: W - s.x, y: s.y + 14 } : { x: s.x, y: s.y + 6 },
+      ),
+    ];
+    const line: { x: number; y: number }[] = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(0, i - 1)]!;
+      const p1 = pts[i]!;
+      const p2 = pts[i + 1]!;
+      const p3 = pts[Math.min(pts.length - 1, i + 2)]!;
+      for (let k = 0; k < 24; k++) {
+        const u = k / 24;
+        const u2 = u * u;
+        const u3 = u2 * u;
+        const f = (a: number, b: number, c: number, d: number) =>
+          0.5 *
+          (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3);
+        line.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) });
+      }
+    }
+    line.push(pts.at(-1)!);
+    const half = (y: number) => 0.6 + 7 * Math.min(1, Math.max(0, (y - TOP + 30) / (H - TOP)));
+    const side = (sign: 1 | -1) =>
+      line.map((p, i) => {
+        const q = line[Math.min(line.length - 1, i + 1)]!;
+        const o = line[Math.max(0, i - 1)]!;
+        const dx = q.x - o.x;
+        const dy = q.y - o.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const h = half(p.y) * sign;
+        return `${(p.x - (dy / len) * h).toFixed(1)},${(p.y + (dx / len) * h).toFixed(1)}`;
+      });
+    return {
+      band: `${side(1).join(" ")} ${side(-1).reverse().join(" ")}`,
+      centre: line.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "),
+    };
+    // spots and H derive from the number of woods.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [woods.length]);
+  const stars = useMemo(() => {
+    const r = rng(seedOf("world-stars"));
+    return Array.from({ length: 30 }, () => [r() * W, r() * TOP * 0.8, 0.25 + r() * 0.6] as const);
+  }, []);
+  const ridge = (key: string, top: number, depth: number) => {
+    const ys = farRidge(`world${key}`, 32, 1.3);
+    const pts = ys.map(
+      (y, i) => `${((i / 32) * W).toFixed(1)},${(top + (1 - y) * depth).toFixed(1)}`,
+    );
+    return `0,${H} ${pts.join(" ")} ${W},${H}`;
+  };
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="block h-auto w-full"
+      role="group"
+      aria-label={t("Your forests", "I tuoi boschi")}
+    >
+      <defs>
+        <linearGradient
+          id={`${uid}sky`}
+          x1="0"
+          y1="0"
+          x2="0"
+          y2={TOP + 60}
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="var(--background)" />
+          <stop
+            offset="1"
+            style={{ stopColor: "color-mix(in oklab, var(--primary) 10%, var(--card))" }}
+          />
+        </linearGradient>
+        <linearGradient id={`${uid}valley`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="var(--secondary)" />
+          <stop offset="1" stopColor="var(--background)" />
+        </linearGradient>
+        {/* Pale where the trail comes toward you, fading into the dark up by the mountains. */}
+        <linearGradient id={`${uid}trail`} x1="0" y1="0" x2="0" y2="1">
+          <stop
+            offset="0"
+            style={{ stopColor: "color-mix(in oklab, var(--birch) 12%, var(--secondary))" }}
+            stopOpacity={0.2}
+          />
+          <stop
+            offset="1"
+            style={{ stopColor: "color-mix(in oklab, var(--birch) 22%, var(--secondary))" }}
+            stopOpacity={0.9}
+          />
+        </linearGradient>
+        <radialGradient id={`${uid}hill`} cx="0.5" cy="0.3" r="0.7">
+          <stop
+            offset="0"
+            style={{ stopColor: "color-mix(in oklab, var(--pine) 18%, var(--secondary))" }}
+          />
+          <stop offset="1" stopColor="var(--card)" />
+        </radialGradient>
+      </defs>
+      <rect width={W} height={H} fill={`url(#${uid}sky)`} />
+      {stars.map(([x, y, o], i) => (
+        <circle key={i} cx={x} cy={y} r={0.7} fill="var(--snow)" opacity={o} />
+      ))}
+      <polygon points={ridge("far", 18, 50)} fill="var(--border)" opacity={0.5} />
+      <polygon points={ridge("mid", 44, 44)} fill="var(--muted)" />
+      <path
+        d={`M0,${TOP} Q${W / 2},${TOP - 26} ${W},${TOP} L${W},${H} L0,${H} Z`}
+        fill={`url(#${uid}valley)`}
+      />
+      <polygon points={trail.band} fill={`url(#${uid}trail)`} />
+      <polyline
+        points={trail.centre}
+        fill="none"
+        stroke="var(--birch)"
+        strokeOpacity={0.12}
+        strokeWidth={1}
+        strokeLinecap="round"
+      />
+      {woods.map((w, i) => (
+        <Wood
+          key={w.forest.id}
+          wood={w}
+          x={spots[i]!.x}
+          y={spots[i]!.y}
+          hill={`url(#${uid}hill)`}
+          onOpen={onOpen}
+        />
+      ))}
+      <Clearing
+        x={spots[woods.length]!.x}
+        y={spots[woods.length]!.y}
+        first={!woods.length}
+        onPlant={onPlant}
+      />
+    </svg>
+  );
+}
+
+/** One forest: a wooded hill, its name below, a glowing dot while someone waits to join. */
+function Wood({
+  wood,
+  x,
+  y,
+  hill,
+  onOpen,
+}: {
+  wood: WorldWood;
+  x: number;
+  y: number;
+  hill: string;
+  onOpen: (fid: string) => void;
+}) {
+  const { forest, trees, waiting } = wood;
+  const r = rng(seedOf(forest.id));
+  // Up to 14 trees on the hill, back rows first so the front ones overlap them.
+  const shown = trees.slice(0, 14);
+  const placed = shown
+    .map((tr, k) => {
+      const a = (k + r() * 0.6) / Math.max(1, shown.length);
+      const dx = (a - 0.5) * 132 + (r() - 0.5) * 10;
+      const dy = (r() - 0.5) * 16 - Math.cos((dx / 70) * (Math.PI / 2)) * 8;
+      return { tr, x: x + dx, y: y + 18 + dy, size: 0.62 + r() * 0.2 };
+    })
+    .sort((a, b) => a.y - b.y);
+  const open = () => onOpen(forest.id);
+  return (
+    <g
+      role="button"
+      tabIndex={0}
+      aria-label={forest.name}
+      className="cursor-pointer outline-none [&:focus-visible_.wood-name]:underline [&:hover_.wood-name]:fill-[var(--primary)]"
+      onClick={open}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && open()}
+    >
+      <ellipse cx={x} cy={y + 26} rx={98} ry={28} fill={hill} />
+      <ellipse
+        cx={x}
+        cy={y + 26}
+        rx={98}
+        ry={28}
+        fill="none"
+        stroke="var(--border)"
+        strokeOpacity={0.6}
+      />
+      {placed.map((p) => (
+        <MiniTree
+          key={p.tr.uid}
+          tr={p.tr}
+          x={p.x}
+          y={p.y}
+          size={p.size}
+          seed={`${forest.id}${p.tr.uid}`}
+        />
+      ))}
+      <text
+        x={x}
+        y={y + 74}
+        textAnchor="middle"
+        fontSize={14}
+        fontWeight={600}
+        fill="var(--foreground)"
+        className="wood-name"
+      >
+        {forest.name.length > 22 ? `${forest.name.slice(0, 21)}…` : forest.name}
+      </text>
+      <text x={x} y={y + 90} textAnchor="middle" fontSize={10} fill="var(--muted-foreground)">
+        {t(
+          `${forest.members.length} ${forest.members.length === 1 ? "tree" : "trees"}`,
+          `${forest.members.length} ${forest.members.length === 1 ? "albero" : "alberi"}`,
+        )}
+        {waiting > 0 && t(` · ${waiting} waiting`, ` · ${waiting} in attesa`)}
+      </text>
+      {waiting > 0 && (
+        <g transform={`translate(${x + 84},${y - 18})`}>
+          <circle r={9} fill="var(--primary)" opacity={0.25}>
+            <animate attributeName="r" values="7;11;7" dur="2.4s" repeatCount="indefinite" />
+          </circle>
+          <circle r={5} fill="var(--primary)" />
+        </g>
+      )}
+      {/* The whole wood is the tap target. */}
+      <rect x={x - 100} y={y - 50} width={200} height={146} fill="transparent" />
+    </g>
+  );
+}
+
+/** The trail's end: a clearing with a sprout, where a new forest is planted. */
+function Clearing({
+  x,
+  y,
+  first,
+  onPlant,
+}: {
+  x: number;
+  y: number;
+  first: boolean;
+  onPlant: () => void;
+}) {
+  return (
+    <g
+      role="button"
+      tabIndex={0}
+      aria-label={t("Plant a forest", "Pianta un bosco")}
+      className="cursor-pointer outline-none [&:hover_circle.ring]:stroke-[var(--primary)]"
+      onClick={onPlant}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onPlant()}
+    >
+      <ellipse cx={x} cy={y + 26} rx={70} ry={20} fill="var(--card)" opacity={0.7} />
+      <circle
+        className="ring"
+        cx={x}
+        cy={y + 10}
+        r={30}
+        fill="none"
+        stroke="var(--birch)"
+        strokeOpacity={0.6}
+        strokeDasharray="3 5"
+      />
+      <line
+        x1={x}
+        y1={y + 22}
+        x2={x}
+        y2={y + 6}
+        stroke="var(--bark)"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <ellipse
+        cx={x - 5}
+        cy={y + 6}
+        rx={6}
+        ry={3}
+        fill="var(--spring)"
+        transform={`rotate(-25 ${x - 5} ${y + 6})`}
+      />
+      <ellipse
+        cx={x + 5}
+        cy={y + 3}
+        rx={6}
+        ry={3}
+        fill="var(--spring)"
+        transform={`rotate(25 ${x + 5} ${y + 3})`}
+      />
+      <text x={x} y={y + 62} textAnchor="middle" fontSize={13} fontWeight={600} fill="var(--birch)">
+        {t("Plant a forest", "Pianta un bosco")}
+      </text>
+      {first && (
+        <text x={x} y={y + 78} textAnchor="middle" fontSize={10} fill="var(--muted-foreground)">
+          {t("or open an invite link", "oppure apri un link di invito")}
+        </text>
+      )}
+      <rect x={x - 72} y={y - 24} width={144} height={110} fill="transparent" />
+    </g>
+  );
+}

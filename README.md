@@ -133,6 +133,22 @@ zones, power curves and eFTP.
 
 ---
 
+## Forest
+
+**Forest** (the third option of the *Tree · Years · Forest* switch at the bottom of the Tree) is where friends and teammates grow their trees side by side. You can be in
+several forests.
+
+- **Plant a forest**, then **Members → Show invite link** and send it. Whoever opens it asks to join (with consent
+  to share their tree), and any member lets them in. *New link* makes the old one stop working. Up to 30 trees.
+- **Trees**: the forest's members as a little grove, each tree in today's season; tap one to see it whole.
+- **What's shared**: each member's own app publishes a copy of their tree into each forest when they open the
+  Tree: the rides they show there (no GPS, heart rate or power), daily fitness/fatigue, sick days and today's crown.
+  **Members → Share new rides** sets the default per forest; a ride's page has **Visible in** to show or hide it.
+- **Climbs**: any member adds one of their saved climbs; each member's app finds their efforts on it and publishes
+  their best time from the rides they share there.
+
+---
+
 ## Your data
 
 | What | Where |

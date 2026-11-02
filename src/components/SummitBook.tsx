@@ -11,6 +11,7 @@ import { saveSummitNote, watchSummitNotes } from "@/lib/cloud";
 import { format, t } from "@/lib/i18n";
 import type { Attempt, Trace } from "@/lib/segments";
 import { isMilestone, summitBook, type BookEntry } from "@/lib/summit";
+import { farRidge } from "@/lib/ridge";
 import { rng, seedOf } from "@/lib/tree";
 import { formatClock } from "@/lib/training";
 import { cn } from "@/lib/utils";
@@ -232,21 +233,6 @@ function Cairn({ filled }: { filled: boolean }) {
 /** Snow lies on the summit above this altitude (m): the Dolomites' passes above it keep their caps. */
 const SNOWLINE = 1800;
 
-/** A ridge for the far range: midpoint displacement from a seed, so each climb keeps its own mountains. */
-function farRidge(seed: string, n: number, rough: number): number[] {
-  const r = rng(seedOf(seed));
-  const ys = new Array<number>(n + 1).fill(0);
-  ys[0] = r();
-  ys[n] = r();
-  for (let step = n; step > 1; step = Math.floor(step / 2)) {
-    const half = Math.floor(step / 2);
-    for (let i = half; i < n; i += step)
-      ys[i] = (ys[i - half]! + ys[Math.min(n, i + half)]!) / 2 + (r() - 0.5) * rough * (step / n);
-  }
-  const lo = Math.min(...ys);
-  const hi = Math.max(...ys);
-  return ys.map((y) => (y - lo) / (hi - lo || 1));
-}
 
 /**
  * The book's cover: a night scene in the Nordic palette. Two far ranges drawn from the climb's seed, then the

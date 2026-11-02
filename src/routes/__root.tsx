@@ -30,6 +30,7 @@ import { sessionReady } from "@/lib/account";
 import { auth, authReady } from "@/lib/firebase";
 import { AuthError } from "@/lib/intervals";
 import { AppFooter } from "@/components/AppFooter";
+import { ForestSync } from "@/components/forest/ForestSync";
 import { hasSource } from "@/lib/source";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -131,14 +132,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     await authReady;
     const login = location.pathname === "/login";
     if (!auth.currentUser) {
-      if (!login) throw redirect({ to: "/login" });
+      // An invite link survives signing in: the login page comes back to it.
+      if (!login) throw redirect({ to: "/login", search: { next: location.href } });
       return;
     }
     if (login) throw redirect({ to: "/" });
     // A new device waits for the account's settings; one that has them opens at once, even offline.
     if (!hasSource()) await sessionReady();
-    // Settings must open before a data source is chosen.
-    if (location.pathname !== "/settings" && !hasSource()) throw redirect({ to: "/settings" });
+    // Settings must open before a data source is chosen; a forest invite can be answered before that.
+    const free = location.pathname === "/settings" || location.pathname.startsWith("/forest/join/");
+    if (!free && !hasSource()) throw redirect({ to: "/settings" });
   },
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -209,7 +212,16 @@ function RootComponent() {
         </div>
       </header>
       {/* Clip anything too wide, so a stray long line never makes the phone zoom the whole page out. */}
-      <main className="mx-auto max-w-5xl overflow-x-clip px-4 pb-32 pt-[calc(1.5rem+env(safe-area-inset-top))] lg:pb-12 lg:pt-6">
+      {/* Phone only: the icon and name on a transparent line that scrolls away with the page. */}
+      <header className="pt-[env(safe-area-inset-top)] lg:hidden">
+        <div className="flex h-12 items-center px-4">
+          <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
+            <img src="/icon.svg" alt="" width={24} height={24} className="rounded" />
+            Cirmolo
+          </Link>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl overflow-x-clip px-4 pb-32 pt-2 lg:pb-12 lg:pt-6">
         <Outlet />
         {!fullScreen && <AppFooter className="mt-10 border-t border-border pt-4" />}
       </main>
@@ -273,6 +285,7 @@ function RootComponent() {
         </SheetContent>
       </Sheet>
       <DailyCheckIn />
+      <ForestSync />
       <Toaster position="top-center" />
       <PwaUpdater />
     </>

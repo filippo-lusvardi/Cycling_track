@@ -17,10 +17,15 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TreeRouteImport } from './routes/tree'
+import { Route as ForestIndexRouteImport } from './routes/forest.index'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
 import { Route as RidesIdRouteImport } from './routes/rides.$id'
 import { Route as SegmentsIndexRouteImport } from './routes/segments.index'
 import { Route as SegmentsIdRouteImport } from './routes/segments.$id'
+import { Route as ForestFidIndexRouteImport } from './routes/forest.$fid.index'
+import { Route as ForestFidUidRouteImport } from './routes/forest.$fid.$uid'
+import { Route as ForestFidClimbSidRouteImport } from './routes/forest.$fid.climb.$sid'
+import { Route as ForestJoinFidKeyRouteImport } from './routes/forest.join.$fid.$key'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -62,6 +67,11 @@ const TreeRoute = TreeRouteImport.update({
   path: '/tree',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForestIndexRoute = ForestIndexRouteImport.update({
+  id: '/forest/',
+  path: '/forest/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RidesIndexRoute = RidesIndexRouteImport.update({
   id: '/rides/',
   path: '/rides/',
@@ -82,6 +92,26 @@ const SegmentsIdRoute = SegmentsIdRouteImport.update({
   path: '/segments/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForestFidIndexRoute = ForestFidIndexRouteImport.update({
+  id: '/forest/$fid/',
+  path: '/forest/$fid/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForestFidUidRoute = ForestFidUidRouteImport.update({
+  id: '/forest/$fid/$uid',
+  path: '/forest/$fid/$uid',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForestFidClimbSidRoute = ForestFidClimbSidRouteImport.update({
+  id: '/forest/$fid/climb/$sid',
+  path: '/forest/$fid/climb/$sid',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForestJoinFidKeyRoute = ForestJoinFidKeyRouteImport.update({
+  id: '/forest/join/$fid/$key',
+  path: '/forest/join/$fid/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,8 +124,13 @@ export interface FileRoutesByFullPath {
   '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
+  '/forest/': typeof ForestIndexRoute
   '/rides/': typeof RidesIndexRoute
   '/segments/': typeof SegmentsIndexRoute
+  '/forest/$fid/$uid': typeof ForestFidUidRoute
+  '/forest/$fid/': typeof ForestFidIndexRoute
+  '/forest/$fid/climb/$sid': typeof ForestFidClimbSidRoute
+  '/forest/join/$fid/$key': typeof ForestJoinFidKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -108,8 +143,13 @@ export interface FileRoutesByTo {
   '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
+  '/forest': typeof ForestIndexRoute
   '/rides': typeof RidesIndexRoute
   '/segments': typeof SegmentsIndexRoute
+  '/forest/$fid/$uid': typeof ForestFidUidRoute
+  '/forest/$fid': typeof ForestFidIndexRoute
+  '/forest/$fid/climb/$sid': typeof ForestFidClimbSidRoute
+  '/forest/join/$fid/$key': typeof ForestJoinFidKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -123,8 +163,13 @@ export interface FileRoutesById {
   '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
+  '/forest/': typeof ForestIndexRoute
   '/rides/': typeof RidesIndexRoute
   '/segments/': typeof SegmentsIndexRoute
+  '/forest/$fid/$uid': typeof ForestFidUidRoute
+  '/forest/$fid/': typeof ForestFidIndexRoute
+  '/forest/$fid/climb/$sid': typeof ForestFidClimbSidRoute
+  '/forest/join/$fid/$key': typeof ForestJoinFidKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -139,8 +184,13 @@ export interface FileRouteTypes {
     | '/tree'
     | '/rides/$id'
     | '/segments/$id'
+    | '/forest/'
     | '/rides/'
     | '/segments/'
+    | '/forest/$fid/$uid'
+    | '/forest/$fid/'
+    | '/forest/$fid/climb/$sid'
+    | '/forest/join/$fid/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -153,8 +203,13 @@ export interface FileRouteTypes {
     | '/tree'
     | '/rides/$id'
     | '/segments/$id'
+    | '/forest'
     | '/rides'
     | '/segments'
+    | '/forest/$fid/$uid'
+    | '/forest/$fid'
+    | '/forest/$fid/climb/$sid'
+    | '/forest/join/$fid/$key'
   id:
     | '__root__'
     | '/'
@@ -167,8 +222,13 @@ export interface FileRouteTypes {
     | '/tree'
     | '/rides/$id'
     | '/segments/$id'
+    | '/forest/'
     | '/rides/'
     | '/segments/'
+    | '/forest/$fid/$uid'
+    | '/forest/$fid/'
+    | '/forest/$fid/climb/$sid'
+    | '/forest/join/$fid/$key'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -182,8 +242,13 @@ export interface RootRouteChildren {
   TreeRoute: typeof TreeRoute
   RidesIdRoute: typeof RidesIdRoute
   SegmentsIdRoute: typeof SegmentsIdRoute
+  ForestIndexRoute: typeof ForestIndexRoute
   RidesIndexRoute: typeof RidesIndexRoute
   SegmentsIndexRoute: typeof SegmentsIndexRoute
+  ForestFidUidRoute: typeof ForestFidUidRoute
+  ForestFidIndexRoute: typeof ForestFidIndexRoute
+  ForestFidClimbSidRoute: typeof ForestFidClimbSidRoute
+  ForestJoinFidKeyRoute: typeof ForestJoinFidKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -244,6 +309,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forest/': {
+      id: '/forest/'
+      path: '/forest'
+      fullPath: '/forest/'
+      preLoaderRoute: typeof ForestIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rides/': {
       id: '/rides/'
       path: '/rides'
@@ -272,6 +344,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SegmentsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forest/$fid/': {
+      id: '/forest/$fid/'
+      path: '/forest/$fid'
+      fullPath: '/forest/$fid/'
+      preLoaderRoute: typeof ForestFidIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forest/$fid/$uid': {
+      id: '/forest/$fid/$uid'
+      path: '/forest/$fid/$uid'
+      fullPath: '/forest/$fid/$uid'
+      preLoaderRoute: typeof ForestFidUidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forest/$fid/climb/$sid': {
+      id: '/forest/$fid/climb/$sid'
+      path: '/forest/$fid/climb/$sid'
+      fullPath: '/forest/$fid/climb/$sid'
+      preLoaderRoute: typeof ForestFidClimbSidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forest/join/$fid/$key': {
+      id: '/forest/join/$fid/$key'
+      path: '/forest/join/$fid/$key'
+      fullPath: '/forest/join/$fid/$key'
+      preLoaderRoute: typeof ForestJoinFidKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -286,8 +386,13 @@ const rootRouteChildren: RootRouteChildren = {
   TreeRoute: TreeRoute,
   RidesIdRoute: RidesIdRoute,
   SegmentsIdRoute: SegmentsIdRoute,
+  ForestIndexRoute: ForestIndexRoute,
   RidesIndexRoute: RidesIndexRoute,
   SegmentsIndexRoute: SegmentsIndexRoute,
+  ForestFidUidRoute: ForestFidUidRoute,
+  ForestFidIndexRoute: ForestFidIndexRoute,
+  ForestFidClimbSidRoute: ForestFidClimbSidRoute,
+  ForestJoinFidKeyRoute: ForestJoinFidKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

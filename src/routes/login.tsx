@@ -16,6 +16,11 @@ import { auth } from "@/lib/firebase";
 import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/login")({
+  // Where to go after signing in (a forest invite link, say); only paths inside the app.
+  validateSearch: (s: Record<string, unknown>): { next?: string } =>
+    typeof s["next"] === "string" && s["next"].startsWith("/") && !s["next"].startsWith("//")
+      ? { next: s["next"] }
+      : {},
   head: () => ({ meta: [{ title: t("Sign in — Cirmolo", "Accedi — Cirmolo") }] }),
   component: LoginPage,
 });
@@ -24,6 +29,7 @@ type Mode = "signin" | "signup" | "reset";
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +54,8 @@ function LoginPage() {
       else await signInWithEmailAndPassword(auth, email.trim(), password);
       // The account's intervals.icu key comes down first, so a known account skips Settings.
       await sessionReady();
-      navigate({ to: "/" });
+      if (next) window.location.assign(next);
+      else navigate({ to: "/" });
     } catch (err) {
       toast.error(authError(err));
     } finally {

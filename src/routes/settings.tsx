@@ -324,6 +324,9 @@ function Account() {
     setBusy("delete");
     try {
       await reauth();
+      // My trees and times leave every forest first (afterwards I couldn't reach them).
+      const { leaveAllForests } = await import("@/lib/forest/forests");
+      await leaveAllForests();
       await deleteUserData();
       await deleteUser(user!);
       await signOutAndWipe();

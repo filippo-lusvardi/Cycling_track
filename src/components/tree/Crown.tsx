@@ -281,7 +281,9 @@ export function CrownView({
       );
   }
   const heading = crown.seasonLabel
-    ? `${crown.seasonLabel} · ${crown.advice!.toLowerCase()}`
+    ? crown.advice
+      ? `${crown.seasonLabel} · ${crown.advice.toLowerCase()}`
+      : crown.seasonLabel
     : t("Today", "Oggi");
 
   return (
@@ -292,8 +294,14 @@ export function CrownView({
       aria-label={`${t("Today", "Oggi")}: ${heading}`}
     >
       <div className="eyebrow flex flex-wrap justify-center gap-x-1.5">
-        <span className="whitespace-nowrap">{format(parseISO(today), "EEEE d MMMM")} ·</span>
-        <span className="whitespace-nowrap">{t(`${block} block`, `blocco ${block}`)}</span>
+        <span className="whitespace-nowrap">
+          {format(parseISO(today), "EEEE d MMMM")}
+          {block && " ·"}
+        </span>
+        {/* A friend's tree in a forest has no training block of mine to show. */}
+        {block && (
+          <span className="whitespace-nowrap">{t(`${block} block`, `blocco ${block}`)}</span>
+        )}
       </div>
       <div className="mt-1 text-lg font-semibold" style={{ color }}>
         {heading}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useLocalStore } from "./use-local-store";
+import { FOREST_PREFIX, forestSegments } from "@/lib/forest/engine-link";
 import { readSegments, watchSegments, writeSegments } from "@/lib/cloud";
 import { auth } from "@/lib/firebase";
 import { liveSegments, mergeSegments, type SavedSegment } from "@/lib/segment-store";
@@ -107,11 +108,17 @@ export function useSegmentLibrary({ sync = true }: { sync?: boolean } = {}) {
   const store = useSegments();
   const idx = useSyncExternalStore(segmentEngine.subscribe, segmentEngine.getSnapshot);
   useEffect(() => void startSegments(sync), [sync]);
-  useEffect(() => segmentEngine.setSaved(store.segments), [store.segments]);
+  const forest = useSyncExternalStore(forestSegments.subscribe, forestSegments.get);
+  useEffect(() => segmentEngine.setSaved([...store.segments, ...forest]), [store.segments, forest]);
 
   const list = useMemo<LibrarySegment[]>(() => {
     const groups = new Map(idx.groups.map((g) => [g.id, g]));
-    const followed = new Set(Object.values(idx.links));
+    // Forest climbs follow groups too, but mustn't hide them from the user's own library.
+    const followed = new Set(
+      Object.entries(idx.links)
+        .filter(([id]) => !id.startsWith(FOREST_PREFIX))
+        .map(([, g]) => g),
+    );
     const saved = store.segments.map((s) => {
       const g = groups.get(idx.links[s.id] ?? "");
       const rec = idx.efforts[g?.id ?? s.id];

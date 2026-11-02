@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CAT_COLOR, ElevationProfile } from "@/components/ElevationProfile";
 import { RideCharts } from "@/components/RideCharts";
+import { RideVisibility } from "@/components/forest/RideVisibility";
 import { RouteMap, type MapLine, type MapPin } from "@/components/RouteMap";
 import { Panel, StatCard } from "@/components/StatCard";
 import { WorkoutBlocks } from "@/components/WorkoutBlocks";
@@ -248,6 +249,7 @@ function RideDetail() {
         </Panel>
       )}
       <Brioches a={a} />
+      <RideVisibility rideId={a.id} />
       {sourceKind() === "native" && <DeleteRide id={a.id} />}
     </div>
   );

@@ -164,6 +164,15 @@ function PrivacyPage() {
         </ul>
       </Section>
 
+      <Section title={t("Forests", "Boschi")}>
+        <p>
+          {t(
+            "If you join or plant a forest, its members see your tree: the rides you choose to show there (name, date, duration, distance, climbing, training load and intensity, never your GPS track, heart rate or power), your daily fitness and fatigue, sick or injured days, and your crown each day, which reflects your readiness and form. The crown is computed on your device: your HRV, sleep and check-in answers are never shared. You give explicit consent when you join; you can hide any ride, and leaving the forest (or deleting your account) removes your tree and your leaderboard times from it.",
+            "Se entri in un bosco o ne pianti uno, i suoi membri vedono il tuo albero: le uscite che scegli di mostrare (nome, data, durata, distanza, dislivello, carico e intensità, mai la traccia GPS, la frequenza cardiaca o la potenza), forma e fatica di ogni giorno, i giorni di malattia o infortunio e la tua chioma di ogni giorno, che riflette prontezza e forma. La chioma è calcolata sul tuo dispositivo: HRV, sonno e risposte del check-in non vengono mai condivisi. Dai il consenso esplicito quando entri; puoi nascondere qualsiasi uscita, e lasciando il bosco (o eliminando l'account) il tuo albero e i tuoi tempi in classifica vengono rimossi.",
+          )}
+        </p>
+      </Section>
+
       <Section title={t("How long", "Per quanto tempo")}>
         <p>
           {t(
