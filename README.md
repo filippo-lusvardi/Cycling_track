@@ -3,8 +3,9 @@
 A personal cycling dashboard built on [intervals.icu](https://intervals.icu): daily readiness and check-in, rides,
 calendar, power analysis, and GPS segments with maps and altimetry.
 
-Cirmolo is a **web app (PWA)**. There is no server and no account: it runs in your browser, talks directly to
-intervals.icu with your own API key, and keeps its data on your device. The same app works on Ubuntu, Android, iOS,
+Cirmolo is a **web app (PWA)**. You sign in with an email and password; it runs in your browser, talks directly to
+intervals.icu with your own API key, and keeps your key and saved segments in your account (Firebase), so every
+device you sign in on is ready at once. The same app works on Ubuntu, Android, iOS,
 macOS and Windows.
 
 > Tested so far in Firefox/Zen (Ubuntu) and Chromium at phone size. iOS, macOS and Windows should work the same way
@@ -18,7 +19,6 @@ macOS and Windows.
 - The **web address of your Cirmolo site**, e.g. `https://ora-xxxx.pages.dev`. See
   [Hosting](#hosting-your-own-copy) to set one up (free, about 10 minutes). Phones need it, because installing an app on
   a phone requires HTTPS.
-- *(Optional)* A **GitHub token** to sync saved segments between your devices. See [First run](#first-run).
 
 ---
 
@@ -76,25 +76,19 @@ websites, which Safari may clear after a few weeks without use. If that ever hap
 
 ## First run
 
-Cirmolo opens on **Settings** until it has a key.
+Cirmolo opens on **Sign in**.
 
-1. **intervals.icu**: paste your API key → **Save & connect**. It shows "Connected as *your name*".
-2. **Segment sync (GitHub Gist)** *(optional, recommended)*: create a token as described in
-   [GitHub token for segment sync](#github-token-for-segment-sync), paste it → **Save & sync**. Cirmolo creates a
-   secret gist "Cirmolo — saved segments". Use the same token on every device.
+1. **Create account** with your email and a password (at least 8 characters). *Forgot password?* sends a reset link.
+2. **intervals.icu**: paste your API key → **Save & connect**. It shows "Connected as *your name*". The key is saved
+   in your account, so other devices pick it up when you sign in there.
 3. **Segment analysis**: choose how much history to analyse (1, 2, 5 years or all). The first time you open
    **Segments**, each outdoor ride is downloaded once and analysed on the device. More history takes longer, and on a
    phone it uses mobile data, so a Wi-Fi connection is better for the first run.
 
-Repeat steps 1–2 on each device. Each device keeps its own copy of the key and token.
+On every other device, just sign in with the same account.
 
 **Language:** Cirmolo is in English and Italian. It starts in the browser's language; switch it in
 **Settings → Language** (each device remembers its own choice).
-
-**Phone setup by QR:** once Cirmolo is hosted, open **Settings → Copy setup to phone** on the PC, press **Show QR** and
-scan it with the phone's camera. The phone opens Cirmolo with the key, token and history setting already filled in. The
-keys travel only inside the link (after `#`, never sent to any server), and the code hides itself after a minute. On
-iPhone, Home Screen apps keep their own storage, so enter the keys in the installed app instead.
 
 **The Tree** is the home page. Besides seasons, sky and branches (Settings → *How to read the tree*), it shows:
 
@@ -114,31 +108,11 @@ iPhone, Home Screen apps keep their own storage, so enter the keys in the instal
 **Updates** reach every device automatically: when a new version is published, Cirmolo shows a
 "New version available → Reload" message.
 
-### GitHub token for segment sync
+### Moving from the GitHub gist
 
-Saved segments (stars, manual segments, names you type) sync between devices through a secret gist on your GitHub
-account. It's free, and the token can only touch gists.
-
-1. Sign in to [github.com](https://github.com) (create a free account if you don't have one).
-2. Click your avatar (top right) → **Settings** → **Developer settings** (bottom of the left menu) →
-   **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
-   (direct link: [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)).
-3. Fill in:
-   - **Token name:** `Cirmolo segments`
-   - **Expiration:** 1 year. You'll create a new one when it expires.
-   - **Repository access:** leave the default. Gists aren't repositories.
-   - **Permissions → Account permissions → Gists:** **Read and write**. Leave everything else at *No access*.
-4. Click **Generate token** and **copy it now**. It starts with `github_pat_` and GitHub shows it only once.
-5. In Cirmolo: **Settings → Segment sync (GitHub Gist)** → paste → **Save & sync**. You should see
-   "Connected as *your-username*".
-6. On your other devices, paste the **same token**. Cirmolo finds the existing gist, so all devices share one list.
-
-You can see the gist at [gist.github.com](https://gist.github.com). It has two files: `cadence-segments.json` (your
-saved segments: names and start/finish coordinates) and `ora-names.json` (the place names Cirmolo looked up on
-OpenStreetMap, so each device doesn't have to look them up again). Secret gists are unlisted, but anyone with the exact link can open one.
-
-**When the token expires**, sync stops and Cirmolo keeps working with what each device has. Create a new token
-(steps 2–4) and paste it on each device; the existing gist is reused.
+Older versions synced saved segments through a secret GitHub gist. The first time you sign in on a device that still
+has the GitHub token, Cirmolo copies the gist's segments and place names into your account and forgets the token.
+The gist itself is left alone; delete it from [gist.github.com](https://gist.github.com) once you've checked.
 
 ---
 
@@ -147,23 +121,55 @@ OpenStreetMap, so each device doesn't have to look them up again). Secret gists 
 | What | Where |
 |---|---|
 | Rides, wellness, check-ins, manual workouts, ill/injured days | **intervals.icu**: the single source of truth. Cirmolo reads it and writes check-ins, manual workouts and *Sick* / *Injured* calendar events there. |
-| Saved segments (stars, manual segments, your names) and OpenStreetMap place names | The browser on each device, **backed up to your private GitHub gist** when sync is on |
+| Saved segments (stars, manual segments, your names) | **Your account** (Firestore, readable only by you), with a copy on each device for offline use |
+| OpenStreetMap place names of climbs | **Shared by all Cirmolo users** (they're public map data), so each climb is looked up once |
 | Segment analysis, downloaded rides, offline copy of recent data | The browser on each device (IndexedDB), about 15 MB per year of riding plus about 20 MB of cache |
-| API key and GitHub token | The browser on each device. They are never sent anywhere except intervals.icu and GitHub. |
+| intervals.icu API key | **Your account** (Firestore, readable only by you) and the browser on each device. Sent only to intervals.icu. |
 
 The hosting site only serves the app's files; it never sees your data.
 
-If a browser's storage is wiped, enter the key (and token) again and open Segments once. Everything comes back from
-intervals.icu and the gist.
+If a browser's storage is wiped, sign in again and open Segments once. Everything comes back from intervals.icu and
+your account.
 
-**Several people** can use the same Cirmolo address, each on their own device or browser profile with their own key.
-Two people sharing **one** browser profile isn't supported: their data would mix.
+**Several people** can use the same Cirmolo address, each with their own account. **Sign out** (Settings → Account)
+removes your data from the device, so the next person starts clean. **Delete account** removes your account and
+saved segments; nothing on intervals.icu is touched.
 
 ---
 
 ## Hosting your own copy
 
-Cirmolo is a static site. Any static host with HTTPS works; Cloudflare Pages is free and simple:
+Cirmolo is a static site plus a free Firebase project for accounts.
+
+### Firebase (once)
+
+1. [console.firebase.google.com](https://console.firebase.google.com) → **Add project**.
+2. **Authentication → Sign-in method → Email/Password**: enable.
+3. **Firestore Database → Create database** (production mode, a European region).
+4. **Project settings → Your apps → Web app**: register it and copy `apiKey`, `authDomain`, `projectId`, `appId`
+   into `.env.local` (not committed):
+
+   ```bash
+   VITE_FIREBASE_API_KEY=…
+   VITE_FIREBASE_AUTH_DOMAIN=…firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=…
+   VITE_FIREBASE_APP_ID=…
+   ```
+
+   These values aren't secret (every Firebase web app ships them); the security rules protect the data.
+5. Deploy the security rules (set the project id in `.firebaserc` first):
+
+   ```bash
+   npm i -g firebase-tools
+   firebase login
+   firebase deploy --only firestore:rules
+   ```
+
+6. **Authentication → Settings → Authorized domains**: add your site's address (e.g. `ora-xxxx.pages.dev`).
+7. Set your name and a contact email at the top of `src/routes/privacy.tsx`: the privacy notice (linked from the
+   sign-in page and the footer) names you as the one responsible for the account data.
+
+### Cloudflare Pages
 
 1. Put the code in a GitHub repository (this one).
 2. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git** → pick the repository.
@@ -171,7 +177,7 @@ Cirmolo is a static site. Any static host with HTTPS works; Cloudflare Pages is 
    - Framework preset: **Vite**
    - Build command: `npm run build`
    - Output directory: `dist`
-   - Environment variable: `NODE_VERSION` = `22`
+   - Environment variables: `NODE_VERSION` = `22`, plus the four `VITE_FIREBASE_*` values from `.env.local`
 4. **Save and Deploy**. You get an address like `https://ora-xxxx.pages.dev`. Every push to `main` redeploys
    automatically, and installed copies pick up the update.
 
@@ -199,6 +205,9 @@ npm run dev          # http://localhost:5173
 | `npm run lint` | ESLint |
 | `npm run icons` | Regenerate the app icons from `public/icon.svg` |
 
+To develop without touching the real project, run `firebase emulators:start` and start the app with
+`VITE_USE_EMULATORS=1 npm run dev`.
+
 `.npmrc` sets `legacy-peer-deps=true` on purpose: npm's peer resolver crashes on this dependency tree.
 
 ### Project layout
@@ -208,7 +217,7 @@ src/
   routes/       pages (file-based routing: Tree, Rides, Calendar, Analysis, Segments, Body, Settings)
   components/   UI pieces (maps, profiles, charts, check-in, …)
   hooks/        React hooks (segments, names, online state)
-  lib/          logic: intervals.icu client, readiness, climbs, segment engine, analysis …
+  lib/          logic: intervals.icu client, Firebase (firebase, cloud, account), readiness, climbs, segment engine …
 public/         icons, _redirects
 ```
 
@@ -222,9 +231,9 @@ public/         icons, _redirects
 - **Segments list is empty**: open Segments while online and wait for the analysis progress bar to finish.
   Auto-detected climbs need at least two rides through them.
 - **Segments show numbers instead of place names** (e.g. on a new device or address): Cirmolo looks names up on
-  OpenStreetMap about one segment every few seconds, while it's open; the Segments page shows how many are left. With
-  segment sync on, names found on one device appear on the others the next time they open Cirmolo.
-- **Saved segments differ between devices**: check that both devices use a GitHub token (Settings → Segment sync)
-  and press **Save & sync**.
+  OpenStreetMap about one segment every few seconds, while it's open; the Segments page shows how many are left. Names
+  found by anyone appear for everyone the next time they open Cirmolo.
+- **Saved segments differ between devices**: check that both are signed in to the same account (Settings → Account).
+  Changes made offline go out when the device is back online.
 - **Install option missing on the phone**: the site must be opened over `https://`; a local `http://` address can't be
   installed.

@@ -13,8 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as BodyRouteImport } from './routes/body'
 import { Route as CalendarRouteImport } from './routes/calendar'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TreeRouteImport } from './routes/tree'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
 import { Route as RidesIdRouteImport } from './routes/rides.$id'
@@ -41,14 +42,19 @@ const CalendarRoute = CalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SetupRoute = SetupRouteImport.update({
-  id: '/setup',
-  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TreeRoute = TreeRouteImport.update({
@@ -82,8 +88,9 @@ export interface FileRoutesByFullPath {
   '/analysis': typeof AnalysisRoute
   '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
+  '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
-  '/setup': typeof SetupRoute
   '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
@@ -95,8 +102,9 @@ export interface FileRoutesByTo {
   '/analysis': typeof AnalysisRoute
   '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
+  '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
-  '/setup': typeof SetupRoute
   '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
@@ -109,8 +117,9 @@ export interface FileRoutesById {
   '/analysis': typeof AnalysisRoute
   '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
+  '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
-  '/setup': typeof SetupRoute
   '/tree': typeof TreeRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
@@ -124,8 +133,9 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/body'
     | '/calendar'
+    | '/login'
+    | '/privacy'
     | '/settings'
-    | '/setup'
     | '/tree'
     | '/rides/$id'
     | '/segments/$id'
@@ -137,8 +147,9 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/body'
     | '/calendar'
+    | '/login'
+    | '/privacy'
     | '/settings'
-    | '/setup'
     | '/tree'
     | '/rides/$id'
     | '/segments/$id'
@@ -150,8 +161,9 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/body'
     | '/calendar'
+    | '/login'
+    | '/privacy'
     | '/settings'
-    | '/setup'
     | '/tree'
     | '/rides/$id'
     | '/segments/$id'
@@ -164,8 +176,9 @@ export interface RootRouteChildren {
   AnalysisRoute: typeof AnalysisRoute
   BodyRoute: typeof BodyRoute
   CalendarRoute: typeof CalendarRoute
+  LoginRoute: typeof LoginRoute
+  PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
-  SetupRoute: typeof SetupRoute
   TreeRoute: typeof TreeRoute
   RidesIdRoute: typeof RidesIdRoute
   SegmentsIdRoute: typeof SegmentsIdRoute
@@ -203,18 +216,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup': {
-      id: '/setup'
-      path: '/setup'
-      fullPath: '/setup'
-      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tree': {
@@ -260,8 +280,9 @@ const rootRouteChildren: RootRouteChildren = {
   AnalysisRoute: AnalysisRoute,
   BodyRoute: BodyRoute,
   CalendarRoute: CalendarRoute,
+  LoginRoute: LoginRoute,
+  PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
-  SetupRoute: SetupRoute,
   TreeRoute: TreeRoute,
   RidesIdRoute: RidesIdRoute,
   SegmentsIdRoute: SegmentsIdRoute,

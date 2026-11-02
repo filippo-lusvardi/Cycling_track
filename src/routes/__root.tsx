@@ -5,9 +5,10 @@ import {
   createRootRouteWithContext,
   redirect,
   useRouter,
+  useRouterState,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Bike,
   CalendarDays,
@@ -25,9 +26,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { DailyCheckIn } from "@/components/CheckIn";
 import { PwaUpdater } from "@/components/PwaUpdater";
 import { useLastSynced, useOnline } from "@/hooks/use-online";
-import { syncSegments } from "@/hooks/use-segments";
+import { sessionReady } from "@/lib/account";
+import { auth, authReady } from "@/lib/firebase";
 import { AuthError } from "@/lib/intervals";
-import { hasApiKey } from "@/lib/settings";
+import { useLocalStore } from "@/hooks/use-local-store";
+import { GARMIN, hasApiKey } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
@@ -111,10 +114,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [{ title: t("Cirmolo — Cycling Training", "Cirmolo — Allenamento ciclismo") }],
   }),
-  beforeLoad: ({ location }) => {
-    // Settings and the QR setup page must open before a key exists.
-    if (location.pathname !== "/settings" && location.pathname !== "/setup" && !hasApiKey())
-      throw redirect({ to: "/settings" });
+  beforeLoad: async ({ location }) => {
+    // The privacy notice must be readable before anyone signs up.
+    if (location.pathname === "/privacy") return;
+    await authReady;
+    const login = location.pathname === "/login";
+    if (!auth.currentUser) {
+      if (!login) throw redirect({ to: "/login" });
+      return;
+    }
+    if (login) throw redirect({ to: "/" });
+    // A new device waits for the account's key; one that has it opens at once, even offline.
+    if (!hasApiKey()) await sessionReady();
+    // Settings must open before a key exists.
+    if (location.pathname !== "/settings" && !hasApiKey()) throw redirect({ to: "/settings" });
   },
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -138,10 +151,21 @@ function RootComponent() {
   const synced = useLastSynced();
   const bar = NAV.filter((n) => n.bar);
   const rest = NAV.filter((n) => !n.bar);
+  const bare = useRouterState({
+    select: (s) => s.location.pathname === "/login" || s.location.pathname === "/privacy",
+  });
+  const [garmin] = useLocalStore<boolean>(GARMIN, false);
 
-  useEffect(() => {
-    syncSegments().catch((e) => console.warn("Segment sync failed", e));
-  }, []);
+  if (bare)
+    return (
+      <>
+        <main className="mx-auto max-w-5xl px-4 pb-12 pt-6">
+          <Outlet />
+        </main>
+        <Toaster position="top-center" />
+        <PwaUpdater />
+      </>
+    );
 
   return (
     <>
@@ -174,6 +198,19 @@ function RootComponent() {
       {/* Clip anything too wide, so a stray long line never makes the phone zoom the whole page out. */}
       <main className="mx-auto max-w-5xl overflow-x-clip px-4 pb-32 pt-6 lg:pb-12">
         <Outlet />
+        <footer className="mt-10 flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-border pt-4 text-xs text-muted-foreground">
+          <span>
+            {t("Data from intervals.icu", "Dati da intervals.icu")}
+            {garmin &&
+              t(
+                " · Insights derived in part from Garmin device-sourced data",
+                " · Analisi derivate in parte da dati di dispositivi Garmin",
+              )}
+          </span>
+          <Link to="/privacy" className="underline hover:text-foreground">
+            {t("Privacy", "Privacy")}
+          </Link>
+        </footer>
       </main>
       <nav
         className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"

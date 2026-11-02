@@ -2,7 +2,8 @@
 import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { z } from "zod";
 import { briochesIn } from "./brioches";
-import { API_KEY, readSetting } from "./settings";
+import { garminAttribution } from "./garmin";
+import { API_KEY, GARMIN, readSetting, writeSetting } from "./settings";
 import type { RideRef } from "./segment-engine";
 import { trackFromStreams, type TrackLike } from "./segments";
 
@@ -83,6 +84,8 @@ export type Activity = {
   feel: number | null;
   /** Brioches eaten on the way, from the "Brioches: n" line in the description: birds on its branch. */
   brioches: number;
+  /** "Garmin <device>" when recorded on a Garmin, shown with the activity's data (see lib/garmin). */
+  garmin: string | null;
 };
 
 export type ActivityDetail = Activity & {
@@ -155,6 +158,7 @@ const pickActivity = (a: Record<string, unknown>): Activity => ({
   trainer: !!a["trainer"],
   feel: (a["feel"] as number) ?? null,
   brioches: briochesIn((a["description"] as string) ?? null),
+  garmin: garminAttribution(a["source"], a["device_name"]),
 });
 
 function zoneSecs(a: Record<string, unknown>): number[] {
@@ -209,9 +213,12 @@ export async function getActivities(range: Range) {
   const rows = await icu<Record<string, unknown>[]>(
     `/athlete/0/activities?oldest=${oldest}&newest=${newest}`,
   );
-  return rows
+  const out = rows
     .map(pickActivity)
     .sort((a, b) => b.start_date_local.localeCompare(a["start_date_local"]));
+  // Pages built from many activities (trends, curves, the Tree) carry Garmin's attribution once any came from one.
+  if (out.some((a) => a.garmin) && !readSetting<boolean>(GARMIN)) writeSetting(GARMIN, true);
+  return out;
 }
 
 export async function getActivity(id: string) {

@@ -1,15 +1,16 @@
 import { get, set } from "idb-keyval";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { NAMES_FILE, readGist, writeGist } from "@/lib/gist";
+import { readPlaces, writePlaces } from "@/lib/cloud";
+import { auth } from "@/lib/firebase";
 import { dedupeNames, lookupSegmentName, mergeNames, placeKey } from "@/lib/places";
 import type { Segment } from "@/lib/segments";
-import { GITHUB_TOKEN, readSetting } from "@/lib/settings";
 
 // OpenStreetMap names keyed by where the segment runs (ids depend on each device's ride history), kept on this
-// device and shared through the gist, so each climb is looked up once across all devices. null = OSM had nothing.
+// device and shared in Firestore by every user, so each climb is looked up once by anyone. null = OSM had nothing.
 type Names = Record<string, string | null>;
 const KEY = "segment-names:v2";
 const OLD = "segment-names:v1"; // the earlier per-id cache, moved over as its segments show up
+const SINCE = "segment-names:since"; // newest shared name already pulled, so each session asks only for later ones
 let cache: Names | null = null;
 let old: Names = {};
 let ready: Promise<void> | undefined;
@@ -25,19 +26,26 @@ const subscribe = (l: () => void) => {
   return () => void listeners.delete(l);
 };
 
-/** This device's names, then (once per session) the ones other devices found. */
+/** This device's names, then (once per session) the ones found elsewhere since the last pull. */
 function whenReady() {
   return (ready ??= (async () => {
     cache = (await get<Names>(KEY).catch(() => undefined)) ?? {};
     old = (await get<Names>(OLD).catch(() => undefined)) ?? {};
     notify();
-    if (!readSetting<string>(GITHUB_TOKEN) || !navigator.onLine) return;
+    if (!auth.currentUser || !navigator.onLine) return;
     try {
-      const remote = await readGist<Names>(NAMES_FILE);
-      if (remote) {
-        cache = mergeNames(cache, remote);
-        await save();
-        notify();
+      const since = (await get<number>(SINCE).catch(() => undefined)) ?? 0;
+      const { names, latest } = await readPlaces(since);
+      cache = mergeNames(cache, names);
+      await save();
+      await set(SINCE, latest).catch(() => {});
+      notify();
+      // On the first pull (which brings every shared name), names only this device knows go out once.
+      if (!since) {
+        const mine = Object.fromEntries(
+          Object.entries(cache).filter(([k, v]) => !(k in names) && v !== null),
+        );
+        if (Object.keys(mine).length) found(mine);
       }
     } catch (e) {
       console.warn("Name sync failed", e);
@@ -45,19 +53,18 @@ function whenReady() {
   })());
 }
 
+const unsent: Names = {};
 let pushTimer: ReturnType<typeof setTimeout> | undefined;
-function schedulePush() {
-  if (!readSetting<string>(GITHUB_TOKEN)) return;
+/** Names found here, sent in one batch a little later. */
+function found(names: Names) {
+  Object.assign(unsent, names);
+  if (!auth.currentUser) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(async () => {
-    try {
-      const remote = (await readGist<Names>(NAMES_FILE)) ?? {};
-      cache = mergeNames(cache!, remote);
-      if (Object.keys(cache).some((k) => cache![k] !== remote[k]))
-        await writeGist(cache, NAMES_FILE);
-    } catch (e) {
-      console.warn("Name sync failed", e);
-    }
+  pushTimer = setTimeout(() => {
+    const out = { ...unsent };
+    for (const k of Object.keys(out)) delete unsent[k];
+    // A shared cache: if the batch fails (offline for long, or someone else's name won), the names stay local.
+    writePlaces(out).catch((e) => console.warn("Name sync failed", e));
   }, 15000);
 }
 
@@ -67,10 +74,11 @@ async function pump() {
   while (queue.length && navigator.onLine) {
     const job = queue.shift()!;
     try {
-      cache![job.key] = await lookupSegmentName(job.seg);
+      const name = await lookupSegmentName(job.seg);
+      cache![job.key] = name;
       queued.delete(job.key);
       await save();
-      schedulePush();
+      found({ [job.key]: name });
     } catch {
       // OSM busy or the connection dropped: back off and retry at the end of the round, up to three times.
       if (++job.tries < 3) {
@@ -97,21 +105,20 @@ export function useSegmentNames(segs: Named[]) {
   const ids = segs.map((s) => `${s.id}@${placeKey(s)}${s.renamed ? `!${s.name}` : ""}`).join("|");
   useEffect(() => {
     void whenReady().then(() => {
-      let moved = false;
+      const moved: Names = {};
       for (const s of segs) {
         const k = placeKey(s);
         if (s.renamed || k in cache! || queued.has(k)) continue;
         if (s.id in old) {
-          cache![k] = old[s.id]!;
-          moved = true;
+          cache![k] = moved[k] = old[s.id]!;
         } else {
           queued.add(k);
           queue.push({ key: k, seg: s, tries: 0 });
         }
       }
-      if (moved) {
+      if (Object.keys(moved).length) {
         void save();
-        schedulePush();
+        found(moved);
       }
       notify();
       void pump();

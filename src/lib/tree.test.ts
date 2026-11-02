@@ -52,6 +52,7 @@ const act = (
   trainer: false,
   feel: null,
   brioches: 0,
+  garmin: null,
   ...extra,
 });
 

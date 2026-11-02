@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { clear as clearIdb } from "idb-keyval";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -10,25 +10,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStore } from "@/hooks/use-local-store";
-import { syncSegments } from "@/hooks/use-segments";
-import { githubUser } from "@/lib/gist";
+import {
+  EmailAuthProvider,
+  deleteUser,
+  reauthenticateWithCredential,
+  updatePassword,
+} from "firebase/auth";
+import { signOutAndWipe } from "@/lib/account";
+import { authError } from "@/lib/auth-errors";
+import { deleteUserData, saveProfile } from "@/lib/cloud";
+import { auth } from "@/lib/firebase";
 import { format, lang, setLang, t } from "@/lib/i18n";
 import { getAthlete } from "@/lib/intervals";
 import { activitiesQuery, wellnessQuery } from "@/lib/queries";
 import { ACCURACY_MIN_RIDES, HRV_BAND_DAYS, readinessAccuracy } from "@/lib/readiness";
 import { addDays, isoDate } from "@/lib/training";
-import QRCode from "qrcode";
 import { historyYears, segmentEngine, startSegments } from "@/lib/segment-app";
-import { canShareSetup, setupLink } from "@/lib/setup-link";
-import {
-  API_KEY,
-  GIST_ID,
-  GITHUB_TOKEN,
-  QUIET_TREE,
-  SEGMENT_HISTORY,
-  readSetting,
-  writeSetting,
-} from "@/lib/settings";
+import { API_KEY, QUIET_TREE, SEGMENT_HISTORY, readSetting, writeSetting } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
@@ -47,10 +45,9 @@ function SettingsPage() {
         <Language />
         <QuietTree />
         <TreeGuide />
+        <Account />
         <IntervalsKey />
-        <GithubSync />
         <SegmentAnalysis />
-        <PhoneSetup />
         <Storage />
       </div>
     </div>
@@ -70,6 +67,7 @@ function IntervalsKey() {
     setBusy(true);
     try {
       const a = await getAthlete();
+      await saveProfile({ intervalsKey: key.trim() });
       toast.success(
         a.name
           ? t(`Connected to intervals.icu as ${a.name}`, `Connesso a intervals.icu come ${a.name}`)
@@ -113,6 +111,7 @@ function IntervalsKey() {
               variant="outline"
               onClick={() => {
                 writeSetting(API_KEY, null);
+                void saveProfile({ intervalsKey: null });
                 setKey("");
                 qc.clear();
               }}
@@ -123,8 +122,8 @@ function IntervalsKey() {
         </div>
         <p className="text-xs text-muted-foreground">
           {t(
-            "Stored only in this browser. Each device (Zen on Ubuntu, the phone) needs it once.",
-            "Salvata solo in questo browser. Ogni dispositivo (Zen su Ubuntu, il telefono) la richiede una volta.",
+            "Kept in your account (readable only by you), so every device you sign in on uses it.",
+            "Conservata nel tuo account (leggibile solo da te), così ogni dispositivo su cui accedi la usa.",
           )}
         </p>
       </form>
@@ -132,102 +131,131 @@ function IntervalsKey() {
   );
 }
 
-function GithubSync() {
-  const [token, setToken] = useState(() => readSetting<string>(GITHUB_TOKEN) ?? "");
-  const [user, setUser] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const saved = !!readSetting<string>(GITHUB_TOKEN);
+function Account() {
+  const user = auth.currentUser;
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState<"password" | "delete" | "signout" | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    if (saved)
-      githubUser().then(
-        (u) => setUser(u.login),
-        () => setUser(null),
-      );
-  }, [saved]);
+  /** Firebase asks for the password again before changing it or deleting the account. */
+  async function reauth() {
+    await reauthenticateWithCredential(user!, EmailAuthProvider.credential(user!.email!, current));
+  }
 
-  async function onSubmit(e: React.FormEvent) {
+  async function changePassword(e: React.FormEvent) {
     e.preventDefault();
-    writeSetting(GITHUB_TOKEN, token.trim());
-    setBusy(true);
+    setBusy("password");
     try {
-      const u = await githubUser();
-      setUser(u.login);
-      await syncSegments();
-      toast.success(
-        t(
-          "Segments synced with your private gist",
-          "Segmenti sincronizzati con il tuo gist privato",
-        ),
-      );
-    } catch {
-      toast.error(
-        t(
-          "GitHub rejected that token, or it lacks the Gists permission",
-          "GitHub ha rifiutato il token, oppure manca il permesso Gists",
-        ),
-      );
+      await reauth();
+      await updatePassword(user!, next);
+      setCurrent("");
+      setNext("");
+      toast.success(t("Password changed", "Password cambiata"));
+    } catch (err) {
+      toast.error(authError(err));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
+  async function deleteAccount() {
+    setBusy("delete");
+    try {
+      await reauth();
+      await deleteUserData();
+      await deleteUser(user!);
+      await signOutAndWipe();
+    } catch (err) {
+      toast.error(authError(err));
+      setBusy(null);
+    }
+  }
+
+  if (!user) return null;
   return (
-    <Panel title={t("Segment sync (GitHub Gist)", "Sincronizzazione segmenti (GitHub Gist)")}>
-      <form onSubmit={onSubmit} className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          {t(
-            "Saved segments and stars sync between devices through a secret gist on your GitHub account (free). Create a",
-            "Segmenti salvati e preferiti si sincronizzano tra dispositivi tramite un gist segreto sul tuo account GitHub (gratis). Crea un",
-          )}{" "}
-          <a
-            className="text-primary underline"
-            href="https://github.com/settings/personal-access-tokens/new"
-            target="_blank"
-            rel="noreferrer"
+    <Panel title={t("Account", "Account")}>
+      <div className="space-y-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {t("Signed in as", "Accesso come")} <span className="font-medium">{user.email}</span>
+          </span>
+          <Button
+            variant="outline"
+            disabled={busy != null}
+            onClick={() => {
+              setBusy("signout");
+              void signOutAndWipe();
+            }}
           >
-            {t("fine-grained token", "token fine-grained")}
-          </a>{" "}
-          {t("with only", "con solo")}{" "}
-          <span className="font-medium text-foreground">Gists: Read and write</span>.
-        </p>
-        <div className="space-y-1">
-          <Label htmlFor="ghtoken">{t("GitHub token", "Token GitHub")}</Label>
-          <Input
-            id="ghtoken"
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="github_pat_…"
-            required
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="submit" disabled={busy || !token.trim()}>
-            {busy ? t("Syncing…", "Sincronizzazione…") : t("Save & sync", "Salva e sincronizza")}
+            {t("Sign out", "Esci")}
           </Button>
-          {saved && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                writeSetting(GITHUB_TOKEN, null);
-                writeSetting(GIST_ID, null);
-                setToken("");
-                setUser(null);
-              }}
-            >
-              {t("Disconnect", "Disconnetti")}
-            </Button>
-          )}
-          {user && (
-            <span className="text-xs text-muted-foreground">
-              {t("Connected as", "Connesso come")} {user}
-            </span>
-          )}
         </div>
-      </form>
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "Signing out removes your data from this device. It stays in your account and on intervals.icu.",
+            "Uscendo i tuoi dati vengono rimossi da questo dispositivo. Restano nel tuo account e su intervals.icu.",
+          )}{" "}
+          <Link to="/privacy" className="underline hover:text-foreground">
+            {t("Privacy notice", "Informativa privacy")}
+          </Link>
+        </p>
+        <form onSubmit={changePassword} className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="current-password">{t("Current password", "Password attuale")}</Label>
+            <Input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="new-password">{t("New password", "Nuova password")}</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy != null || !current || next.length < 8}>
+              {busy === "password" ? t("Saving…", "Salvataggio…") : t("Change password", "Cambia password")}
+            </Button>
+            {confirmDelete ? (
+              <>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={busy != null || !current}
+                  onClick={() => void deleteAccount()}
+                >
+                  {busy === "delete" ? t("Deleting…", "Eliminazione…") : t("Delete for good", "Elimina definitivamente")}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setConfirmDelete(false)}>
+                  {t("Cancel", "Annulla")}
+                </Button>
+              </>
+            ) : (
+              <Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)}>
+                {t("Delete account", "Elimina account")}
+              </Button>
+            )}
+          </div>
+          {confirmDelete && (
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "Deletes your account and saved segments. Enter your current password above to confirm. Your intervals.icu data isn't touched.",
+                "Elimina l'account e i segmenti salvati. Inserisci la password attuale qui sopra per confermare. I dati su intervals.icu non vengono toccati.",
+              )}
+            </p>
+          )}
+        </form>
+      </div>
     </Panel>
   );
 }
@@ -576,6 +604,7 @@ function SegmentAnalysis() {
                 onClick={() => {
                   setYears(y);
                   writeSetting(SEGMENT_HISTORY, y);
+                  void saveProfile({ segmentHistory: y });
                 }}
                 className={`flex-1 rounded-md px-3 py-1.5 text-xs ${years === y ? "bg-background text-foreground" : "text-muted-foreground"}`}
               >
@@ -621,105 +650,6 @@ function SegmentAnalysis() {
             {t("Delete downloaded rides", "Elimina attività scaricate")}
           </Button>
         </div>
-      </div>
-    </Panel>
-  );
-}
-
-const QR_SECONDS = 60;
-
-/** QR with a setup link (keys in the #fragment) so the phone needs no typing. Shown only on request. */
-function PhoneSetup() {
-  const [svg, setSvg] = useState<string | null>(null);
-  const [left, setLeft] = useState(0);
-  const key = readSetting<string>(API_KEY);
-  const token = readSetting<string>(GITHUB_TOKEN);
-  const shareable = canShareSetup(window.location);
-
-  useEffect(() => {
-    if (!svg) return;
-    if (left <= 0) {
-      setSvg(null);
-      return;
-    }
-    const id = setTimeout(() => setLeft((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [svg, left]);
-
-  async function show() {
-    if (!key) return;
-    const link = setupLink(window.location.origin, {
-      apiKey: key,
-      ...(token ? { githubToken: token } : {}),
-      history: historyYears(),
-    });
-    setSvg(
-      await QRCode.toString(link, {
-        type: "svg",
-        margin: 1,
-        errorCorrectionLevel: "M",
-        color: { dark: "#0b1220", light: "#ffffff" },
-      }),
-    );
-    setLeft(QR_SECONDS);
-  }
-
-  return (
-    <Panel title={t("Copy setup to phone", "Copia configurazione sul telefono")}>
-      <div className="space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          {token
-            ? t(
-                "Scan with the phone's camera to open Cirmolo there with your intervals.icu key, GitHub token and history setting already filled in.",
-                "Inquadra con la fotocamera del telefono per aprire Cirmolo con chiave intervals.icu, token GitHub e storico già compilati.",
-              )
-            : t(
-                "Scan with the phone's camera to open Cirmolo there with your intervals.icu key and history setting already filled in.",
-                "Inquadra con la fotocamera del telefono per aprire Cirmolo con chiave intervals.icu e storico già compilati.",
-              )}
-        </p>
-        {!shareable ? (
-          <p className="rounded-lg bg-secondary/60 p-3 text-xs text-muted-foreground">
-            {t(
-              `The phone can't open this page's address (${window.location.host}). Open Cirmolo from its hosted https address, then come back here.`,
-              `Il telefono non può aprire l'indirizzo di questa pagina (${window.location.host}). Apri Cirmolo dal suo indirizzo https pubblicato, poi torna qui.`,
-            )}
-          </p>
-        ) : !key ? (
-          <p className="text-xs text-muted-foreground">
-            {t("Connect intervals.icu above first.", "Prima collega intervals.icu qui sopra.")}
-          </p>
-        ) : svg ? (
-          <div className="space-y-2">
-            <div
-              className="mx-auto w-56 rounded-lg bg-white p-2 [&_svg]:h-auto [&_svg]:w-full"
-              aria-label={t("Setup QR code", "QR di configurazione")}
-              // Generated locally by the qrcode library from our own link.
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-            <p className="text-center text-xs text-muted-foreground">
-              {t("Contains: intervals.icu key", "Contiene: chiave intervals.icu")}
-              {token ? t(" · GitHub token", " · token GitHub") : ""}
-              {t(
-                ` · history setting. Hides in ${left} s.`,
-                ` · storico. Si nasconde tra ${left} s.`,
-              )}
-            </p>
-            <Button variant="outline" className="w-full" onClick={() => setSvg(null)}>
-              {t("Hide", "Nascondi")}
-            </Button>
-          </div>
-        ) : (
-          <>
-            <p className="text-xs text-muted-foreground">
-              {t(
-                "Anyone who photographs the code gets your keys: show it only to your own phone.",
-                "Chi fotografa il codice ottiene le tue chiavi: mostralo solo al tuo telefono.",
-              )}
-            </p>
-            <Button onClick={show}>{t("Show QR", "Mostra QR")}</Button>
-          </>
-        )}
       </div>
     </Panel>
   );

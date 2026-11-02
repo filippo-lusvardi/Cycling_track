@@ -30,6 +30,7 @@ export function ActivityRow({ a }: { a: Activity }) {
           <div className="text-xs text-muted-foreground">
             {a.start_date_local ? format(parseISO(a.start_date_local), "EEE d MMM") : ""} ·{" "}
             <span style={{ color: kind.color }}>{kind.label}</span>
+            {a.garmin && ` · ${a.garmin}`}
           </div>
         </div>
       </div>

@@ -14,6 +14,8 @@ export const QUIET_TREE = "cadence_quiet_tree";
 export const FOCUS_STATE = "cadence_focus";
 /** A focus pinned by hand, overriding the computed one. */
 export const FOCUS_PIN = "cadence_focus_pin";
+/** Some of this account's activities come from Garmin devices, so derived views show Garmin's attribution. */
+export const GARMIN = "cadence_garmin";
 
 export function readSetting<T>(key: string): T | null {
   try {

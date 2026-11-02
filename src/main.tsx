@@ -14,6 +14,7 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/600.css";
 import "./styles.css";
 
+import { initAccount } from "./lib/account";
 import { AuthError } from "./lib/intervals";
 import { getRouter } from "./router";
 
@@ -43,13 +44,14 @@ navigator.storage?.persist?.().catch(() => {});
 // The old tile cache held opaque responses that Chrome counts as ~7 MB each; tiles now live in map-tiles-v2.
 globalThis.caches?.delete("map-tiles").catch(() => {});
 
+initAccount();
 const router = getRouter(queryClient);
 
 const [, restored] = persistQueryClient({
   queryClient,
   persister,
   maxAge: WEEK,
-  buster: "v1",
+  buster: "v2",
   dehydrateOptions: {
     shouldDehydrateQuery: (q) =>
       q.state.status === "success" && !NOT_PERSISTED.has(String(q.queryKey[0])),
