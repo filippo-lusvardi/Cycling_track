@@ -1,6 +1,7 @@
 // Wellness entries made offline wait in IndexedDB and are sent when the connection returns.
 import { get, set } from "idb-keyval";
-import { saveWellnessEntry, type WellnessEntry } from "./intervals";
+import type { WellnessEntry } from "./intervals";
+import { saveWellnessEntry } from "./source";
 
 const KEY = "pending-wellness";
 

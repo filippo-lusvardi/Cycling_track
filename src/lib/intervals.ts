@@ -170,7 +170,7 @@ function zoneSecs(a: Record<string, unknown>): number[] {
   );
 }
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const rangeSchema = z.object({ oldest: day, newest: day });
 const idSchema = z.string().regex(/^[\w-]+$/);
 
@@ -247,12 +247,14 @@ export async function getActivity(id: string) {
   return detail;
 }
 
-const entrySchema = z.object({
+export const entrySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   // null clears a value logged by mistake.
   weight: z.number().min(20).max(300).nullable().optional(),
   bodyFat: z.number().min(1).max(70).nullable().optional(),
   sleepSecs: z.number().int().min(0).max(86400).optional(),
+  /** rMSSD in ms, typed in by accounts without intervals.icu (which gets it from the watch). */
+  hrv: z.number().min(5).max(300).optional(),
   sleepQuality: z.number().int().min(1).max(4).optional(),
   soreness: z.number().int().min(1).max(4).optional(),
   fatigue: z.number().int().min(1).max(4).optional(),
@@ -378,7 +380,7 @@ export async function getPowerCurves() {
   })) as PowerCurve[];
 }
 
-const manualSchema = z.object({
+export const manualSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   type: z.enum(["Ride", "VirtualRide", "Run", "Walk", "WeightTraining", "Swim", "Other"]),
   name: z.string().min(1).max(120),
@@ -496,7 +498,7 @@ export async function deleteEvent(id: string) {
   await icu(`/athlete/0/events/${idSchema.parse(id)}`, { method: "DELETE" });
 }
 
-const raceSchema = z.object({
+export const raceSchema = z.object({
   date: day,
   name: z.string().min(1).max(120),
   priority: z.enum(["A", "B", "C"]),

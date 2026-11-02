@@ -13,6 +13,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { weeklyTotals, type WeekRow } from "@/lib/analysis";
 import type { Activity, PlannedEvent, Wellness } from "@/lib/intervals";
+import { sourceKind } from "@/lib/source";
+import { UploadRides } from "@/components/UploadRides";
 import { activitiesRangeQuery, eventsQuery, wellnessRangeQuery } from "@/lib/queries";
 import { activityKind, KINDS } from "@/lib/activity-kind";
 import { isRace, raceFrom, raceSummary, type Race } from "@/lib/races";
@@ -329,6 +331,11 @@ function CalendarPage() {
         title={t("Log a workout", "Registra un allenamento")}
         description={t("For sessions the watch didn't record.", "Per le sessioni che l'orologio non ha registrato.")}
       >
+        {sourceKind() === "native" && (
+          <div className="mb-4">
+            <UploadRides onDone={() => setLogging(false)} />
+          </div>
+        )}
         <LogWorkoutForm date={today} onSaved={() => setLogging(false)} />
       </ResponsiveDialog>
     </div>

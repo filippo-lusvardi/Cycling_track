@@ -1,7 +1,8 @@
 // The segment engine wired to this browser: IndexedDB storage and intervals.icu downloads.
 import { createStore, del, get, keys, set, type UseStore } from "idb-keyval";
 import { packTrack } from "./compact";
-import { downloadRideTrack, listOutdoorRides, type Track } from "./intervals";
+import type { Track } from "./intervals";
+import { downloadRideTrack, listOutdoorRides } from "./source";
 import { createSegmentEngine, type KV } from "./segment-engine";
 import { readSetting, SEGMENT_HISTORY } from "./settings";
 import { addDays, isoDate } from "./training";

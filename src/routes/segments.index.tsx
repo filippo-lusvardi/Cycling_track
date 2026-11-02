@@ -136,10 +136,11 @@ function Segments() {
   }, [shown, focused]);
 
   // The page fills the screen exactly and only the list scrolls, on the phone as on the desktop: a swipe on the
-  // list never moves the page. On the phone the height leaves out the header, the main's top padding and the
-  // bottom bar; the negative margin cancels the main's bottom padding kept for the bar.
+  // list never moves the page. On the phone the height leaves out the status bar, the main's top padding and the
+  // bottom bar (the negative margin cancels the main's bottom padding kept for the bar); on the desktop, the
+  // top bar and the main's padding.
   return (
-    <div className="-mb-32 flex h-[calc(100dvh-49px-1.5rem-4.25rem-env(safe-area-inset-bottom))] flex-col gap-4 lg:mb-0 lg:h-[calc(100dvh-129px)]">
+    <div className="-mb-32 flex h-[calc(100dvh-env(safe-area-inset-top)-1.5rem-4.25rem-env(safe-area-inset-bottom))] flex-col gap-4 lg:mb-0 lg:h-[calc(100dvh-129px)]">
       <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">

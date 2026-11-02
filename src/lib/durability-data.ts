@@ -6,7 +6,8 @@ import {
   type DurabilityProfile,
   type RideDurability,
 } from "./durability";
-import { getActivities, getAthlete, getRideWatts, getWellness, type Activity } from "./intervals";
+import type { Activity } from "./intervals";
+import { getActivities, getAthlete, getRideWatts, getWellness } from "./source";
 import { addDays, isoDate, weightFor } from "./training";
 
 /** Days of rides looked at, and the shortest ride that can reach the fatigue buckets. */

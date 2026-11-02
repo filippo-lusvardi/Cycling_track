@@ -1,10 +1,12 @@
 // Firestore IO: the user's profile and saved segments, and the OSM place names every user shares.
 //   users/{uid}                   Profile
 //   users/{uid}/segments/{id}     SavedSegment
+//   users/{uid}/summit/{placeKey} { notes: { [effortKey]: text } }, the summit book's signatures
 //   places/{placeKey}             { name, at }
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -17,7 +19,20 @@ import {
 import { db, uid } from "./firebase";
 import type { SavedSegment } from "./segment-store";
 
-export type Profile = { intervalsKey?: string | null; segmentHistory?: number | null };
+export type Profile = {
+  intervalsKey?: string | null;
+  segmentHistory?: number | null;
+  /** Where training data comes from: intervals.icu (default) or Cirmolo's own store (uploaded ride files). */
+  source?: "intervals" | "native" | null;
+  // For accounts without intervals.icu, what its athlete settings would hold.
+  name?: string | null;
+  weight?: number | null;
+  ftp?: number | null;
+  lthr?: number | null;
+  maxHr?: number | null;
+  /** When the user consented to Cirmolo storing their health data (accounts without intervals.icu). */
+  healthConsentAt?: number | null;
+};
 
 const profileDoc = () => doc(db, "users", uid());
 const segmentsCol = () => collection(db, "users", uid(), "segments");
@@ -52,13 +67,35 @@ export const watchSegments = (cb: (segs: SavedSegment[]) => void) =>
     (e) => console.warn("Segment sync failed", e),
   );
 
+// --- Summit book notes (keyed by where the climb runs, so every device finds them) ---
+
+const summitDoc = (place: string) => doc(db, "users", uid(), "summit", place);
+
+/** A climb's signed notes, live; from the device's cache when offline. */
+export const watchSummitNotes = (place: string, cb: (notes: Record<string, string>) => void) =>
+  onSnapshot(
+    summitDoc(place),
+    (s) => cb((s.get("notes") as Record<string, string> | undefined) ?? {}),
+    (e) => console.warn("Summit notes unavailable", e),
+  );
+
+/** Sign one ascent (an empty note erases it). */
+export const saveSummitNote = (place: string, effort: string, text: string) =>
+  setDoc(
+    summitDoc(place),
+    { notes: { [effort]: text.trim() ? text.trim().slice(0, 120) : deleteField() } },
+    { merge: true },
+  );
+
 /** Everything stored for this user, before the account itself is deleted. */
 export async function deleteUserData() {
-  const segs = await getDocs(segmentsCol());
-  for (let i = 0; i < segs.docs.length; i += 500) {
-    const batch = writeBatch(db);
-    for (const d of segs.docs.slice(i, i + 500)) batch.delete(d.ref);
-    await batch.commit();
+  for (const name of ["segments", "summit", "activities", "wellness", "events", "streams"]) {
+    const docs = (await getDocs(collection(db, "users", uid(), name))).docs;
+    for (let i = 0; i < docs.length; i += 500) {
+      const batch = writeBatch(db);
+      for (const d of docs.slice(i, i + 500)) batch.delete(d.ref);
+      await batch.commit();
+    }
   }
   await deleteDoc(profileDoc());
 }

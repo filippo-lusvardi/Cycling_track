@@ -15,7 +15,9 @@ macOS and Windows.
 
 ## What you need
 
-- An **intervals.icu account** and its **API key**: intervals.icu → Settings → *Developer Settings* → API key.
+- An **intervals.icu account** and its **API key** (intervals.icu → Settings → *Developer Settings* → API key), **or**
+  no intervals.icu at all: Cirmolo can keep your rides itself, from uploaded ride files (.fit)
+  (see [Without intervals.icu](#without-intervalsicu)).
 - The **web address of your Cirmolo site**, e.g. `https://ora-xxxx.pages.dev`. See
   [Hosting](#hosting-your-own-copy) to set one up (free, about 10 minutes). Phones need it, because installing an app on
   a phone requires HTTPS.
@@ -113,6 +115,21 @@ On every other device, just sign in with the same account.
 Older versions synced saved segments through a secret GitHub gist. The first time you sign in on a device that still
 has the GitHub token, Cirmolo copies the gist's segments and place names into your account and forgets the token.
 The gist itself is left alone; delete it from [gist.github.com](https://gist.github.com) once you've checked.
+
+---
+
+## Without intervals.icu
+
+In **Settings → No intervals.icu account? → Use Cirmolo without intervals.icu** (after agreeing that Cirmolo stores
+your rides and health data), Cirmolo keeps everything in your account and computes what intervals.icu would:
+training load (TSS from power and FTP, or from heart rate against threshold heart rate), fitness/fatigue/form,
+zones, power curves and eFTP.
+
+- **Settings → Athlete**: weight, FTP (leave empty to use the estimate from the last 42 days), threshold and max
+  heart rate. After changing them, **Recalculate all rides**.
+- **Ride files**: drop .fit files in Settings or in Calendar → *Log workout*. Garmin and Wahoo files, and Zwift's
+  (`Documents/Zwift/Activities`), all work. Delete a wrong one from the ride's page.
+- HRV is typed in the daily check-in (nothing brings it in from the watch without intervals.icu).
 
 ---
 

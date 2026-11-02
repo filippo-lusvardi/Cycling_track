@@ -145,7 +145,7 @@ function Rides() {
             // One block per month, so its heading sticks under the site header while you scroll through it.
             return (
               <section key={m}>
-                <div className="stat-num sticky top-[49px] z-10 flex items-baseline justify-between gap-3 border-b border-border bg-card/95 px-3 pb-1.5 pt-4 text-xs text-muted-foreground backdrop-blur lg:top-[57px]">
+                <div className="stat-num sticky top-[env(safe-area-inset-top)] z-10 flex items-baseline justify-between gap-3 border-b border-border bg-card/95 px-3 pb-1.5 pt-4 text-xs text-muted-foreground backdrop-blur lg:top-[57px]">
                   <span className="font-sans text-sm font-semibold text-foreground">
                     {format(parseISO(`${m}-01`), "MMMM yyyy")}
                   </span>

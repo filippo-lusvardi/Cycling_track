@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useLocalStore } from "@/hooks/use-local-store";
 import type { Wellness, WellnessEntry } from "@/lib/intervals";
 import { wellnessQuery } from "@/lib/queries";
-import { hasApiKey } from "@/lib/settings";
+import { hasSource, sourceKind } from "@/lib/source";
 import { isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { flushWellnessQueue, saveWellnessOrQueue } from "@/lib/wellness-queue";
@@ -84,6 +84,9 @@ export function CheckInForm({
   // The day's weight, shown once asked for (or already logged); kept as typed, "," or ".".
   const [weight, setWeight] = useState(() => (row?.weight != null ? String(row.weight) : ""));
   const [showWeight, setShowWeight] = useState(row?.weight != null);
+  // Without intervals.icu nothing brings HRV in from the watch, so it's typed here (kept as typed).
+  const askHrv = sourceKind() === "native";
+  const [hrv, setHrv] = useState(() => (row?.hrv != null ? String(row.hrv) : ""));
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -101,6 +104,14 @@ export function CheckInForm({
       }
       entry.weight = kg;
     }
+    const ms = Number(hrv.replace(",", ".").trim());
+    if (askHrv && hrv.trim()) {
+      if (!(ms >= 5 && ms <= 300)) {
+        toast.error(t("Enter HRV between 5 and 300 ms", "Inserisci un HRV tra 5 e 300 ms"));
+        return;
+      }
+      entry.hrv = ms;
+    }
     if (Object.keys(entry).length === 1) {
       toast.error(t("Answer at least one question", "Rispondi ad almeno una domanda"));
       return;
@@ -110,7 +121,9 @@ export function CheckInForm({
       const r = await saveWellnessOrQueue(entry);
       toast.success(
         r === "saved"
-          ? t("Saved to intervals.icu", "Salvato su intervals.icu")
+          ? askHrv
+            ? t("Saved", "Salvato")
+            : t("Saved to intervals.icu", "Salvato su intervals.icu")
           : t(
               "Saved on this device; it will sync when you're back online",
               "Salvato su questo dispositivo; si sincronizzerà quando tornerai online",
@@ -142,6 +155,18 @@ export function CheckInForm({
           }}
         />
       </div>
+      {askHrv && (
+        <div className="space-y-1">
+          <Label htmlFor="checkin-hrv">{t("HRV (ms, from your watch or app)", "HRV (ms, da orologio o app)")}</Label>
+          <Input
+            id="checkin-hrv"
+            inputMode="decimal"
+            placeholder="55"
+            value={hrv}
+            onChange={(e) => setHrv(e.target.value)}
+          />
+        </div>
+      )}
       {SCALES.map((s) => (
         <div key={s.key} className="space-y-1">
           <Label>{s.label}</Label>
@@ -271,7 +296,7 @@ function SleepStepper({
 export function DailyCheckIn() {
   const qc = useQueryClient();
   const today = isoDate(new Date());
-  const { data } = useQuery({ ...wellnessQuery(14), enabled: hasApiKey() });
+  const { data } = useQuery({ ...wellnessQuery(14), enabled: hasSource() });
   const [state, setState] = useCheckInState(today);
   const row = data?.find((w) => w.id === today);
   const needed = !!data && !isCheckedIn(row) && state !== "done";

@@ -14,7 +14,8 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import { wellnessQuery } from "@/lib/queries";
-import { saveWellnessEntry, type Wellness } from "@/lib/intervals";
+import type { Wellness } from "@/lib/intervals";
+import { saveWellnessEntry } from "@/lib/source";
 import { isoDate } from "@/lib/training";
 import { Panel, StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";

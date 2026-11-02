@@ -12,15 +12,8 @@ import { roleText } from "@/lib/focus";
 import { FOCUS_LABEL, FOCUS_PURPOSE, FOCUSES, raceSummary, type Focus } from "@/lib/races";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  createOffEvent,
-  deleteEvent,
-  updateOffEvent,
-  type Activity,
-  type OffKind,
-  type PlannedEvent,
-  type Wellness,
-} from "@/lib/intervals";
+import type { Activity, OffKind, PlannedEvent, Wellness } from "@/lib/intervals";
+import { createOffEvent, deleteEvent, updateOffEvent } from "@/lib/source";
 import { briochesFor, intakeTarget } from "@/lib/fuel";
 import { advice, formPercent, readinessFor, recommendation } from "@/lib/readiness";
 import { computeForm, formatDuration, formZoneLabel, isoDate } from "@/lib/training";

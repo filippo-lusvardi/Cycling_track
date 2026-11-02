@@ -93,7 +93,21 @@ function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title={t("What is not stored", "Cosa non viene salvato")}>
+      <Section title={t("Accounts without intervals.icu", "Account senza intervals.icu")}>
+        <p>
+          {t(
+            "If you use Cirmolo without intervals.icu, Cirmolo itself stores your training data in your account: your rides (GPS track, power, heart rate, cadence, from the files you upload), the numbers computed from them, your check-ins (sleep, HRV, fatigue, stress, mood), weight and body fat, races and sick or injured days. Heart rate, HRV, sleep and weight are health data: Cirmolo stores them only with your explicit consent, given when you choose this option, and you can withdraw it at any time by deleting your account.",
+            "Se usi Cirmolo senza intervals.icu, è Cirmolo a conservare i tuoi dati di allenamento nel tuo account: le uscite (traccia GPS, potenza, frequenza cardiaca, cadenza, dai file che carichi), i valori calcolati, i check-in (sonno, HRV, fatica, stress, umore), peso e massa grassa, gare e giorni di malattia o infortunio. Frequenza cardiaca, HRV, sonno e peso sono dati relativi alla salute: Cirmolo li conserva solo con il tuo consenso esplicito, dato quando scegli questa opzione, e puoi revocarlo in qualsiasi momento eliminando l'account.",
+          )}
+        </p>
+      </Section>
+
+      <Section
+        title={t(
+          "With intervals.icu: what is not stored",
+          "Con intervals.icu: cosa non viene salvato",
+        )}
+      >
         <p>
           {t(
             "Your rides, wellness, check-ins, weight and other training data stay on intervals.icu. Your browser fetches them directly from intervals.icu with your key; they never pass through Cirmolo's servers. A copy is kept in your browser's storage on each device so the app works offline, and it is erased when you sign out.",
@@ -111,8 +125,8 @@ function PrivacyPage() {
       <Section title={t("Why, and on what legal basis", "Finalità e base giuridica")}>
         <p>
           {t(
-            "The data above is used only to provide the service you signed up for: signing you in, connecting to intervals.icu and keeping your segments in step across devices (GDPR art. 6(1)(b), performance of a contract). It is never sold or used for marketing.",
-            "I dati sopra sono usati solo per fornirti il servizio a cui ti sei iscritto: farti accedere, collegarti a intervals.icu e allineare i segmenti tra i dispositivi (art. 6, par. 1, lett. b GDPR, esecuzione di un contratto). Non vengono mai venduti né usati per marketing.",
+            "The data above is used only to provide the service you signed up for: signing you in, connecting to intervals.icu, analysing your training and keeping it in step across devices (GDPR art. 6(1)(b), performance of a contract). Health data is processed only with your explicit consent (GDPR art. 9(2)(a)). Nothing is sold, used for marketing or shared with AI services.",
+            "I dati sopra sono usati solo per fornirti il servizio a cui ti sei iscritto: farti accedere, collegarti a intervals.icu, analizzare il tuo allenamento e allinearlo tra i dispositivi (art. 6, par. 1, lett. b GDPR, esecuzione di un contratto). I dati relativi alla salute sono trattati solo con il tuo consenso esplicito (art. 9, par. 2, lett. a GDPR). Nulla viene venduto, usato per marketing o condiviso con servizi di intelligenza artificiale.",
           )}
         </p>
       </Section>

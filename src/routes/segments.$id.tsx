@@ -14,6 +14,8 @@ import {
   YAxis,
 } from "recharts";
 import { effortKey, GhostRace } from "@/components/GhostRace";
+import { SummitBook } from "@/components/SummitBook";
+import { placeKey } from "@/lib/places";
 import { GradientProfile, gradientLines } from "@/components/GradientProfile";
 import { RouteMap } from "@/components/RouteMap";
 import { Panel, StatCard } from "@/components/StatCard";
@@ -25,7 +27,7 @@ import { useXZoom, ZOOM_AREA } from "@/hooks/use-x-zoom";
 import { athleteQuery, wellnessRangeQuery } from "@/lib/queries";
 import { gradeChunks, maxGrade } from "@/lib/profile";
 import { historyYears } from "@/lib/segment-app";
-import { segmentSummary } from "@/lib/segments";
+import { segmentSummary, type Attempt } from "@/lib/segments";
 import { addDays, formatClock, isoDate, weightFor } from "@/lib/training";
 import { fitTrend } from "@/lib/trend";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,9 @@ export const Route = createFileRoute("/segments/$id")({
   head: () => ({ meta: [{ title: t("Segment — Cirmolo", "Segmento — Cirmolo") }] }),
   component: SegmentPage,
 });
+
+/** Climbs this long (m) or more get a summit book instead of the plain list of efforts. */
+const SUMMIT_BOOK_MIN = 12_000;
 
 const r = (n: number | null | undefined, suffix = "") =>
   n != null ? `${Math.round(n)}${suffix}` : "–";
@@ -423,147 +428,18 @@ function SegmentPage() {
         </Panel>
       )}
 
-      <Panel title={t("All efforts", "Tutti i passaggi")}>
-        {isLoading ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("Loading rides…", "Caricamento attività…")}
-          </p>
-        ) : efforts.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t(
-              "No efforts found in the analysed rides.",
-              "Nessun passaggio trovato nelle attività analizzate.",
-            )}
-          </p>
-        ) : (
-          <>
-            {/* Phone: one compact row per effort instead of a table wider than the screen. */}
-            <div className="-mx-4 divide-y divide-border md:hidden">
-              {efforts.map((e, i) => {
-                // Two short lines that fit a phone: effort (power, heart rate), then pace (VAM, speed).
-                const effort = [
-                  e.avgWatts != null && `${Math.round(e.avgWatts)} W`,
-                  e.avgHr != null && `${Math.round(e.avgHr)} bpm`,
-                ].filter(Boolean);
-                const pace = [
-                  e.vam != null && `VAM ${Math.round(e.vam)}`,
-                  `${e.speed.toFixed(1)} km/h`,
-                ].filter(Boolean);
-                return (
-                  <div key={`${e.trackId}-${i}`} className="flex items-center gap-1 pr-2">
-                    <Link
-                      to="/rides/$id"
-                      params={{ id: e.trackId }}
-                      className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 active:bg-secondary/40"
-                    >
-                      <span className="stat-num w-5 shrink-0 text-sm text-muted-foreground">
-                        {i + 1}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2 text-sm">
-                          {format(parseISO(e.date), "d MMM yyyy")}
-                          {i === 0 && (
-                            <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                              <Trophy className="h-3 w-3" /> PR
-                            </span>
-                          )}
-                        </span>
-                        {effort.length > 0 && (
-                          <span className="stat-num block text-xs text-muted-foreground">
-                            {effort.join(" · ")}
-                          </span>
-                        )}
-                        <span className="stat-num block text-xs text-muted-foreground">
-                          {pace.join(" · ")}
-                        </span>
-                      </span>
-                      <span className="stat-num shrink-0 text-right">
-                        <span className="block text-base font-semibold">
-                          {formatClock(e.duration)}
-                        </span>
-                        {i > 0 && (
-                          <span className="block text-xs text-muted-foreground">
-                            +{formatClock(e.duration - efforts[0]!.duration)}
-                          </span>
-                        )}
-                      </span>
-                    </Link>
-                    {i > 0 ? (
-                      <button
-                        aria-label={t("Race against the PR", "Sfida il PR")}
-                        onClick={() => startRace(effortKey(e))}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground active:bg-secondary/60"
-                      >
-                        <Swords className="h-5 w-5" />
-                      </button>
-                    ) : (
-                      <span className="w-11 shrink-0" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="-mx-4 hidden overflow-x-auto px-4 md:block">
-              <table className="stat-num w-full min-w-[660px] text-sm">
-                <thead>
-                  <tr className="eyebrow text-left">
-                    <th className="py-2 font-normal">#</th>
-                    <th className="font-normal">{t("Date", "Data")}</th>
-                    <th className="text-right font-normal">{t("Time", "Tempo")}</th>
-                    <th className="text-right font-normal">{t("Power", "Potenza")}</th>
-                    <th className="text-right font-normal">W/kg</th>
-                    <th className="text-right font-normal">VAM</th>
-                    <th className="text-right font-normal">{t("HR", "FC")}</th>
-                    <th className="text-right font-normal">{t("Cad", "Cad")}</th>
-                    <th className="text-right font-normal">km/h</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {efforts.map((e, i) => (
-                    <tr key={`${e.trackId}-${i}`}>
-                      <td className="py-2 text-muted-foreground">{i + 1}</td>
-                      <td className="font-sans">
-                        <Link
-                          to="/rides/$id"
-                          params={{ id: e.trackId }}
-                          className="hover:text-primary"
-                        >
-                          {format(parseISO(e.date), "d MMM yyyy")}
-                        </Link>
-                        {i === 0 && (
-                          <span className="ml-2 inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                            <Trophy className="h-3 w-3" /> PR
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-right">{formatClock(e.duration)}</td>
-                      <td className="text-right">{r(e.avgWatts, "W")}</td>
-                      <td className="text-right">{e.wkg ? e.wkg.toFixed(2) : "–"}</td>
-                      <td className="text-right">{r(e.vam)}</td>
-                      <td className="text-right text-fatigue">{r(e.avgHr)}</td>
-                      <td className="text-right">{r(e.avgCad)}</td>
-                      <td className="text-right">{e.speed.toFixed(1)}</td>
-                      <td className="text-right">
-                        {i > 0 && (
-                          <button
-                            aria-label={t("Race against the PR", "Sfida il PR")}
-                            title={t("Race against the PR", "Sfida il PR")}
-                            onClick={() => startRace(effortKey(e))}
-                            className="p-1 text-muted-foreground hover:text-primary"
-                          >
-                            <Swords className="h-4 w-4" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </Panel>
+      {/* The summit book is for the big climbs; shorter ones keep the plain list of efforts. */}
+      {seg.length >= SUMMIT_BOOK_MIN ? (
+        <SummitBook
+          place={placeKey(seg)}
+          efforts={efforts}
+          trace={trace}
+          loading={isLoading}
+          onRace={startRace}
+        />
+      ) : (
+        <AllEfforts efforts={efforts} loading={isLoading} onRace={startRace} />
+      )}
     </div>
   );
 }
@@ -576,5 +452,160 @@ function BackLink() {
     >
       <ArrowLeft className="h-4 w-4" /> {t("Segments", "Segmenti")}
     </Link>
+  );
+}
+
+/** Every effort on the climb, fastest first: compact rows on the phone, a table on wider screens. */
+function AllEfforts({
+  efforts,
+  loading,
+  onRace,
+}: {
+  efforts: (Attempt & { wkg: number | null })[];
+  loading: boolean;
+  onRace: (effort: string) => void;
+}) {
+  return (
+    <Panel title={t("All efforts", "Tutti i passaggi")}>
+      {loading ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {t("Loading rides…", "Caricamento attività…")}
+        </p>
+      ) : efforts.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {t(
+            "No efforts found in the analysed rides.",
+            "Nessun passaggio trovato nelle attività analizzate.",
+          )}
+        </p>
+      ) : (
+        <>
+          {/* Phone: one compact row per effort instead of a table wider than the screen. */}
+          <div className="-mx-4 divide-y divide-border md:hidden">
+            {efforts.map((e, i) => {
+              // Two short lines that fit a phone: effort (power, heart rate), then pace (VAM, speed).
+              const effort = [
+                e.avgWatts != null && `${Math.round(e.avgWatts)} W`,
+                e.avgHr != null && `${Math.round(e.avgHr)} bpm`,
+              ].filter(Boolean);
+              const pace = [
+                e.vam != null && `VAM ${Math.round(e.vam)}`,
+                `${e.speed.toFixed(1)} km/h`,
+              ].filter(Boolean);
+              return (
+                <div key={`${e.trackId}-${i}`} className="flex items-center gap-1 pr-2">
+                  <Link
+                    to="/rides/$id"
+                    params={{ id: e.trackId }}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 active:bg-secondary/40"
+                  >
+                    <span className="stat-num w-5 shrink-0 text-sm text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2 text-sm">
+                        {format(parseISO(e.date), "d MMM yyyy")}
+                        {i === 0 && (
+                          <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
+                            <Trophy className="h-3 w-3" /> PR
+                          </span>
+                        )}
+                      </span>
+                      {effort.length > 0 && (
+                        <span className="stat-num block text-xs text-muted-foreground">
+                          {effort.join(" · ")}
+                        </span>
+                      )}
+                      <span className="stat-num block text-xs text-muted-foreground">
+                        {pace.join(" · ")}
+                      </span>
+                    </span>
+                    <span className="stat-num shrink-0 text-right">
+                      <span className="block text-base font-semibold">
+                        {formatClock(e.duration)}
+                      </span>
+                      {i > 0 && (
+                        <span className="block text-xs text-muted-foreground">
+                          +{formatClock(e.duration - efforts[0]!.duration)}
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                  {i > 0 ? (
+                    <button
+                      aria-label={t("Race against the PR", "Sfida il PR")}
+                      onClick={() => onRace(effortKey(e))}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground active:bg-secondary/60"
+                    >
+                      <Swords className="h-5 w-5" />
+                    </button>
+                  ) : (
+                    <span className="w-11 shrink-0" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="-mx-4 hidden overflow-x-auto px-4 md:block">
+            <table className="stat-num w-full min-w-[660px] text-sm">
+              <thead>
+                <tr className="eyebrow text-left">
+                  <th className="py-2 font-normal">#</th>
+                  <th className="font-normal">{t("Date", "Data")}</th>
+                  <th className="text-right font-normal">{t("Time", "Tempo")}</th>
+                  <th className="text-right font-normal">{t("Power", "Potenza")}</th>
+                  <th className="text-right font-normal">W/kg</th>
+                  <th className="text-right font-normal">VAM</th>
+                  <th className="text-right font-normal">{t("HR", "FC")}</th>
+                  <th className="text-right font-normal">{t("Cad", "Cad")}</th>
+                  <th className="text-right font-normal">km/h</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {efforts.map((e, i) => (
+                  <tr key={`${e.trackId}-${i}`}>
+                    <td className="py-2 text-muted-foreground">{i + 1}</td>
+                    <td className="font-sans">
+                      <Link
+                        to="/rides/$id"
+                        params={{ id: e.trackId }}
+                        className="hover:text-primary"
+                      >
+                        {format(parseISO(e.date), "d MMM yyyy")}
+                      </Link>
+                      {i === 0 && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
+                          <Trophy className="h-3 w-3" /> PR
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-right">{formatClock(e.duration)}</td>
+                    <td className="text-right">{r(e.avgWatts, "W")}</td>
+                    <td className="text-right">{e.wkg ? e.wkg.toFixed(2) : "–"}</td>
+                    <td className="text-right">{r(e.vam)}</td>
+                    <td className="text-right text-fatigue">{r(e.avgHr)}</td>
+                    <td className="text-right">{r(e.avgCad)}</td>
+                    <td className="text-right">{e.speed.toFixed(1)}</td>
+                    <td className="text-right">
+                      {i > 0 && (
+                        <button
+                          aria-label={t("Race against the PR", "Sfida il PR")}
+                          title={t("Race against the PR", "Sfida il PR")}
+                          onClick={() => onRace(effortKey(e))}
+                          className="p-1 text-muted-foreground hover:text-primary"
+                        >
+                          <Swords className="h-4 w-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Panel>
   );
 }

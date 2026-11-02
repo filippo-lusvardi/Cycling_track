@@ -131,7 +131,9 @@ function TreePage() {
         )}
         {w > 0 && zoom === "years" && (
           <div className="pt-2">
-            <h1 className="mb-1 text-center text-lg font-semibold">{t("The tree, cut across", "L'albero, in sezione")}</h1>
+            <h1 className="mb-1 text-center text-lg font-semibold">
+              {t("The tree, cut across", "L'albero, in sezione")}
+            </h1>
             <Rings years={buildYears(days)} w={w} />
           </div>
         )}
@@ -360,7 +362,14 @@ function TreeBody({
 
     // The recent days above are plain bark; fade into the first week's chapter.
     if (weeks.length)
-      monthRow(t("By week", "Per settimana"), "weekly", weeks[0]!.trunk, null, weeks[0]!.chapter, "steady");
+      monthRow(
+        t("By week", "Per settimana"),
+        "weekly",
+        weeks[0]!.trunk,
+        null,
+        weeks[0]!.chapter,
+        "steady",
+      );
     const oldest = days[days.length - 1]!.date;
     weeks.forEach((wk, i) => {
       newMonth(wk.start < oldest ? oldest : wk.start, wk.trunk, wk.ctl, wk.chapter);
@@ -383,7 +392,14 @@ function TreeBody({
             block={blocks.find((b) => b.since >= wk.start && b.since <= wk.end)?.focus}
             olderChapter={older?.chapter}
             onOpen={() =>
-              open({ kind: "days", title: t(`Week ${weekRange(wk.start, wk.end)}`, `Settimana ${weekRange(wk.start, wk.end)}`), dates })
+              open({
+                kind: "days",
+                title: t(
+                  `Week ${weekRange(wk.start, wk.end)}`,
+                  `Settimana ${weekRange(wk.start, wk.end)}`,
+                ),
+                dates,
+              })
             }
           />
         ),

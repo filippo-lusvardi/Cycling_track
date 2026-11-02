@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 import { ArrowLeft, ChevronDown, Minus, Plus, Star, Trophy } from "lucide-react";
@@ -19,7 +19,8 @@ import { curveFit, decoupling } from "@/lib/analysis";
 import { detectClimbs } from "@/lib/climbs";
 import { briochesIn, withBrioches, withoutBrioches } from "@/lib/brioches";
 import { BRIOCHE_G, rideFuel } from "@/lib/fuel";
-import { setActivityDescription, type ActivityDetail, type RideStreams } from "@/lib/intervals";
+import type { ActivityDetail, RideStreams } from "@/lib/intervals";
+import { setActivityDescription, sourceKind } from "@/lib/source";
 import {
   activityQuery,
   athleteQuery,
@@ -247,6 +248,39 @@ function RideDetail() {
         </Panel>
       )}
       <Brioches a={a} />
+      {sourceKind() === "native" && <DeleteRide id={a.id} />}
+    </div>
+  );
+}
+
+/** Accounts without intervals.icu keep their rides in Cirmolo, so a ride uploaded by mistake is removed here. */
+function DeleteRide({ id }: { id: string }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex justify-end gap-2">
+      {confirm && (
+        <Button variant="ghost" onClick={() => setConfirm(false)}>
+          {t("Cancel", "Annulla")}
+        </Button>
+      )}
+      <Button
+        variant={confirm ? "destructive" : "ghost"}
+        disabled={busy}
+        onClick={async () => {
+          if (!confirm) return setConfirm(true);
+          setBusy(true);
+          const { deleteRide } = await import("@/lib/native");
+          await deleteRide(id);
+          await qc.invalidateQueries();
+          toast.success(t("Ride deleted", "Uscita eliminata"));
+          navigate({ to: "/rides" });
+        }}
+      >
+        {confirm ? t("Delete for good", "Elimina definitivamente") : t("Delete ride", "Elimina uscita")}
+      </Button>
     </div>
   );
 }

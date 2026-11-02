@@ -9,8 +9,8 @@ import {
   getPowerCurves,
   getStreams,
   getWellness,
-  type Range,
-} from "./intervals";
+} from "./source";
+import type { Range } from "./intervals";
 import { getDurability } from "./durability-data";
 import { addDays, isoDate } from "./training";
 

@@ -16,6 +16,8 @@ export const FOCUS_STATE = "cadence_focus";
 export const FOCUS_PIN = "cadence_focus_pin";
 /** Some of this account's activities come from Garmin devices, so derived views show Garmin's attribution. */
 export const GARMIN = "cadence_garmin";
+/** Where this account's training data comes from: "intervals" (default) or "native" (uploaded ride files). */
+export const SOURCE = "cadence_source";
 
 export function readSetting<T>(key: string): T | null {
   try {
@@ -36,4 +38,3 @@ export function writeSetting<T>(key: string, value: T | null) {
   }
 }
 
-export const hasApiKey = () => !!readSetting<string>(API_KEY);

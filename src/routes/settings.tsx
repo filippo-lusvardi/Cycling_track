@@ -21,12 +21,15 @@ import { authError } from "@/lib/auth-errors";
 import { deleteUserData, saveProfile } from "@/lib/cloud";
 import { auth } from "@/lib/firebase";
 import { format, lang, setLang, t } from "@/lib/i18n";
-import { getAthlete } from "@/lib/intervals";
+import { getAthlete } from "@/lib/source";
 import { activitiesQuery, wellnessQuery } from "@/lib/queries";
 import { ACCURACY_MIN_RIDES, HRV_BAND_DAYS, readinessAccuracy } from "@/lib/readiness";
 import { addDays, isoDate } from "@/lib/training";
 import { historyYears, segmentEngine, startSegments } from "@/lib/segment-app";
-import { API_KEY, QUIET_TREE, SEGMENT_HISTORY, readSetting, writeSetting } from "@/lib/settings";
+import { API_KEY, QUIET_TREE, SEGMENT_HISTORY, SOURCE, readSetting, writeSetting } from "@/lib/settings";
+import type { SourceKind } from "@/lib/source";
+import { rideZonesQuery } from "@/lib/queries";
+import { UploadRides } from "@/components/UploadRides";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
@@ -35,6 +38,7 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
+  const [source] = useLocalStore<SourceKind | null>(SOURCE, null);
   return (
     <div className="space-y-6">
       <div>
@@ -46,7 +50,10 @@ function SettingsPage() {
         <QuietTree />
         <TreeGuide />
         <Account />
+        {source === "native" && <Athlete />}
+        {source === "native" && <RideFiles />}
         <IntervalsKey />
+        {source !== "native" && <WithoutIntervals />}
         <SegmentAnalysis />
         <Storage />
       </div>
@@ -63,11 +70,13 @@ function IntervalsKey() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const before = readSetting<SourceKind>(SOURCE);
     writeSetting(API_KEY, key.trim());
+    writeSetting(SOURCE, "intervals");
     setBusy(true);
     try {
       const a = await getAthlete();
-      await saveProfile({ intervalsKey: key.trim() });
+      await saveProfile({ intervalsKey: key.trim(), source: "intervals" });
       toast.success(
         a.name
           ? t(`Connected to intervals.icu as ${a.name}`, `Connesso a intervals.icu come ${a.name}`)
@@ -77,6 +86,7 @@ function IntervalsKey() {
       navigate({ to: "/" });
     } catch {
       writeSetting(API_KEY, null);
+      writeSetting(SOURCE, before);
       toast.error(t("intervals.icu rejected that key", "intervals.icu ha rifiutato la chiave"));
     } finally {
       setBusy(false);
@@ -127,6 +137,157 @@ function IntervalsKey() {
           )}
         </p>
       </form>
+    </Panel>
+  );
+}
+
+/** For people without intervals.icu: Cirmolo keeps their rides and computes the numbers itself. */
+function WithoutIntervals() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [consent, setConsent] = useState(false);
+  return (
+    <Panel title={t("No intervals.icu account?", "Non hai un account intervals.icu?")}>
+      <div className="space-y-3 text-sm">
+        <p className="text-muted-foreground">
+          {t(
+            "Cirmolo can keep your rides itself: upload ride files (.fit) from your Garmin, Wahoo or Zwift, and it works out fitness, fatigue, zones and power curves on its own. Check-ins, weight, races and sick days are saved in your account.",
+            "Cirmolo può conservare da sé le tue uscite: carica i file (.fit) di Garmin, Wahoo o Zwift e calcola da solo forma, fatica, zone e curve di potenza. Check-in, peso, gare e giorni di malattia restano nel tuo account.",
+          )}
+        </p>
+        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+          />
+          <span>
+            {t(
+              "I agree that Cirmolo stores my rides and health data (heart rate, HRV, sleep, weight) in my account to analyse my training, as described in the",
+              "Acconsento che Cirmolo conservi nel mio account le mie uscite e i dati sulla salute (frequenza cardiaca, HRV, sonno, peso) per analizzare il mio allenamento, come descritto nell'",
+            )}{" "}
+            <Link to="/privacy" className="underline">
+              {t("privacy notice", "informativa privacy")}
+            </Link>
+            .
+          </span>
+        </label>
+        <Button
+          variant="outline"
+          disabled={!consent}
+          onClick={async () => {
+            writeSetting(SOURCE, "native");
+            await saveProfile({ source: "native", healthConsentAt: Date.now() }).catch(() => {});
+            qc.clear();
+            navigate({ to: "/settings" });
+          }}
+        >
+          {t("Use Cirmolo without intervals.icu", "Usa Cirmolo senza intervals.icu")}
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
+const numOrNull = (v: string) => (v.trim() && Number(v) > 0 ? Number(v) : null);
+
+/** What intervals.icu's athlete settings hold, for accounts without it: weight, FTP, threshold and max heart rate. */
+function Athlete() {
+  const qc = useQueryClient();
+  const { data: zones } = useQuery(rideZonesQuery());
+  const [form, setForm] = useState({ weight: "", ftp: "", lthr: "", maxHr: "" });
+  const [loaded, setLoaded] = useState(false);
+  const [progress, setProgress] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    void import("@/lib/cloud").then(({ readProfile }) =>
+      readProfile().then((p) => {
+        setForm({
+          weight: p.weight ? String(p.weight) : "",
+          ftp: p.ftp ? String(p.ftp) : "",
+          lthr: p.lthr ? String(p.lthr) : "",
+          maxHr: p.maxHr ? String(p.maxHr) : "",
+        });
+        setLoaded(true);
+      }),
+    );
+  }, []);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    await saveProfile({
+      weight: numOrNull(form.weight),
+      ftp: numOrNull(form.ftp),
+      lthr: numOrNull(form.lthr),
+      maxHr: numOrNull(form.maxHr),
+    });
+    await qc.invalidateQueries();
+    toast.success(t("Saved", "Salvato"));
+  }
+
+  async function recompute() {
+    const { recomputeRides } = await import("@/lib/native");
+    setProgress([0, 0]);
+    await recomputeRides((done, total) => setProgress([done, total]));
+    setProgress(null);
+    await qc.invalidateQueries();
+    toast.success(t("Rides recalculated", "Uscite ricalcolate"));
+  }
+
+  const field = (k: keyof typeof form, label: string, unit: string, hint?: string) => (
+    <div className="space-y-1">
+      <Label htmlFor={`athlete-${k}`}>
+        {label} <span className="text-muted-foreground">({unit})</span>
+      </Label>
+      <Input
+        id={`athlete-${k}`}
+        inputMode="decimal"
+        value={form[k]}
+        placeholder={hint}
+        onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+      />
+    </div>
+  );
+
+  return (
+    <Panel title={t("Athlete", "Atleta")}>
+      <form onSubmit={save} className="space-y-3 text-sm">
+        <div className="grid grid-cols-2 gap-3">
+          {field("weight", t("Weight", "Peso"), "kg")}
+          {field(
+            "ftp",
+            "FTP",
+            "W",
+            !form.ftp && zones?.ftp ? t(`estimated ${zones.ftp}`, `stimata ${zones.ftp}`) : undefined,
+          )}
+          {field("lthr", t("Threshold HR", "FC di soglia"), "bpm")}
+          {field("maxHr", t("Max HR", "FC massima"), "bpm")}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "FTP sets power zones and training load; leave it empty to use the estimate from your last 42 days. Threshold heart rate (or 90% of max) is used for rides without a power meter.",
+            "L'FTP definisce zone di potenza e carico; lascialo vuoto per usare la stima dagli ultimi 42 giorni. La FC di soglia (o il 90% della massima) serve per le uscite senza misuratore di potenza.",
+          )}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={!loaded}>
+            {t("Save", "Salva")}
+          </Button>
+          <Button type="button" variant="outline" disabled={!!progress} onClick={() => void recompute()}>
+            {progress
+              ? t(`Recalculating ${progress[0]}/${progress[1]}…`, `Ricalcolo ${progress[0]}/${progress[1]}…`)
+              : t("Recalculate all rides", "Ricalcola tutte le uscite")}
+          </Button>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+function RideFiles() {
+  return (
+    <Panel title={t("Ride files", "File delle uscite")}>
+      <UploadRides />
     </Panel>
   );
 }

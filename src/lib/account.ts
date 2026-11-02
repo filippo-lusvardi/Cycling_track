@@ -15,6 +15,7 @@ import {
   GITHUB_TOKEN,
   LANGUAGE,
   SEGMENT_HISTORY,
+  SOURCE,
   readSetting,
   writeSetting,
 } from "./settings";
@@ -57,11 +58,13 @@ async function pullProfile() {
   const years = readSetting<number>(SEGMENT_HISTORY);
   if (p.intervalsKey) writeSetting(API_KEY, p.intervalsKey);
   if (p.segmentHistory != null) writeSetting(SEGMENT_HISTORY, p.segmentHistory);
+  if (p.source) writeSetting(SOURCE, p.source);
   const up = {
     ...(!p.intervalsKey && key ? { intervalsKey: key } : {}),
     ...(p.segmentHistory == null && years != null ? { segmentHistory: years } : {}),
   };
   if (Object.keys(up).length) await saveProfile(up);
+  return p;
 }
 
 /** One-off move from the GitHub gist that synced segments before accounts existed. */
