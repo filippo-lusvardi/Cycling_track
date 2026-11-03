@@ -15,6 +15,7 @@ import "@fontsource/jetbrains-mono/600.css";
 import "./styles.css";
 
 import { initAccount } from "./lib/account";
+import { applyAccent } from "./lib/accent";
 import { AuthError } from "./lib/intervals";
 import { getRouter } from "./router";
 
@@ -44,6 +45,8 @@ navigator.storage?.persist?.().catch(() => {});
 // The old tile cache held opaque responses that Chrome counts as ~7 MB each; tiles now live in map-tiles-v2.
 globalThis.caches?.delete("map-tiles").catch(() => {});
 
+// Today's season colours the app from the first paint (see lib/accent).
+applyAccent();
 initAccount();
 const router = getRouter(queryClient);
 

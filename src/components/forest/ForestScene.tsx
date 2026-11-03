@@ -45,12 +45,15 @@ export function WildPines({
   count,
   at,
   size = 1,
+  tone = "color-mix(in oklab, var(--pine) 22%, var(--background))",
 }: {
   seed: string;
   w: number;
   count: number;
   at: (r: () => number) => readonly [number, number] | null;
   size?: number;
+  /** Their colour (lighter by day where the sky follows the hour). */
+  tone?: string;
 }) {
   if (w <= 360) return null;
   const r = rng(seedOf(`${seed}pines`));
@@ -63,11 +66,7 @@ export function WildPines({
   return (
     <g aria-hidden>
       {pines.map(([x, y, s], i) => (
-        <g
-          key={i}
-          style={{ fill: "color-mix(in oklab, var(--pine) 22%, var(--background))" }}
-          opacity={0.55 + 0.4 * Math.min(1, s / 1.3)}
-        >
+        <g key={i} style={{ fill: tone }} opacity={0.55 + 0.4 * Math.min(1, s / 1.3)}>
           <rect x={x - 0.6 * s} y={y - 3 * s} width={1.2 * s} height={3 * s} />
           <polygon
             points={`${x - 6 * s},${y - 3 * s} ${x},${y - 13 * s} ${x + 6 * s},${y - 3 * s}`}
@@ -345,6 +344,9 @@ export function MiniTree({
       <path
         d={`M${x - trunkW / 2},${y} Q${x - trunkW * 0.35 + lean * 0.3},${(y + forkY) / 2} ${forkX - trunkW * 0.22},${forkY} L${forkX + trunkW * 0.22},${forkY} Q${x + trunkW * 0.35 + lean * 0.3},${(y + forkY) / 2} ${x + trunkW / 2},${y} Z`}
         fill="var(--bark)"
+        // A thin dark edge, so the trunk reads on any sky or hill, by day or at dusk.
+        stroke="color-mix(in oklab, var(--bark) 55%, black)"
+        strokeWidth={0.6 + size * 0.15}
       />
       <g stroke="var(--bark)" fill="none" strokeLinecap="round">
         {limbs.map((l, i) => (

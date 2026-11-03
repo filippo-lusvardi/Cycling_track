@@ -1,5 +1,8 @@
 // How tall a member's tree stands in a forest scene: like a real forest, old trees stand higher, and so do trees
 // that have carried their rider many kilometres. Pure.
+import { activityKind } from "../activity-kind";
+import type { Activity } from "../intervals";
+import { RIDE_KINDS } from "../tree";
 import type { TreeHeader } from "./types";
 
 const DAY = 86_400_000;
@@ -35,3 +38,16 @@ export function growth(age: number | null, km: number | null = null): number {
 /** A member's tree height factor from their published header (1 for a seedling). */
 export const treeGrowth = (header: TreeHeader | undefined, today: string) =>
   header ? growth(treeAge(header, today), header.km ?? null) : 1;
+
+/** The first ride ever and the kilometres ridden in all, for the tree's height in forests (see ./age). */
+export function lifetime(acts: Activity[]): { since: string | null; km: number } {
+  let since: string | null = null;
+  let metres = 0;
+  for (const a of acts) {
+    if (!RIDE_KINDS.has(activityKind(a))) continue;
+    const d = a.start_date_local.slice(0, 10);
+    if (since == null || d < since) since = d;
+    metres += a.distance ?? 0;
+  }
+  return { since, km: Math.round(metres / 1000) };
+}

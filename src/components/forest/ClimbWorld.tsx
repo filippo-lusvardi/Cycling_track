@@ -2,6 +2,8 @@ import { useId, useMemo } from "react";
 import type { ForestClimb, ForestTime } from "@/lib/forest/leaderboard";
 import { t } from "@/lib/i18n";
 import { WildPines } from "@/components/forest/ForestScene";
+import { useNow } from "@/hooks/use-now";
+import { daylight, lit } from "@/lib/daylight";
 import { ridgeAcross } from "@/lib/ridge";
 import { formatClock } from "@/lib/training";
 import { rng, seedOf } from "@/lib/tree";
@@ -42,20 +44,16 @@ export function ClimbWorld({
   const lift = W <= 360 ? 0 : Math.max(0, Math.round(Math.min(fit, W * 0.5) - (TOP + rows * ROW)));
   const H = TOP + rows * ROW + lift;
   const mid = ridgeAcross("climb-mid", W, 1.2);
-  // The nearer range fades out at its foot, above the highest summit, so the climbs stand clear of it.
+  // The nearer range darkens toward its foot, so the climbs stand out against it.
   const ridgeAt = (i: number) => TOP + 10 + (1 - mid[i]!) * lift * 0.35;
   const foot = TOP + lift - 16;
   const nearer = lift > 60;
   // With the nearer range in front, the far one reaches down behind it and fades out there.
   const farFoot = nearer ? TOP + 50 + lift * 0.35 : TOP + 40;
   const maxGain = Math.max(300, ...climbs.map((c) => c.climb.gain ?? 0));
-  const stars = useMemo(() => {
-    const r = rng(seedOf("climb-stars"));
-    return Array.from(
-      { length: Math.round((26 * W) / 360) },
-      () => [r() * W, r() * H * 0.9, 0.2 + r() * 0.5] as const,
-    );
-  }, [H, W]);
+  // Under the page's sky (components/sky/SkyPage): the land takes the light of the hour, and stands on ground.
+  const d = daylight(useNow());
+  const L = (c: string) => lit(c, d);
   const far = ridgeAcross("climb-world", W, 1.4);
 
   return (
@@ -66,38 +64,18 @@ export function ClimbWorld({
       aria-label={t("Climbs", "Salite")}
     >
       <defs>
-        <linearGradient id={`${uid}sky`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="var(--background)" />
-          <stop
-            offset="1"
-            style={{ stopColor: "color-mix(in oklab, var(--primary) 8%, var(--card))" }}
-          />
-        </linearGradient>
-        {/* Behind the nearer range the far one fades out downward, so no hard edge shows in its valleys. */}
-        <linearGradient
-          id={`${uid}far`}
-          x1="0"
-          y1="10"
-          x2="0"
-          y2={farFoot}
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0.5" stopColor="var(--border)" stopOpacity={0.4} />
-          <stop offset="1" stopColor="var(--border)" stopOpacity={0} />
-        </linearGradient>
         <linearGradient id={`${uid}rock`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="var(--secondary)" />
-          <stop offset="1" stopColor="var(--background)" />
+          <stop offset="0" style={{ stopColor: L("var(--secondary)") }} />
+          <stop offset="1" style={{ stopColor: L("var(--background)") }} />
         </linearGradient>
       </defs>
-      <rect width={W} height={H} fill={`url(#${uid}sky)`} />
-      {stars.map(([x, y, o], i) => (
-        <circle key={i} cx={x} cy={y} r={0.7} fill="var(--snow)" opacity={o} />
-      ))}
+      {/* The sky is the page's own (components/sky/SkyPage), behind this scene from the window's top. */}
       <polygon
-        points={`0,${farFoot} ${far.map((y, i) => `${((i / (far.length - 1)) * W).toFixed(1)},${(10 + (1 - y) * 50).toFixed(1)}`).join(" ")} ${W},${farFoot}`}
-        fill={nearer ? `url(#${uid}far)` : "var(--border)"}
-        opacity={nearer ? 1 : 0.4}
+        // Down to the scene's foot: land, never the page's sky, under the ranges and the climbs.
+        points={`0,${H} 0,${farFoot} ${far.map((y, i) => `${((i / (far.length - 1)) * W).toFixed(1)},${(10 + (1 - y) * 50).toFixed(1)}`).join(" ")} ${W},${farFoot} ${W},${H}`}
+        fill={L(
+          "color-mix(in oklab, var(--border) 70%, color-mix(in oklab, var(--primary) 20%, var(--background)))",
+        )}
       />
       {nearer && (
         <>
@@ -107,16 +85,18 @@ export function ClimbWorld({
               x1="0"
               y1={TOP + 10}
               x2="0"
-              y2={foot}
+              y2={H}
               gradientUnits="userSpaceOnUse"
             >
-              <stop offset="0" stopColor="var(--muted)" stopOpacity={1} />
-              <stop offset="0.45" stopColor="var(--muted)" stopOpacity={0.75} />
-              <stop offset="1" stopColor="var(--muted)" stopOpacity={0} />
+              <stop offset="0" style={{ stopColor: L("var(--muted)") }} />
+              <stop
+                offset="1"
+                style={{ stopColor: L("color-mix(in oklab, var(--muted) 60%, var(--background))") }}
+              />
             </linearGradient>
           </defs>
           <polygon
-            points={`0,${foot} ${mid.map((_, i) => `${((i / (mid.length - 1)) * W).toFixed(1)},${ridgeAt(i).toFixed(1)}`).join(" ")} ${W},${foot}`}
+            points={`0,${H} 0,${foot} ${mid.map((_, i) => `${((i / (mid.length - 1)) * W).toFixed(1)},${ridgeAt(i).toFixed(1)}`).join(" ")} ${W},${foot} ${W},${H}`}
             fill={`url(#${uid}mid)`}
           />
           <WildPines
@@ -130,6 +110,7 @@ export function ClimbWorld({
               return [x, ridge + 12 + r() ** 1.5 * (foot - ridge) * 0.55];
             }}
             size={0.8}
+            tone={L("color-mix(in oklab, var(--pine) 22%, var(--background))")}
           />
         </>
       )}

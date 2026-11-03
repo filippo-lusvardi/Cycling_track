@@ -5,9 +5,10 @@ import { Buds, CrownView, Rings } from "@/components/tree/Crown";
 import { TreeBody, usePinch, useWidth } from "@/components/tree/TreeBody";
 import { ZoomSwitch, type Zoom } from "@/components/tree/ZoomSwitch";
 import { TreeSheet, type Sheet } from "@/components/tree/TreeSheets";
+import { BackHome } from "@/components/home/BackHome";
 import { useFocus } from "@/hooks/use-focus";
 import { useLocalStore } from "@/hooks/use-local-store";
-import { publishTree } from "@/lib/forest/publish";
+import { usePublishTree } from "@/hooks/use-publish-tree";
 import { FOCUS_LABEL } from "@/lib/races";
 import {
   allActivitiesQuery,
@@ -22,6 +23,7 @@ import { addDays, isoDate } from "@/lib/training";
 import { buildDays, buildYears, crownFor, offDays } from "@/lib/tree";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { rememberSeason } from "@/lib/accent";
 import { recordSinceLoad } from "@/lib/perf";
 
 export const Route = createFileRoute("/tree")({
@@ -34,10 +36,12 @@ export const Route = createFileRoute("/tree")({
 });
 
 const ZOOMS: Zoom[] = ["tree", "years"];
+/** A stable empty list, so effects keyed on it don't rerun every render while events load. */
+const NO_EVENTS: never[] = [];
 
 function TreePage() {
   // Opening the app to the moment the tree is drawn with its data: the startup that matters.
-  useEffect(() => recordSinceLoad("first_tree", ["/", "/tree"]), []);
+  useEffect(() => recordSinceLoad("first_tree", ["/tree"]), []);
   const today = isoDate(new Date());
   const { data: acts } = useSuspenseQuery(allActivitiesQuery());
   const oldest = acts.length
@@ -62,11 +66,10 @@ function TreePage() {
     () => crownFor(wellness, acts, today, offEvents ?? []),
     [wellness, acts, today, offEvents],
   );
+  // The app's accent follows today's season.
+  useEffect(() => rememberSeason(crown.season), [crown.season]);
   // My forests get a copy of this tree (only the rides I share with each; throttled, only what changed).
-  useEffect(
-    () => publishTree({ acts, wellness, offEvents: offEvents ?? [], crown, today }),
-    [acts, wellness, offEvents, crown, today],
-  );
+  usePublishTree({ acts, wellness, offEvents: offEvents ?? NO_EVENTS, crown, today });
   const limit = crown.score != null && zones ? ceiling(crown.score, zones) : null;
   // Only today's plan buds above the crown.
   const planned = (events ?? []).filter(
@@ -81,6 +84,7 @@ function TreePage() {
 
   return (
     <div className="-mt-2">
+      <BackHome className="mb-1" />
       <div ref={ref} className="touch-pan-y">
         {w > 0 && zoom !== "years" && (
           <>

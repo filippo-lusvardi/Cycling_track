@@ -67,12 +67,18 @@ export type TreeBranch = {
   mostClimbing: boolean;
 };
 
+/** A non-cycling activity: no branch on the tree (it lives in the garden), a sprout on the bark instead. */
+export type TreeSprout = { id: string; kind: Kind; name: string; minutes: number; load: number };
+
 export type TreeDay = {
   date: string;
   ctl: number | null;
   /** Trunk width in px at the end of this day. */
   trunk: number;
+  /** The day's rides: only cycling grows branches. */
   branches: TreeBranch[];
+  /** The day's other activities (runs, gym, swims…), oldest first. */
+  sprouts: TreeSprout[];
   /** Side of the rest-day bud (rest days have no branches). */
   budSide: -1 | 1;
   /** Ill or injured that day: a knot in the bark. */
@@ -87,12 +93,17 @@ export type TreeWeek = {
   end: string;
   ctl: number | null;
   trunk: number;
+  /** The week's rides: load, minutes, climbing and count. */
   load: number;
   minutes: number;
   /** Metres. */
   climb: number;
   count: number;
-  /** The week's activities, oldest first: one twig each on the week's bough. */
+  /** Every activity's load, cycling or not: the build/rest chapters describe the whole athlete. */
+  totalLoad: number;
+  /** Minutes of non-cycling training (the garden's). */
+  crossMinutes: number;
+  /** The week's rides, oldest first: one twig each on the week's bough. */
   twigs: TreeBranch[];
   side: -1 | 1;
   chapter: Chapter;
@@ -102,12 +113,17 @@ export type TreeWeek = {
 
 export type TreeYear = {
   year: number;
+  /** Every activity's load: the ring grows with the whole athlete. */
   load: number;
+  /** Rides only: time, count, distance and climbing. */
   minutes: number;
   count: number;
   /** Metres. */
   distance: number;
   climb: number;
+  /** Minutes of non-cycling training. */
+  crossMinutes: number;
+  /** Every activity's load per week of the year (the ring's width). */
   weekLoads: number[];
   /** Injured stretches inside the year: scars on its ring. */
   scars: Scar[];
@@ -269,34 +285,46 @@ export function buildDays(
     const day = (byDay.get(d) ?? []).sort((a, b) =>
       a.start_date_local.localeCompare(b.start_date_local),
     );
-    const branches = day.map((a): TreeBranch => {
-      const minutes = (a.moving_time ?? 0) / 60;
-      const load = a.icu_training_load ?? 0;
-      const climb = a.total_elevation_gain ?? 0;
-      return {
+    const sprouts = day
+      .filter((a) => !RIDE_KINDS.has(activityKind(a)))
+      .map((a): TreeSprout => ({
         id: a.id,
-        name: a.name ?? a.type ?? t("Activity", "Attività"),
         kind: activityKind(a),
-        side: turn++ % 2 ? -1 : 1,
-        length: 1 - Math.exp(-minutes / 120),
-        thickness: 1.5 + clamp01(load / 250) * 6.5,
-        leaves: Math.min(MAX_LEAVES, Math.floor(climb / CLIMB_PER_LEAF)),
-        intensity: intensityLevel(a.icu_intensity),
-        minutes,
-        load,
-        distance: a.distance ?? 0,
-        climb,
-        seed: seedOf(a.id),
-        brioches: a.brioches ?? 0, // older cached rows have no count
-        longest: a.id === records.longest,
-        mostClimbing: a.id === records.mostClimbing,
-      };
-    });
+        name: a.name ?? a.type ?? t("Activity", "Attività"),
+        minutes: (a.moving_time ?? 0) / 60,
+        load: a.icu_training_load ?? 0,
+      }));
+    const branches = day
+      .filter((a) => RIDE_KINDS.has(activityKind(a)))
+      .map((a): TreeBranch => {
+        const minutes = (a.moving_time ?? 0) / 60;
+        const load = a.icu_training_load ?? 0;
+        const climb = a.total_elevation_gain ?? 0;
+        return {
+          id: a.id,
+          name: a.name ?? a.type ?? t("Activity", "Attività"),
+          kind: activityKind(a),
+          side: turn++ % 2 ? -1 : 1,
+          length: 1 - Math.exp(-minutes / 120),
+          thickness: 1.5 + clamp01(load / 250) * 6.5,
+          leaves: Math.min(MAX_LEAVES, Math.floor(climb / CLIMB_PER_LEAF)),
+          intensity: intensityLevel(a.icu_intensity),
+          minutes,
+          load,
+          distance: a.distance ?? 0,
+          climb,
+          seed: seedOf(a.id),
+          brioches: a.brioches ?? 0, // older cached rows have no count
+          longest: a.id === records.longest,
+          mostClimbing: a.id === records.mostClimbing,
+        };
+      });
     days.push({
       date: d,
       ctl,
       trunk: 0,
       branches,
+      sprouts,
       budSide: turn % 2 ? -1 : 1,
       off: off.get(d) ?? null,
     });
@@ -331,16 +359,18 @@ export function buildWeeks(days: TreeDay[]): TreeWeek[] {
   asc.forEach(([start, ds], i) => {
     const twigs = [...ds].sort((a, b) => a.date.localeCompare(b.date)).flatMap((d) => d.branches);
     const load = twigs.reduce((s, b) => s + b.load, 0);
+    const cross = ds.flatMap((d) => d.sprouts);
+    const totalLoad = load + cross.reduce((s, x) => s + x.load, 0);
     const prior = weeks.slice(Math.max(0, i - 4), i);
-    const avg = prior.length ? prior.reduce((s, w) => s + w.load, 0) / prior.length : 0;
+    const avg = prior.length ? prior.reduce((s, w) => s + w.totalLoad, 0) / prior.length : 0;
     const chapter: Chapter =
       avg === 0
-        ? load > 0
+        ? totalLoad > 0
           ? "build"
           : "rest"
-        : load > avg * 1.15
+        : totalLoad > avg * 1.15
           ? "build"
-          : load < avg * 0.6
+          : totalLoad < avg * 0.6
             ? "rest"
             : "steady";
     const newest = ds.reduce((a, b) => (a.date > b.date ? a : b));
@@ -353,6 +383,8 @@ export function buildWeeks(days: TreeDay[]): TreeWeek[] {
       minutes: twigs.reduce((s, b) => s + b.minutes, 0),
       climb: twigs.reduce((s, b) => s + b.climb, 0),
       count: twigs.length,
+      totalLoad,
+      crossMinutes: cross.reduce((s, x) => s + x.minutes, 0),
       twigs,
       side: i % 2 ? -1 : 1,
       chapter,
@@ -401,6 +433,7 @@ export function buildYears(days: TreeDay[]): TreeYear[] {
       count: 0,
       distance: 0,
       climb: 0,
+      crossMinutes: 0,
       weekLoads: Array<number>(53).fill(0),
       scars: [],
     };
@@ -419,6 +452,11 @@ export function buildYears(days: TreeDay[]): TreeYear[] {
       y.climb += b.climb;
       y.count++;
       y.weekLoads[Math.min(52, Math.floor(doy / 7))]! += b.load;
+    }
+    for (const x of d.sprouts) {
+      y.load += x.load;
+      y.crossMinutes += x.minutes;
+      y.weekLoads[Math.min(52, Math.floor(doy / 7))]! += x.load;
     }
     map.set(year, y);
   }

@@ -1,5 +1,6 @@
-import { useId, useMemo } from "react";
 import { MiniTree, WildPines, type SceneTree } from "@/components/forest/ForestScene";
+import { useNow } from "@/hooks/use-now";
+import { daylight, lit } from "@/lib/daylight";
 import { auth } from "@/lib/firebase";
 import { treeGrowth } from "@/lib/forest/age";
 import { t } from "@/lib/i18n";
@@ -7,7 +8,9 @@ import { ridgeAcross } from "@/lib/ridge";
 import { isoDate } from "@/lib/training";
 import { rng, seedOf } from "@/lib/tree";
 
-const TOP = 74;
+/** The sky above the mountains: room for the sun and moon to ride over them. */
+const SKY = 34;
+const TOP = 74 + SKY;
 const ROW = 128;
 /** Room each tree takes in a row. */
 const GAP = 120;
@@ -24,6 +27,7 @@ export function ForestGrove({
   me = auth.currentUser?.uid,
   w: W = 360,
   fit = 0,
+  now,
 }: {
   seed: string;
   trees: SceneTree[];
@@ -32,6 +36,8 @@ export function ForestGrove({
   w?: number;
   /** The height that fits on screen (see OpenScene): a wide grove grows wild hills behind up to it. */
   fit?: number;
+  /** The moment the sky shows (now by default). */
+  now?: Date;
 }) {
   // Three to a row on the phone, as many as fit (with a margin) on a wide scene.
   // On a wide scene the members' trees are drawn twice as big (easier to see and to click), so rows are taller and
@@ -41,7 +47,6 @@ export function ForestGrove({
   // Rows leave room for the oldest, tallest trees (see lib/forest/age) to clear the names in the row behind.
   const mrow = big > 1 ? ROW * 1.8 : ROW * 1.1;
   const perRow = W <= 360 ? 3 : Math.floor(W / gap) - 1;
-  const uid = `grove${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const today = isoDate(new Date());
   // Me first, then by name.
   const sorted = [...trees].sort(
@@ -52,27 +57,23 @@ export function ForestGrove({
   // Whole hills first; what's left over (less than a hill) spreads out between the wild hills (or, with none, between
   // the mountains and the first row).
   const spare = W <= 360 ? 0 : Math.max(0, Math.min(fit, W * 0.5) - (TOP + rows * mrow + 10));
-  const back = Math.floor(spare / ROW);
-  const pad = spare - back * ROW;
+  // The land between the mountains and the members is always wild hills (never a bare stretch): as many as fit,
+  // each sized to share the room exactly; only a sliver too thin for one stays plain.
+  const back = spare >= 50 ? Math.max(1, Math.round(spare / ROW)) : 0;
+  const backRow = back ? spare / back : ROW;
+  const pad = back ? 0 : spare;
   const all = back + rows;
-  const H = TOP + pad + back * ROW + rows * mrow + 10;
+  const H = TOP + pad + back * backRow + rows * mrow + 10;
   // The mountains' flat foot hides behind the first hill (on the phone, where it always has, just above it).
   const ridgeFoot = W <= 360 ? TOP + 50 : back ? TOP + 96 : TOP + pad + mrow - 30;
-  const stars = useMemo(() => {
-    const r = rng(seedOf(`${seed}grove-stars`));
-    return Array.from(
-      { length: Math.round((24 * W) / 360) },
-      () => [r() * W, r() * TOP, 0.25 + r() * 0.55] as const,
-    );
-  }, [seed, W]);
+  const clock = useNow();
+  const d = daylight(now ?? clock);
+  const pines = lit("color-mix(in oklab, var(--pine) 22%, var(--background))", d);
   const far = ridgeAcross(`${seed}grove`, W, 1.3);
   // Each row its own gentle hill, a little lighter toward you; trees stand on its line.
   const hillY = (row: number, x: number) => {
     const phase = rng(seedOf(`${seed}hill${row}`))() * Math.PI * 2;
-    const top =
-      row < back
-        ? TOP + row * ROW + (row * pad) / back
-        : TOP + back * ROW + pad + (row - back) * mrow;
+    const top = row < back ? TOP + row * backRow : TOP + back * backRow + pad + (row - back) * mrow;
     // A members' row puts its hill line lower, under the taller trees.
     return (
       top + (row < back ? 86 : mrow - 42) - 10 * Math.sin((x / 360) * Math.PI * 1.3 + phase) - 6
@@ -111,30 +112,25 @@ export function ForestGrove({
       role="group"
       aria-label={t("Trees", "Alberi")}
     >
-      <defs>
-        <linearGradient id={`${uid}sky`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="var(--background)" />
-          <stop
-            offset="1"
-            style={{ stopColor: "color-mix(in oklab, var(--primary) 8%, var(--card))" }}
-          />
-        </linearGradient>
-      </defs>
-      <rect width={W} height={H} fill={`url(#${uid}sky)`} />
-      {stars.map(([x, y, o], i) => (
-        <circle key={i} cx={x} cy={y} r={0.7} fill="var(--snow)" opacity={o} />
-      ))}
+      {/* The sky is the page's own (components/sky/SkyPage), behind this scene from the window's top. */}
       <polygon
-        points={`0,${ridgeFoot} ${far.map((y, i) => `${((i / (far.length - 1)) * W).toFixed(1)},${(14 + (1 - y) * 52).toFixed(1)}`).join(" ")} ${W},${ridgeFoot}`}
-        fill="var(--border)"
-        opacity={0.45}
+        // Down to the bottom: no strip of sky shows between the mountains and the hills.
+        points={`0,${H} 0,${ridgeFoot} ${far.map((y, i) => `${((i / (far.length - 1)) * W).toFixed(1)},${(SKY + 14 + (1 - y) * 52).toFixed(1)}`).join(" ")} ${W},${ridgeFoot} ${W},${H}`}
+        // Opaque: land, never sky, behind the trees (a bright dusk sky would hide their trunks).
+        fill={lit(
+          "color-mix(in oklab, var(--border) 70%, color-mix(in oklab, var(--primary) 20%, var(--background)))",
+          d,
+        )}
       />
       {Array.from({ length: all }, (_, row) => (
         <g key={row}>
           <path
             d={hill(row)}
             style={{
-              fill: `color-mix(in oklab, var(--secondary) ${shade(row)}%, var(--background))`,
+              fill: lit(
+                `color-mix(in oklab, var(--summer) ${Math.round(d.light * 14)}%, color-mix(in oklab, var(--secondary) ${shade(row)}%, var(--background)))`,
+                d,
+              ),
             }}
           />
           <WildPines
@@ -148,6 +144,7 @@ export function ForestGrove({
               return [x, hillY(row, x) - 4 + (row < back ? r() ** 2 * 50 : r() * 8)];
             }}
             size={row < back ? 0.75 + (row / Math.max(1, back)) * 0.25 : 1}
+            tone={pines}
           />
           {spots
             .filter((p) => p.row === row)

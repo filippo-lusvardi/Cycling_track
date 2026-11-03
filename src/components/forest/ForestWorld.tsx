@@ -1,5 +1,7 @@
 import { useId, useMemo } from "react";
 import { MiniTree, WildPines, type SceneTree } from "@/components/forest/ForestScene";
+import { useNow } from "@/hooks/use-now";
+import { daylight, lit } from "@/lib/daylight";
 import { treeGrowth } from "@/lib/forest/age";
 import type { Forest } from "@/lib/forest/forests";
 import { t } from "@/lib/i18n";
@@ -9,7 +11,9 @@ import { rng, seedOf } from "@/lib/tree";
 
 export type WorldWood = { forest: Forest; trees: SceneTree[]; waiting: number };
 
-const TOP = 96;
+/** The sky above the mountains: room for the sun and moon to ride over them. */
+const SKY = 30;
+const TOP = 96 + SKY;
 /** One wood per row on the phone; a wide scene's rows of woods are this far apart. */
 const STEP = 158;
 const WIDE_STEP = 210;
@@ -27,11 +31,14 @@ export function ForestWorld({
   onOpen,
   onPlant,
   w: W = 360,
+  now,
 }: {
   woods: WorldWood[];
   onOpen: (fid: string) => void;
   onPlant: () => void;
   w?: number;
+  /** The moment the sky shows (now by default). */
+  now?: Date;
 }) {
   const uid = `world${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const wide = W > 360;
@@ -118,13 +125,11 @@ export function ForestWorld({
     // spots, rows and H derive from the number of woods and the width.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [woods.length, W]);
-  const stars = useMemo(() => {
-    const r = rng(seedOf("world-stars"));
-    return Array.from(
-      { length: Math.round((30 * W) / 360) },
-      () => [r() * W, r() * TOP * 0.8, 0.25 + r() * 0.6] as const,
-    );
-  }, [W]);
+  // The sky of the moment, as at Home, without weather (the forests are shared: their sky is nobody's form).
+  const clock = useNow();
+  const d = daylight(now ?? clock);
+  const L = (c: string) => lit(c, d);
+  const pines = L("color-mix(in oklab, var(--pine) 22%, var(--background))");
   const ridge = (key: string, top: number, depth: number) => {
     const ys = ridgeAcross(`world${key}`, W, 1.3);
     const pts = ys.map(
@@ -141,51 +146,38 @@ export function ForestWorld({
       aria-label={t("Your forests", "I tuoi boschi")}
     >
       <defs>
-        <linearGradient
-          id={`${uid}sky`}
-          x1="0"
-          y1="0"
-          x2="0"
-          y2={TOP + 60}
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0" stopColor="var(--background)" />
-          <stop
-            offset="1"
-            style={{ stopColor: "color-mix(in oklab, var(--primary) 10%, var(--card))" }}
-          />
-        </linearGradient>
         <linearGradient id={`${uid}valley`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="var(--secondary)" />
-          <stop offset="1" stopColor="var(--background)" />
+          <stop offset="0" style={{ stopColor: L("var(--secondary)") }} />
+          <stop offset="1" style={{ stopColor: L("var(--background)") }} />
         </linearGradient>
         {/* Pale where the trail comes toward you, fading into the dark up by the mountains. */}
         <linearGradient id={`${uid}trail`} x1="0" y1="0" x2="0" y2="1">
           <stop
             offset="0"
-            style={{ stopColor: "color-mix(in oklab, var(--birch) 12%, var(--secondary))" }}
+            style={{ stopColor: L("color-mix(in oklab, var(--birch) 12%, var(--secondary))") }}
             stopOpacity={0.2}
           />
           <stop
             offset="1"
-            style={{ stopColor: "color-mix(in oklab, var(--birch) 22%, var(--secondary))" }}
+            style={{ stopColor: L("color-mix(in oklab, var(--birch) 22%, var(--secondary))") }}
             stopOpacity={0.9}
           />
         </linearGradient>
         <radialGradient id={`${uid}hill`} cx="0.5" cy="0.3" r="0.7">
           <stop
             offset="0"
-            style={{ stopColor: "color-mix(in oklab, var(--pine) 18%, var(--secondary))" }}
+            style={{ stopColor: L("color-mix(in oklab, var(--pine) 18%, var(--secondary))") }}
           />
-          <stop offset="1" stopColor="var(--card)" />
+          <stop offset="1" style={{ stopColor: L("var(--card)") }} />
         </radialGradient>
       </defs>
-      <rect width={W} height={H} fill={`url(#${uid}sky)`} />
-      {stars.map(([x, y, o], i) => (
-        <circle key={i} cx={x} cy={y} r={0.7} fill="var(--snow)" opacity={o} />
-      ))}
-      <polygon points={ridge("far", 18, 50)} fill="var(--border)" opacity={0.5} />
-      <polygon points={ridge("mid", 44, 44)} fill="var(--muted)" />
+      {/* The sky is the page's own (components/sky/SkyPage), behind this scene from the window's top. */}
+      <polygon
+        points={ridge("far", SKY + 18, 50)}
+        fill={L("color-mix(in oklab, var(--border) 80%, var(--primary))")}
+        opacity={0.5 + d.light * 0.2}
+      />
+      <polygon points={ridge("mid", SKY + 44, 44)} fill={L("var(--muted)")} />
       <path
         d={`M0,${TOP} Q${W / 2},${TOP - 26} ${W},${TOP} L${W},${H} L0,${H} Z`}
         fill={`url(#${uid}valley)`}
@@ -200,6 +192,7 @@ export function ForestWorld({
           return [u * W, TOP - 52 * u * (1 - u) + 3 + r() * 8];
         }}
         size={0.8}
+        tone={pines}
       />
       <polygon points={trail.band} fill={`url(#${uid}trail)`} />
       <polyline
@@ -226,6 +219,7 @@ export function ForestWorld({
           );
           return clear && offTrail ? [x, y] : null;
         }}
+        tone={pines}
       />
       {woods.map((w, i) => (
         <Wood

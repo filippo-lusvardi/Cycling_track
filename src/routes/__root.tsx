@@ -15,10 +15,10 @@ import {
   ChartSpline,
   CloudOff,
   Ellipsis,
+  House,
   Mountain,
   Scale,
   Settings,
-  TreeDeciduous,
 } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -30,6 +30,8 @@ import { sessionReady } from "@/lib/account";
 import { auth, authReady } from "@/lib/firebase";
 import { AuthError } from "@/lib/intervals";
 import { AppFooter } from "@/components/AppFooter";
+import { PageSky } from "@/components/sky/SkyPage";
+import { SKY_PAGE, useSkyPage } from "@/hooks/use-sky-page";
 import { recordSinceLoad } from "@/lib/perf";
 import { hasSource } from "@/lib/source";
 import { cn } from "@/lib/utils";
@@ -155,7 +157,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 /** `bar: true` items sit in the Android bottom bar; the rest go under "More". */
 const NAV = [
-  { to: "/tree", label: t("Tree", "Albero"), icon: TreeDeciduous, bar: true },
+  { to: "/", label: t("Home", "Casa"), icon: House, bar: true },
   { to: "/segments", label: t("Segments", "Segmenti"), icon: Mountain, bar: true },
   { to: "/calendar", label: t("Calendar", "Calendario"), icon: CalendarDays, bar: true },
   { to: "/analysis", label: t("Analysis", "Analisi"), icon: ChartSpline, bar: true },
@@ -177,10 +179,15 @@ function RootComponent() {
   });
   // The Segments list fills the screen exactly: a footer after it would sit on top of the list.
   const fullScreen = useRouterState({ select: (s) => /^\/segments\/?$/.test(s.location.pathname) });
-  // On the phone the tree and the forests end in their landscape, not in a line of credits (desktop keeps it).
+  // On the phone the landscapes end in themselves, not in a line of credits (desktop keeps it).
+  // Home and the places reached from it (tree, garden, forests): landscapes, and Home stays lit in the nav.
   const scenic = useRouterState({
-    select: (s) => /^\/(tree|forest)(\/|$)/.test(s.location.pathname),
+    select: (s) => /^\/((tree|garden|forest)(\/|$)|$)/.test(s.location.pathname),
   });
+  const navClass = (to: string, on: string) => (to === "/" && scenic ? on : undefined);
+  // Home, the Garden and the forests live under the sky of the moment: the page takes its colour, the bar is glass.
+  const skyPage = useRouterState({ select: (s) => SKY_PAGE.test(s.location.pathname) });
+  useSkyPage(skyPage);
 
   if (bare)
     return (
@@ -195,8 +202,18 @@ function RootComponent() {
 
   return (
     <>
+      {/* Home, the Garden and the forests: one sky behind the whole window, from its very top. */}
+      {skyPage && <PageSky />}
       {/* Desktop only: on the phone each page's own title is the top, and the bottom bar navigates. */}
-      <header className="sticky top-0 z-20 hidden border-b border-border bg-background/80 backdrop-blur lg:block">
+      <header
+        className={cn(
+          "sticky top-0 z-20 hidden backdrop-blur lg:block",
+          // Over the sky, glass dense enough for the links to read on a noon sky as on a night one.
+          skyPage
+            ? "border-b border-foreground/10 bg-background/55"
+            : "border-b border-border bg-background/80",
+        )}
+      >
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
             <img src="/icon.svg" alt="" width={24} height={24} className="rounded" />
@@ -213,7 +230,11 @@ function RootComponent() {
               <Link
                 key={n.to}
                 to={n.to}
-                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                activeOptions={{ exact: n.to === "/" }}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground",
+                  navClass(n.to, "bg-secondary text-foreground"),
+                )}
                 activeProps={{ className: "bg-secondary text-foreground" }}
               >
                 {n.label}
@@ -223,7 +244,7 @@ function RootComponent() {
         </div>
       </header>
       {/* Phone only: the icon and name on a transparent line that scrolls away with the page. */}
-      <header className="pt-[env(safe-area-inset-top)] lg:hidden">
+      <header className="on-sky relative z-10 pt-[env(safe-area-inset-top)] lg:hidden">
         <div className="flex h-12 items-center px-4">
           <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
             <img src="/icon.svg" alt="" width={24} height={24} className="rounded" />
@@ -233,11 +254,22 @@ function RootComponent() {
       </header>
       {/* Clip anything too wide, so a stray long line never makes the phone zoom the whole page out. On wider
           screens the body clips instead, so the forest scenes can reach the window's edges past this column. */}
-      <main className="mx-auto max-w-5xl overflow-x-clip px-4 sm:overflow-x-visible pb-32 pt-2 lg:pb-12 lg:pt-6">
+      <main
+        className={cn(
+          "mx-auto max-w-5xl overflow-x-clip px-4 sm:overflow-x-visible pb-32 pt-2 lg:pb-12 lg:pt-6",
+          // Above the page's sky and land (components/sky/SkyPage).
+          skyPage && "relative z-10",
+        )}
+      >
         <Outlet />
         {!fullScreen && (
           <AppFooter
-            className={cn("mt-10 border-t border-border pt-4", scenic && "hidden lg:flex")}
+            className={cn(
+              "mt-10 border-t border-border pt-4",
+              scenic && "hidden lg:flex",
+              // Over the sky: a glass strip, so the credits read on any hour.
+              skyPage && "glass rounded-xl border-t-0 px-4 pb-3 text-foreground/80",
+            )}
           />
         )}
       </main>
@@ -258,7 +290,11 @@ function RootComponent() {
           <Link
             key={n.to}
             to={n.to}
-            className="flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground"
+            activeOptions={{ exact: n.to === "/" }}
+            className={cn(
+              "flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground",
+              navClass(n.to, "text-primary"),
+            )}
             activeProps={{ className: "text-primary" }}
           >
             <n.icon className="h-5 w-5" />

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { clear as clearIdb } from "idb-keyval";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Panel } from "@/components/StatCard";
@@ -16,7 +16,9 @@ import {
   reauthenticateWithCredential,
   updatePassword,
 } from "firebase/auth";
+import { CropPicker } from "@/components/garden/CropPicker";
 import { signOutAndWipe } from "@/lib/account";
+import { applyAccent } from "@/lib/accent";
 import { authError } from "@/lib/auth-errors";
 import { deleteUserData, saveProfile } from "@/lib/cloud";
 import { auth } from "@/lib/firebase";
@@ -30,6 +32,7 @@ import {
   API_KEY,
   NO_PERF,
   QUIET_TREE,
+  SEASON_ACCENT,
   SEGMENT_HISTORY,
   SOURCE,
   readSetting,
@@ -57,6 +60,8 @@ function SettingsPage() {
         <Language />
         <QuietTree />
         <TreeGuide />
+        <GardenGuide />
+        <CropPicker />
         <Account />
         {source === "native" && <Athlete />}
         {source === "native" && <RideFiles />}
@@ -471,7 +476,7 @@ function Language() {
 }
 
 /** Each part of the Tree page: what it shows, plus a bullet per detail where there are several. */
-const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
+const TREE_GUIDE: GuideItem[] = [
   {
     term: t("Crown", "Chioma"),
     text: t(
@@ -561,15 +566,11 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
   },
   {
     term: t("Branches", "Rami"),
-    text: t("One per activity in the last 5 days:", "Uno per attività negli ultimi 5 giorni:"),
-    points: [
-      t("Length: duration", "Lunghezza: durata"),
-      t("Thickness: load", "Spessore: carico"),
-      t(
-        "A coloured bud at the tip: not a ride (run, gym, walk, swim)",
-        "Una gemma colorata in punta: non è un'uscita in bici (corsa, palestra, camminata, nuoto)",
-      ),
-    ],
+    text: t(
+      "One per ride in the last 5 days (only cycling grows branches):",
+      "Uno per uscita in bici negli ultimi 5 giorni (solo la bici fa crescere i rami):",
+    ),
+    points: [t("Length: duration", "Lunghezza: durata"), t("Thickness: load", "Spessore: carico")],
   },
   {
     term: t("Leaves", "Foglie"),
@@ -608,6 +609,13 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
   {
     term: t("Small green dots", "Puntini verdi"),
     text: t("Rest days on the bark.", "Giorni di riposo sulla corteccia."),
+  },
+  {
+    term: t("Sprouts", "Germogli"),
+    text: t(
+      "A day trained off the bike (run, gym, swim, hike…), in the sport's colour: that training grows in the garden. It still counts for the trunk and the crown.",
+      "Un giorno di allenamento senza bici (corsa, palestra, nuoto, escursione…), nel colore dello sport: quell'allenamento cresce nell'orto. Conta comunque per il tronco e la chioma.",
+    ),
   },
   {
     term: t("Knots", "Nodi"),
@@ -683,6 +691,7 @@ function SpeedMeasurements() {
 
 function QuietTree() {
   const [quiet, setQuiet] = useLocalStore(QUIET_TREE, false);
+  const [seasonal, setSeasonal] = useLocalStore(SEASON_ACCENT, true);
   return (
     <Panel title={t("Tree", "Albero")}>
       <div className="flex items-start justify-between gap-4">
@@ -697,15 +706,51 @@ function QuietTree() {
         </Label>
         <Switch id="quiet-tree" checked={quiet} onCheckedChange={(v) => setQuiet(() => v)} />
       </div>
+      <div className="mt-4 flex items-start justify-between gap-4">
+        <Label htmlFor="season-accent" className="block space-y-1">
+          <span className="block">
+            {t("Accent in today's season", "Colore della stagione di oggi")}
+          </span>
+          <span className="block text-sm font-normal text-muted-foreground">
+            {t(
+              "Buttons, links and highlights take the colour of today's crown: green in spring and summer, amber in autumn, icy blue in winter. Off: the classic blue.",
+              "Pulsanti, link ed evidenziazioni prendono il colore della chioma di oggi: verde in primavera ed estate, ambra in autunno, azzurro ghiaccio in inverno. Spento: il blu classico.",
+            )}
+          </span>
+        </Label>
+        <Switch
+          id="season-accent"
+          checked={seasonal}
+          onCheckedChange={(v) => {
+            // Saved first, so the colours follow at once.
+            writeSetting(SEASON_ACCENT, v);
+            applyAccent();
+            setSeasonal(() => v);
+          }}
+        />
+      </div>
     </Panel>
   );
 }
 
-function TreeGuide() {
+type GuideItem = { term: string; text: string; points?: string[] };
+
+/** A "how to read" panel: a line of intro, and the legend behind a Show button. */
+function Guide({
+  title,
+  intro,
+  items,
+  children,
+}: {
+  title: string;
+  intro: string;
+  items: GuideItem[];
+  children?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <Panel
-      title={t("How to read the tree", "Come leggere l'albero")}
+      title={title}
       action={
         <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
           {open ? t("Hide", "Nascondi") : t("Show", "Mostra")}
@@ -713,15 +758,10 @@ function TreeGuide() {
         </Button>
       }
     >
-      <p className="text-sm text-muted-foreground">
-        {t(
-          "The Tree page grows from your training: the top is today, going down is going back in time. Tap any part to see its details.",
-          "La pagina Albero cresce con i tuoi allenamenti: in alto c'è oggi, scendendo si torna indietro nel tempo. Tocca qualsiasi parte per vederne i dettagli.",
-        )}
-      </p>
+      <p className="text-sm text-muted-foreground">{intro}</p>
       {open && (
         <dl className="mt-3 space-y-3 text-sm">
-          {TREE_GUIDE.map((g) => (
+          {items.map((g) => (
             <div key={g.term}>
               <dt className="font-medium">{g.term}</dt>
               <dd className="text-muted-foreground">
@@ -738,10 +778,100 @@ function TreeGuide() {
           ))}
         </dl>
       )}
-      {open && <ReadinessCheck />}
+      {open && children}
     </Panel>
   );
 }
+
+function TreeGuide() {
+  return (
+    <Guide
+      title={t("How to read the tree", "Come leggere l'albero")}
+      intro={t(
+        "The Tree page grows from your rides: the top is today, going down is going back in time. Tap any part to see its details.",
+        "La pagina Albero cresce con le tue uscite in bici: in alto c'è oggi, scendendo si torna indietro nel tempo. Tocca qualsiasi parte per vederne i dettagli.",
+      )}
+      items={TREE_GUIDE}
+    >
+      <ReadinessCheck />
+    </Guide>
+  );
+}
+
+function GardenGuide() {
+  return (
+    <Guide
+      title={t("How to read the garden", "Come leggere l'orto")}
+      intro={t(
+        "Everything you train off the bike grows in the garden for 8 weeks, then goes into the pantry. Tap a plant for its activity, a sign for its bed, a jar for its month.",
+        "Tutto ciò che alleni senza bici cresce nell'orto per 8 settimane, poi finisce in dispensa. Tocca una pianta per la sua attività, un cartello per la sua aiuola, un barattolo per il suo mese.",
+      )}
+      items={GARDEN_GUIDE}
+    />
+  );
+}
+
+const GARDEN_GUIDE: GuideItem[] = [
+  {
+    term: t("Plants", "Piante"),
+    text: t(
+      "One per session, in its sport's bed, older to the left. Taller for a longer session, lusher for a harder one. What grows for each sport is yours to choose (below); by default:",
+      "Una per sessione, nell'aiuola del suo sport, le più vecchie a sinistra. Più alta per una sessione più lunga, più rigogliosa per una più dura. Cosa cresce per ogni sport lo scegli tu (qui sotto); di base:",
+    ),
+    points: [
+      t("Tomatoes: running, one per 5 km", "Pomodori: corsa, uno ogni 5 km"),
+      t("Pumpkins: strength, as big as the session", "Zucche: forza, grandi quanto la sessione"),
+      t(
+        "Flowers: yoga, pilates and stretching, one per 10 minutes",
+        "Fiori: yoga, pilates e stretching, uno ogni 10 minuti",
+      ),
+      t(
+        "Herbs: walks and hikes, a flower per 100 m climbed",
+        "Erbe: camminate ed escursioni, un fiore ogni 100 m di dislivello",
+      ),
+      t("Water lilies: swimming, a flower per 500 m", "Ninfee: nuoto, un fiore ogni 500 m"),
+      t("Winter kale: skiing", "Cavolo nero: sci"),
+      t("Reeds: rowing and paddling", "Canne: canottaggio e pagaia"),
+      t("Beans: climbing", "Fagioli: arrampicata"),
+      t("Sunflowers: any other sport", "Girasoli: qualsiasi altro sport"),
+    ],
+  },
+  {
+    term: t("Ripening", "Maturazione"),
+    text: t(
+      "Fruit is green the day you train and ripens over the week after, as the training is absorbed.",
+      "La frutta è verde il giorno dell'allenamento e matura nella settimana dopo, mentre l'allenamento viene assorbito.",
+    ),
+  },
+  {
+    term: t("Soil", "Terra"),
+    text: t(
+      "Dark and moist when you've trained off the bike regularly in the last 4 weeks, pale and resting when not.",
+      "Scura e umida se nelle ultime 4 settimane ti sei allenato regolarmente senza bici, chiara e a riposo se no.",
+    ),
+  },
+  {
+    term: t("Animals", "Animali"),
+    text: t(
+      "A hedgehog under your longest run ever, a frog on your longest swim, a snail beside your longest walk or hike.",
+      "Un riccio sotto la tua corsa più lunga di sempre, una rana sulla tua nuotata più lunga, una lumaca accanto alla tua camminata o escursione più lunga.",
+    ),
+  },
+  {
+    term: t("Sky", "Cielo"),
+    text: t(
+      "The real time of day, with the moon at night; the weather is your form, as on the tree. The season is today's readiness.",
+      "L'ora vera del giorno, con la luna di notte; il tempo è la tua forma, come sull'albero. La stagione è la prontezza di oggi.",
+    ),
+  },
+  {
+    term: t("Pantry", "Dispensa"),
+    text: t(
+      "A jar per month, as full as its hours off the bike, in layers coloured by sport.",
+      "Un barattolo per mese, pieno quanto le sue ore senza bici, a strati colorati per sport.",
+    ),
+  },
+];
 
 /** Days of rides the accuracy check looks back over. */
 const CHECK_DAYS = 90;

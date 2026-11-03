@@ -348,10 +348,6 @@ function Branch({ b, cx, trunk, y0 }: { b: TreeBranch; cx: number; trunk: number
         length={Math.hypot(x1 - x0, y1 - y0)}
         from={0.4}
       />
-      {/* Not a ride: a bud at the tip in the activity's colour. Rides are plain wood. */}
-      {!RIDES.has(b.kind) && (
-        <circle cx={x1} cy={y1} r={Math.max(2.4, b.thickness * 0.55)} fill={KINDS[b.kind].color} />
-      )}
     </g>
   );
 }
@@ -468,14 +464,17 @@ export function RestRow({
   const first = days[days.length - 1]!.date;
   const last = days[0]!.date;
   const off = days.every((d) => d.off) ? days[0]!.off : null;
-  const label = off
-    ? `${format(parseISO(first), "d MMM")}${days.length > 1 ? `–${format(parseISO(last), "d MMM")}` : ""}: ${offWord(days.length, off)}`
-    : days.length === 1
-      ? `${format(parseISO(last), "EEEE d MMMM")}: ${t("rest", "riposo")}`
-      : t(
-          `${days.length} rest days, ${format(parseISO(first), "d MMM")} to ${format(parseISO(last), "d MMM")}`,
-          `${days.length} giorni di riposo, dal ${format(parseISO(first), "d MMM")} al ${format(parseISO(last), "d MMM")}`,
-        );
+  const cross = days.flatMap((d) => d.sprouts);
+  const label = cross.length
+    ? `${format(parseISO(first), "d MMM")}${days.length > 1 ? `–${format(parseISO(last), "d MMM")}` : ""}: ${cross.map((x) => x.name).join(", ")}`
+    : off
+      ? `${format(parseISO(first), "d MMM")}${days.length > 1 ? `–${format(parseISO(last), "d MMM")}` : ""}: ${offWord(days.length, off)}`
+      : days.length === 1
+        ? `${format(parseISO(last), "EEEE d MMMM")}: ${t("rest", "riposo")}`
+        : t(
+            `${days.length} rest days, ${format(parseISO(first), "d MMM")} to ${format(parseISO(last), "d MMM")}`,
+            `${days.length} giorni di riposo, dal ${format(parseISO(first), "d MMM")} al ${format(parseISO(last), "d MMM")}`,
+          );
   return (
     <Slice h={h} label={label} onOpen={onOpen}>
       <svg className="block" width={w} height={h} aria-hidden>
@@ -490,20 +489,49 @@ export function RestRow({
             room={n * REST_STEP + 8}
           />
         ))}
-        {days.map((d, i) =>
-          d.off ? null : (
-            <circle
-              key={d.date}
-              cx={cx + d.budSide * (d.trunk / 2 + 2.5)}
-              cy={5 + i * REST_STEP + REST_STEP / 2}
-              r={2.6}
-              fill="var(--pine)"
-              opacity={0.7}
-            />
-          ),
-        )}
+        {days.map((d, i) => {
+          const x = cx + d.budSide * (d.trunk / 2 + 2.5);
+          const y = 5 + i * REST_STEP + REST_STEP / 2;
+          // Trained in the garden that day: a sprout in the sport's colour instead of the rest bud.
+          if (d.sprouts.length)
+            return (
+              <Sprout
+                key={d.date}
+                x={x}
+                y={y}
+                side={d.budSide}
+                color={KINDS[d.sprouts[0]!.kind].color}
+              />
+            );
+          return d.off ? null : (
+            <circle key={d.date} cx={x} cy={y} r={2.6} fill="var(--pine)" opacity={0.7} />
+          );
+        })}
       </svg>
     </Slice>
+  );
+}
+
+/**
+ * A tiny seedling growing out of the bark on a day trained off the bike (it lives in the garden): a stem leaning
+ * outward with two leaves in the sport's colour. Fits a rest day's 9 px.
+ */
+function Sprout({ x, y, side, color }: { x: number; y: number; side: -1 | 1; color: string }) {
+  return (
+    <g transform={`translate(${x - side * 2} ${y + 3.5}) scale(${side} 1)`}>
+      <path
+        d="M0,0 C1.4,-1.6 2,-3.4 2.2,-5.6"
+        stroke="var(--pine)"
+        strokeWidth={0.9}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M2.1,-4.6 C0.2,-5.2 -1.4,-6.6 -1.6,-8.2 C0.4,-7.8 1.8,-6.6 2.1,-4.6 Z"
+        fill={color}
+      />
+      <path d="M2.2,-5.2 C3.4,-6.8 5.2,-7.6 6.8,-7.2 C6,-5.6 4.2,-4.8 2.2,-5.2 Z" fill={color} />
+    </g>
   );
 }
 
@@ -639,9 +667,14 @@ export function WeekRow({
           sub={
             week.count
               ? sub.filter(Boolean).join(" · ")
-              : week.off
-                ? offWord(week.off.days, week.off.kind)
-                : t("rest week", "settimana di riposo")
+              : week.crossMinutes > 0
+                ? t(
+                    `${formatDuration(week.crossMinutes * 60)} in the garden`,
+                    `${formatDuration(week.crossMinutes * 60)} nell'orto`,
+                  )
+                : week.off
+                  ? offWord(week.off.days, week.off.kind)
+                  : t("rest week", "settimana di riposo")
           }
         />
       </svg>
@@ -650,7 +683,6 @@ export function WeekRow({
 }
 
 const OLD_WOOD = "color-mix(in oklab, var(--bark) 80%, black)";
-const RIDES = new Set<Kind>(["road", "gravel", "mtb", "indoor", "ebike"]);
 /** This week's branches: new growth, a warmer, lighter brown than the old wood of past weeks. */
 const YOUNG_WOOD = "color-mix(in oklab, var(--bark) 82%, var(--birch))";
 

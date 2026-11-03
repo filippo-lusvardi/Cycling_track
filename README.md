@@ -92,7 +92,17 @@ On every other device, just sign in with the same account.
 **Language:** Cirmolo is in English and Italian. It starts in the browser's language; switch it in
 **Settings → Language** (each device remembers its own choice).
 
-**The Tree** is the home page. Besides seasons, sky and branches (Settings → *How to read the tree*), it shows:
+**Home** is the first page: your tree and your garden side by side, under the sky of the moment (the real time of
+day, with the moon at night; the weather is your form). Tap the tree for the Tree, the garden for the Garden.
+
+**The Garden** is where training off the bike grows (Settings → *How to read the garden*): every run, gym session,
+yoga class, hike, swim or ski outing of the last 8 weeks is a plant in its sport's bed (tomatoes, pumpkins, flowers,
+herbs, water lilies…), its fruit ripening over the week after. Older months go into the **Pantry**, a jar per month
+(the *Garden · Pantry* switch at the bottom). Tap a plant to open its activity.
+
+**The Tree** grows from your rides only; other sports show as a small sprout on that day's bark and live in the
+Garden. Trunk and crown still count all your training. Besides seasons, sky and branches (Settings → *How to read
+the tree*), it shows:
 
 - **Knots** for days ill or injured, from *Sick* / *Injured* events in the intervals.icu calendar. Mark today from
   the crown's sheet, or a past run of rest days by tapping it.
@@ -141,8 +151,8 @@ several forests.
 - **Plant a forest**, then **Members → Show invite link** and send it. Whoever opens it asks to join (with consent
   to share their tree), and any member lets them in. *New link* makes the old one stop working. Up to 30 trees.
 - **Trees**: the forest's members as a little grove, each tree in today's season; tap one to see it whole.
-- **What's shared**: each member's own app publishes a copy of their tree into each forest when they open the
-  Tree: the rides they show there, daily fitness/fatigue, sick days and today's crown. Heart rate and power
+- **What's shared**: each member's own app publishes a copy of their tree into each forest when they open Home or
+  the Tree: the rides they show there (cycling only: the garden stays private), daily fitness/fatigue, sick days and today's crown. Heart rate and power
   appear only on ride pages, with **Show my heart rate and power** on (off unless turned on).
   Friends see that tree in plain bark, without numbers.
 - **Ride pages**: with **Show my ride maps** on for a forest (asked when joining, or under Members), members can
@@ -254,7 +264,7 @@ To develop without touching the real project, run `firebase emulators:start` and
 
 ```
 src/
-  routes/       pages (file-based routing: Tree, Rides, Calendar, Analysis, Segments, Body, Settings)
+  routes/       pages (file-based routing: Home, Tree, Garden, Rides, Calendar, Analysis, Segments, Body, Settings)
   components/   UI pieces (maps, profiles, charts, check-in, …)
   hooks/        React hooks (segments, names, online state)
   lib/          logic: intervals.icu client, Firebase (firebase, cloud, account), readiness, climbs, segment engine …

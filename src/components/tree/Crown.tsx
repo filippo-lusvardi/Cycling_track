@@ -549,7 +549,7 @@ function Cloud({
  * A sun painted like the canopy: a warm disc inside soft layered halos (`glow` scales them), with short rays
  * fading in as `rays` goes 0 → 1.
  */
-function Sun({
+export function Sun({
   x,
   y,
   r,
@@ -665,7 +665,7 @@ function Precip({
  * blazing one with rays. The `echo` on the other side of the crown repeats the sky without a second sun (a pale
  * fair-weather cloud when it's sunny).
  */
-function Sky({
+export function Sky({
   weather,
   phase,
   x,
@@ -952,8 +952,12 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
               />
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              {t(`${y.count} activities · load`, `${y.count} attività · carico`)}{" "}
-              {num(Math.round(y.load))}
+              {t(`${y.count} rides · load`, `${y.count} uscite · carico`)} {num(Math.round(y.load))}
+              {y.crossMinutes >= 60 &&
+                t(
+                  ` · ${num(Math.round(y.crossMinutes / 60))} h in the garden`,
+                  ` · ${num(Math.round(y.crossMinutes / 60))} h nell'orto`,
+                )}
             </p>
             {y.scars.length > 0 && (
               <ul className="mt-2 space-y-0.5 text-sm">

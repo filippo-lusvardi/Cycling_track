@@ -177,7 +177,9 @@ export function TreeBody({
         ? offTitle(off, dates[dates.length - 1]!, dates[0]!)
         : run.length === 1
           ? format(parseISO(dates[0]!), "EEEE d MMMM")
-          : t(`${run.length} rest days`, `${run.length} giorni di riposo`);
+          : run.some((d) => d.sprouts.length)
+            ? t(`${run.length} days off the bike`, `${run.length} giorni senza bici`)
+            : t(`${run.length} rest days`, `${run.length} giorni di riposo`);
       pieces.push({
         h: restHeight(run.length),
         top: run[0]!.trunk,

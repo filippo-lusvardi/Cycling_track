@@ -18,6 +18,7 @@ import { storedTrack } from "../segment-app";
 import { addDays } from "../training";
 import { activityKind } from "../activity-kind";
 import { RIDE_KINDS, type Crown } from "../tree";
+import { lifetime } from "./age";
 import { effortOf, ridePage, RIDE_PAGE_DAYS } from "./rides";
 import { fingerprint, offStretches, toSharedCrown, toSharedRide, yearDocs } from "./snapshot";
 import type { SharedRide, TreeHeader } from "./types";
@@ -72,9 +73,12 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
     const member = await getDoc(doc(db, "forests", fid, "members", me));
     if (!member.exists()) continue;
     const prefs = prefsOf(member.data());
+    // Only rides grow a forest's trees; the rest of the training stays in the garden, on this device.
     const shared = acts
-      .filter((a) =>
-        isShared({ id: a.id, day: a.start_date_local.slice(0, 10) }, fid, prefs, overrides),
+      .filter(
+        (a) =>
+          RIDE_KINDS.has(activityKind(a)) &&
+          isShared({ id: a.id, day: a.start_date_local.slice(0, 10) }, fid, prefs, overrides),
       )
       .map(toSharedRide);
     const years = yearDocs(shared, wellness);
@@ -144,15 +148,4 @@ async function publishRidePages(
   ).catch(() => {});
 }
 
-/** The first ride ever and the kilometres ridden in all, for the tree's height in forests (see ./age). */
-export function lifetime(acts: Activity[]): { since: string | null; km: number } {
-  let since: string | null = null;
-  let metres = 0;
-  for (const a of acts) {
-    if (!RIDE_KINDS.has(activityKind(a))) continue;
-    const d = a.start_date_local.slice(0, 10);
-    if (since == null || d < since) since = d;
-    metres += a.distance ?? 0;
-  }
-  return { since, km: Math.round(metres / 1000) };
-}
+export { lifetime };

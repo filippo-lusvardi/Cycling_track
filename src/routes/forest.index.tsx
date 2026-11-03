@@ -72,8 +72,10 @@ function ForestPage() {
   return (
     // Room at the bottom for the floating Tree · Years · Forest switch, so the clearing never hides under it.
     <div className="space-y-4 pb-16">
-      <div>
-        <div className="eyebrow">{t("Friends & teammates", "Amici e compagni")}</div>
+      <div className="on-sky">
+        <div className="eyebrow text-foreground/75">
+          {t("Friends & teammates", "Amici e compagni")}
+        </div>
         <h1 className="text-3xl font-bold tracking-tight">{t("Forest", "Bosco")}</h1>
       </div>
       {failed && (
@@ -105,7 +107,7 @@ function ForestPage() {
       </OpenScene>
 
       {!forests?.length && (
-        <p className="mx-auto max-w-xl text-sm text-muted-foreground">
+        <p className="on-sky mx-auto max-w-xl text-sm text-foreground/85">
           {t(
             "Trees grow better together. Plant a forest and invite friends or teammates with a link: you'll see each other's trees, choose which rides to show, and race on the forest's climbs.",
             "Gli alberi crescono meglio insieme. Pianta un bosco e invita amici o compagni con un link: vedrete gli alberi degli altri, sceglierete quali uscite mostrare e vi sfiderete sulle salite del bosco.",

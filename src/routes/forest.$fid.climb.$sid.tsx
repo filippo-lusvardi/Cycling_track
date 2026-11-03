@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ForestClimbView } from "@/components/forest/ForestClimbView";
+import { SkyLand } from "@/components/sky/SkyPage";
 import { watchForest, watchMembers, type Forest, type Member } from "@/lib/forest/forests";
 import {
   removeClimb,
@@ -29,17 +30,20 @@ function ForestClimbPage() {
   useEffect(() => watchMembers(fid, setMembers), [fid]);
   useEffect(() => watchTimes(fid, sid, setTimes), [fid, sid]);
   return (
-    <ForestClimbView
-      fid={fid}
-      sid={sid}
-      forest={forest}
-      climb={climb}
-      members={members}
-      times={times}
-      onRemove={async () => {
-        await removeClimb(fid, sid);
-        navigate({ to: "/forest/$fid", params: { fid }, search: { tab: "climbs" } });
-      }}
-    />
+    <>
+      <SkyLand />
+      <ForestClimbView
+        fid={fid}
+        sid={sid}
+        forest={forest}
+        climb={climb}
+        members={members}
+        times={times}
+        onRemove={async () => {
+          await removeClimb(fid, sid);
+          navigate({ to: "/forest/$fid", params: { fid }, search: { tab: "climbs" } });
+        }}
+      />
+    </>
   );
 }

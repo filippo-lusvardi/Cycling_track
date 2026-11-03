@@ -150,7 +150,7 @@ describe("tree", () => {
     expect(intensityLevel(0.98)).toBe(4); // also accepts a plain fraction
     expect(intensityLevel(null)).toBeNull();
   });
-  it("grows one leaf per 100 m climbed, none on a flat or gym session, coloured by intensity", () => {
+  it("grows one leaf per 100 m climbed, none on a flat ride, coloured by intensity", () => {
     const days = buildDays(
       [
         act("hill", "2026-10-31", 120, 100, { total_elevation_gain: 1250, icu_intensity: 72 }),
@@ -165,8 +165,24 @@ describe("tree", () => {
     const by = Object.fromEntries(days[0]!.branches.map((b) => [b.id, b]));
     expect(by["hill"]).toMatchObject({ leaves: 12, intensity: 2 });
     expect(by["flat"]!.leaves).toBe(0);
-    expect(by["gym"]!.leaves).toBe(0);
     expect(by["alps"]!.leaves).toBe(30); // capped
+    // Off the bike: no branch, a sprout (it lives in the garden).
+    expect(by["gym"]).toBeUndefined();
+    expect(days[0]!.sprouts).toEqual([
+      expect.objectContaining({ id: "gym", kind: "gym", minutes: 45, load: 30 }),
+    ]);
+  });
+  it("keeps rides on the tree, counts every sport in chapters and rings", () => {
+    const acts = [
+      act("ride", "2026-10-26", 60, 50, { distance: 30_000 }),
+      act("run", "2026-10-27", 50, 60, { type: "Run", distance: 10_000 }),
+    ];
+    const days = buildDays(acts, [], "2026-10-26", "2026-11-01");
+    const [week] = buildWeeks(days);
+    expect(week).toMatchObject({ count: 1, load: 50, totalLoad: 110, crossMinutes: 50 });
+    expect(week!.twigs.map((t) => t.id)).toEqual(["ride"]);
+    const [year] = buildYears(days);
+    expect(year).toMatchObject({ count: 1, distance: 30_000, load: 110, crossMinutes: 50 });
   });
   it("folds days into Monday weeks and marks a big jump as a build", () => {
     const acts = ["2026-10-05", "2026-10-12", "2026-10-19"].map((d, i) => act(`e${i}`, d, 60, 50));
