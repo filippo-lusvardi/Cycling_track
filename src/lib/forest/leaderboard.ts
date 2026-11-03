@@ -3,8 +3,19 @@
 // they share with that forest.
 //   forests/{fid}/segments/{sid}              ForestClimb (sid = placeKey: the same climb on every device)
 //   forests/{fid}/segments/{sid}/times/{uid}  ForestTime
-import { collection, deleteDoc, doc, onSnapshot, setDoc } from "firebase/firestore";
-import { db, uid } from "../firebase";
+// Adding or removing a climb also stamps the forest's `climbsAt`, so background sync re-reads the climbs only then.
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  setDoc,
+  writeBatch,
+} from "firebase/firestore";
+import { get as idbGet, set as idbSet } from "idb-keyval";
+import { uid } from "../firebase";
+import { db } from "../db";
 import { placeKey } from "../places";
 import type { Attempt, Segment, Trace } from "../segments";
 
@@ -77,10 +88,39 @@ export async function addClimb(fid: string, s: Segment, name: string, trace: Tra
     at: Date.now(),
     ...(trace && trace.lat.length > 1 ? { trace: thin(trace) } : {}),
   };
-  await setDoc(doc(segs(fid), placeKey(s)), JSON.parse(JSON.stringify(climb)));
+  const b = writeBatch(db);
+  b.set(doc(segs(fid), placeKey(s)), JSON.parse(JSON.stringify(climb)));
+  b.update(doc(db, "forests", fid), { climbsAt: Date.now() });
+  await b.commit();
 }
 
-export const removeClimb = (fid: string, sid: string) => deleteDoc(doc(segs(fid), sid));
+export async function removeClimb(fid: string, sid: string) {
+  const b = writeBatch(db);
+  b.delete(doc(segs(fid), sid));
+  b.update(doc(db, "forests", fid), { climbsAt: Date.now() });
+  await b.commit();
+}
+
+/** Even with an unchanged stamp, re-read after this long: climbs added by app versions that didn't stamp it. */
+const CLIMBS_MAX_AGE = 24 * 3600_000;
+type CachedClimbs = { at: number; fetchedAt: number; climbs: ForestClimb[] };
+
+/**
+ * A forest's climbs, from this device's copy while `climbsAt` (the forest's stamp) hasn't moved, else from Firestore.
+ * One read per climb only when something changed, instead of on every app open.
+ */
+export async function readClimbs(fid: string, climbsAt: number): Promise<ForestClimb[]> {
+  const key = `forest-climbs:${fid}`;
+  const cached = await idbGet<CachedClimbs>(key).catch(() => undefined);
+  if (cached && cached.at === climbsAt && Date.now() - cached.fetchedAt < CLIMBS_MAX_AGE)
+    return cached.climbs;
+  const s = await getDocs(segs(fid));
+  const climbs = s.docs
+    .map((d) => ({ ...(d.data() as Omit<ForestClimb, "sid">), sid: d.id }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  await idbSet(key, { at: climbsAt, fetchedAt: Date.now(), climbs }).catch(() => {});
+  return climbs;
+}
 
 /** My best effort among the attempts, counting only the rides I share with the forest. */
 export function bestShared(attempts: Attempt[], shared: (a: Attempt) => boolean): Attempt | null {

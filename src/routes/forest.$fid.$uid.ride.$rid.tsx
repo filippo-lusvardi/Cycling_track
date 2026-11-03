@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { ArrowLeft } from "lucide-react";
@@ -6,12 +7,17 @@ import { GradientProfile, gradientLines } from "@/components/GradientProfile";
 import { RouteMap } from "@/components/RouteMap";
 import { Panel, StatCard } from "@/components/StatCard";
 import { watchMembers, type Member } from "@/lib/forest/forests";
-import { PRIVACY_ZONE, type RidePage } from "@/lib/forest/rides";
+import { watchClimb, type ForestClimb } from "@/lib/forest/leaderboard";
+import { climbOnRoute, PRIVACY_ZONE, type RidePage } from "@/lib/forest/rides";
 import { readRidePage } from "@/lib/forest/trees";
 import { format, t } from "@/lib/i18n";
+import { useScreenTrace } from "@/lib/perf";
 import { formatDuration, formatKm } from "@/lib/training";
 
 export const Route = createFileRoute("/forest/$fid/$uid/ride/$rid")({
+  // Opened from a forest climb's leaderboard: that climb is highlighted on the route.
+  validateSearch: (s: Record<string, unknown>): { climb?: string } =>
+    typeof s["climb"] === "string" && s["climb"] ? { climb: s["climb"] } : {},
   head: () => ({ meta: [{ title: t("Ride — Cirmolo", "Uscita — Cirmolo") }] }),
   component: FriendRide,
 });
@@ -22,22 +28,57 @@ export const Route = createFileRoute("/forest/$fid/$uid/ride/$rid")({
  */
 function FriendRide() {
   const { fid, uid, rid } = Route.useParams();
-  const [ride, setRide] = useState<RidePage | null | undefined>(undefined);
+  const { climb: sid } = Route.useSearch();
+  // A published page rarely changes: kept on the device (persisted query cache), checked again after an hour.
+  const q = useQuery({
+    queryKey: ["forest-ride", fid, uid, rid],
+    queryFn: () => readRidePage(fid, uid, rid),
+    staleTime: 3600_000,
+  });
+  const ride: RidePage | null | undefined = q.isError ? null : q.data;
+  useScreenTrace("forest_ride_open", ride !== undefined, !q.isFetchedAfterMount);
   const [members, setMembers] = useState<Member[]>([]);
   const [hover, setHover] = useState<number | null>(null);
-  useEffect(() => {
-    void readRidePage(fid, uid, rid).then(setRide, () => setRide(null));
-  }, [fid, uid, rid]);
   useEffect(() => watchMembers(fid, setMembers), [fid]);
+  const [climb, setClimb] = useState<ForestClimb | null>(null);
+  useEffect(() => {
+    if (!sid) return void setClimb(null);
+    return watchClimb(fid, sid, setClimb);
+  }, [fid, sid]);
   const route = ride?.route ?? null;
-  const lines = useMemo(() => (route ? gradientLines(route) : []), [route]);
+  const span = useMemo(() => (route && climb ? climbOnRoute(route, climb) : null), [route, climb]);
+  const lines = useMemo(() => (route ? gradientLines(route, span) : []), [route, span]);
+  const pins = useMemo(
+    () =>
+      route && span
+        ? [
+            {
+              lat: route.lat[span.i0]!,
+              lng: route.lng[span.i0]!,
+              color: "var(--pine)",
+              label: t("Climb start", "Inizio salita"),
+            },
+            {
+              lat: route.lat[span.i1]!,
+              lng: route.lng[span.i1]!,
+              color: "var(--lingon)",
+              label: t("Climb top", "Fine salita"),
+            },
+          ]
+        : [],
+    [route, span],
+  );
   const name = members.find((m) => m.uid === uid)?.name ?? "";
-  const back = (
-    <Link
-      to="/forest/$fid/$uid"
-      params={{ fid, uid }}
-      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-    >
+  const backCls =
+    "inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground";
+  // Back to where it was opened from: the climb's leaderboard, or the member's tree.
+  const back = sid ? (
+    <Link to="/forest/$fid/climb/$sid" params={{ fid, sid }} className={backCls}>
+      <ArrowLeft className="h-4 w-4" />
+      {climb?.name ?? t("Climb", "Salita")}
+    </Link>
+  ) : (
+    <Link to="/forest/$fid/$uid" params={{ fid, uid }} className={backCls}>
       <ArrowLeft className="h-4 w-4" />
       {name ? t(`${name}'s tree`, `L'albero di ${name}`) : t("Tree", "Albero")}
     </Link>
@@ -111,12 +152,41 @@ function FriendRide() {
       {route ? (
         <Panel title={t("Route", "Percorso")}>
           <div className="space-y-3">
+            {climb && (
+              <p className="text-sm">
+                {span ? (
+                  <>
+                    <span className="text-muted-foreground">
+                      {t("Highlighted: ", "Evidenziata: ")}
+                    </span>
+                    <span className="font-medium">{climb.name}</span>
+                    <span className="stat-num text-muted-foreground">
+                      {` · km ${(span.from / 1000).toFixed(1)}–${(span.to / 1000).toFixed(1)}`}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {t(
+                      `${climb.name} can't be shown on this map (it may fall in a hidden end).`,
+                      `${climb.name} non si può mostrare su questa mappa (potrebbe cadere in un tratto nascosto).`,
+                    )}
+                  </span>
+                )}
+              </p>
+            )}
             <RouteMap
               fitKey={rid}
               lines={lines}
+              pins={pins}
               cursor={hover != null ? { lat: route.lat[hover]!, lng: route.lng[hover]! } : null}
             />
-            <GradientProfile dist={route.dist} alt={route.alt} hover={hover} onHover={setHover} />
+            <GradientProfile
+              dist={route.dist}
+              alt={route.alt}
+              hover={hover}
+              onHover={setHover}
+              focus={span}
+            />
             <p className="text-xs text-muted-foreground">
               {t(
                 `The first and last ${PRIVACY_ZONE / 1000} km are hidden, for privacy.`,

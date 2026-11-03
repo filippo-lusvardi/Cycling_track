@@ -11,11 +11,13 @@ import {
   where,
 } from "firebase/firestore";
 import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
-import { db, uid } from "../firebase";
+import { uid } from "../firebase";
+import { db } from "../db";
 import type { Activity, PlannedEvent, Wellness } from "../intervals";
 import { storedTrack } from "../segment-app";
 import { addDays } from "../training";
-import type { Crown } from "../tree";
+import { activityKind } from "../activity-kind";
+import { RIDE_KINDS, type Crown } from "../tree";
 import { effortOf, ridePage, RIDE_PAGE_DAYS } from "./rides";
 import { fingerprint, offStretches, toSharedCrown, toSharedRide, yearDocs } from "./snapshot";
 import type { SharedRide, TreeHeader } from "./types";
@@ -63,6 +65,8 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
   );
   if (forests.empty) return;
   const overrides = await readOverrides();
+  // How tall the tree stands in every forest: the whole riding history counts, not only what's shared there.
+  const growthFacts = lifetime(acts);
   for (const f of forests.docs) {
     const fid = f.id;
     const member = await getDoc(doc(db, "forests", fid, "members", me));
@@ -86,6 +90,7 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
       crown: toSharedCrown(crown),
       day: today,
       years: Object.keys(years).sort(),
+      ...growthFacts,
       off: offStretches(offEvents),
     };
     const key = `forest-pub:${me}:${fid}:header`;
@@ -137,4 +142,17 @@ async function publishRidePages(
     listKey,
     recent.map((r) => r.id),
   ).catch(() => {});
+}
+
+/** The first ride ever and the kilometres ridden in all, for the tree's height in forests (see ./age). */
+export function lifetime(acts: Activity[]): { since: string | null; km: number } {
+  let since: string | null = null;
+  let metres = 0;
+  for (const a of acts) {
+    if (!RIDE_KINDS.has(activityKind(a))) continue;
+    const d = a.start_date_local.slice(0, 10);
+    if (since == null || d < since) since = d;
+    metres += a.distance ?? 0;
+  }
+  return { since, km: Math.round(metres / 1000) };
 }

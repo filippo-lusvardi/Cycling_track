@@ -28,6 +28,10 @@ export type TreeHeader = {
   day: string;
   /** Years with a published doc, oldest first. */
   years: string[];
+  /** The member's first ride ever (YYYY-MM-DD): how old the tree is. Missing on headers published before. */
+  since?: string | null;
+  /** Kilometres ridden in all (every ride, shared or not): with the age, how tall the tree stands. */
+  km?: number | null;
   /** Sick / injured stretches, for knots in the bark. */
   off: { start: string; end: string; kind: "SICK" | "INJURED" }[];
   updatedAt: number;

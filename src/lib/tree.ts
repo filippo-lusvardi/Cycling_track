@@ -61,6 +61,10 @@ export type TreeBranch = {
   seed: number;
   /** Brioches eaten on the way: one bird each on the branch. */
   brioches: number;
+  /** The longest ride of all time (by distance): a squirrel lives on its branch. */
+  longest: boolean;
+  /** The ride with the most climbing of all time: an owl keeps watch on its branch. */
+  mostClimbing: boolean;
 };
 
 export type TreeDay = {
@@ -217,6 +221,29 @@ export function rng(seed: number) {
 
 const dayOf = (a: Activity) => a.start_date_local.slice(0, 10);
 
+/** Bike rides of every kind: the ones that count for the tree's all-time records. */
+export const RIDE_KINDS = new Set<Kind>(["road", "gravel", "mtb", "indoor", "ebike"]);
+
+/**
+ * The ids of the longest ride (distance) and of the ride with the most climbing among `acts`, up to `today`; the
+ * earlier ride wins a tie, so a record moves only when it's beaten. Null when no ride has any.
+ */
+export function rideRecords(
+  acts: Activity[],
+  today: string,
+): { longest: string | null; mostClimbing: string | null } {
+  let longest: Activity | null = null;
+  let climbing: Activity | null = null;
+  const rides = acts
+    .filter((a) => dayOf(a) <= today && RIDE_KINDS.has(activityKind(a)))
+    .sort((a, b) => a.start_date_local.localeCompare(b.start_date_local));
+  for (const a of rides) {
+    if ((a.distance ?? 0) > (longest?.distance ?? 0)) longest = a;
+    if ((a.total_elevation_gain ?? 0) > (climbing?.total_elevation_gain ?? 0)) climbing = a;
+  }
+  return { longest: longest?.id ?? null, mostClimbing: climbing?.id ?? null };
+}
+
 /** One node per calendar day from `oldest` to `today`, newest first (the top of the tree). */
 export function buildDays(
   acts: Activity[],
@@ -232,6 +259,7 @@ export function buildDays(
     byDay.set(d, [...(byDay.get(d) ?? []), a]);
   }
   const ctlByDay = new Map(wellness.filter((w) => w.ctl != null).map((w) => [w.id, w.ctl!]));
+  const records = rideRecords(acts, today);
 
   const days: TreeDay[] = [];
   let ctl: number | null = null;
@@ -260,6 +288,8 @@ export function buildDays(
         climb,
         seed: seedOf(a.id),
         brioches: a.brioches ?? 0, // older cached rows have no count
+        longest: a.id === records.longest,
+        mostClimbing: a.id === records.mostClimbing,
       };
     });
     days.push({
@@ -662,10 +692,15 @@ export function perchSpots(
   from: number,
   length: number,
   bird: number,
+  /**
+   * `taken`: animals already sitting there (spot and width in px), kept clear like other birds. `upTo`: the
+   * farthest spot allowed (0–1), e.g. to keep a tall animal on the low part of the branch.
+   */
+  { taken = [], upTo = 1 }: { taken?: { t: number; w: number }[]; upTo?: number } = {},
 ): number[] {
   if (n <= 0 || length <= 0) return [];
   const lo = Math.min(0.5, (bird * 0.8) / length);
-  const hi = Math.max(lo, 1 - (bird * 0.5) / length);
+  const hi = Math.max(lo, Math.min(upTo, 1 - (bird * 0.5) / length));
   // Leaves on top get in the way of a whole bird; those underneath only of its feet.
   // The trunk and the tip count too, so a lone bird sits mid-stretch instead of against either end.
   const blocks = [
@@ -682,7 +717,11 @@ export function perchSpots(
         Infinity,
         ...blocks.map((b) => Math.abs(b.t * length - px) - b.room),
       );
-      const fromBirds = Math.min(Infinity, ...spots.map((s) => Math.abs(s * length - px) - bird));
+      const fromBirds = Math.min(
+        Infinity,
+        ...spots.map((s) => Math.abs(s * length - px) - bird),
+        ...taken.map((o) => Math.abs(o.t * length - px) - (o.w + bird) / 2),
+      );
       // Room from other birds comes first: when a branch is crowded a bird may half-cover a leaf, never a bird.
       // Ties go outward, where a bird reads as sitting on the branch rather than on the trunk.
       const score = Math.min(fromLeaves + 0.5 * bird, fromBirds) + t * 0.01;

@@ -3,7 +3,7 @@
 // power only when the member shares them. Pure.
 //   forests/{fid}/trees/{uid}/rides/{rideId}   RidePage
 import type { Activity } from "../intervals";
-import type { Trace, TrackLike } from "../segments";
+import { haversine, type Segment, type Trace, type TrackLike } from "../segments";
 import { thin } from "./leaderboard";
 import type { SharedRide } from "./types";
 
@@ -78,4 +78,39 @@ export function ridePage(
       ? trimEnds({ lat: track.lat, lng: track.lng!, dist: track.dist, alt: track.alt })
       : null;
   return { ...ride, route: route ? thin(route, 400) : null, effort };
+}
+
+/** Where a climb lies on a shared route: start and finish indices and distances along the route. */
+export type RouteSpan = { i0: number; i1: number; from: number; to: number };
+
+/**
+ * Where a forest climb lies on a shared ride's route, or null when it isn't there (or falls in a hidden end). The
+ * route is thinned (points can be a few hundred metres apart), so the start and finish pins are matched to the
+ * nearest points with a tolerance of about one point spacing, and the covered distance must fit the climb's length.
+ */
+export function climbOnRoute(
+  route: Trace,
+  c: Pick<Segment, "lat1" | "lng1" | "lat2" | "lng2" | "length">,
+): RouteSpan | null {
+  const n = route.lat.length;
+  if (n < 2 || !(c.length > 0)) return null;
+  const tol = Math.max(80, (route.dist[n - 1]! / (n - 1)) * 1.5);
+  let best: RouteSpan | null = null;
+  let bestErr = Infinity;
+  for (let a = 0; a < n; a++) {
+    const da = haversine(route.lat[a]!, route.lng[a]!, c.lat1, c.lng1);
+    if (da > tol) continue;
+    for (let b = a + 1; b < n && route.dist[b]! - route.dist[a]! <= c.length * 1.3 + tol; b++) {
+      const db = haversine(route.lat[b]!, route.lng[b]!, c.lat2, c.lng2);
+      if (db > tol) continue;
+      const off = Math.abs(route.dist[b]! - route.dist[a]! - c.length);
+      if (off > c.length * 0.2 + tol) continue;
+      const err = off + da + db;
+      if (err < bestErr) {
+        bestErr = err;
+        best = { i0: a, i1: b, from: route.dist[a]!, to: route.dist[b]! };
+      }
+    }
+  }
+  return best;
 }

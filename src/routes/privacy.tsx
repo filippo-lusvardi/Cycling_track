@@ -141,6 +141,13 @@ function PrivacyPage() {
             )}
           </li>
           <li>
+            <b>Firebase Performance Monitoring</b>
+            {t(
+              " (Google Ireland Ltd.): how long the app takes to start and to open some screens, with device and browser type, approximate country and a random installation id, to keep the app fast (GDPR art. 6(1)(f), legitimate interest). No training, health or account data, and no addresses of the pages or requests. Turn it off in Settings → Account.",
+              " (Google Ireland Ltd.): quanto tempo impiega l'app ad avviarsi e ad aprire alcune schermate, con tipo di dispositivo e browser, paese approssimativo e un identificativo di installazione casuale, per mantenere l'app veloce (art. 6, par. 1, lett. f GDPR, legittimo interesse). Nessun dato di allenamento, salute o account, e nessun indirizzo di pagine o richieste. Si disattiva in Impostazioni → Account.",
+            )}
+          </li>
+          <li>
             <b>Cloudflare Pages</b>
             {t(
               ": serves the app's files. Like any web host it sees your IP address when the app loads.",

@@ -25,7 +25,8 @@ import { get as idbGet, set as idbSet } from "idb-keyval";
 import { DUR } from "../analysis";
 import { briochesIn } from "../brioches";
 import { readProfile } from "../cloud";
-import { auth, db, uid } from "../firebase";
+import { auth, uid } from "../firebase";
+import { db } from "../db";
 import { t } from "../i18n";
 import {
   OFF_KINDS,

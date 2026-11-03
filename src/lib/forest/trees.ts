@@ -1,6 +1,6 @@
 // Reading members' published trees (written by ./publish.ts on each member's own device).
 import { collection, doc, getDoc, getDocs, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import { db } from "../db";
 import type { RidePage } from "./rides";
 import type { TreeHeader, TreeYearDoc } from "./types";
 

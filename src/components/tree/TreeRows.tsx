@@ -2,6 +2,7 @@
 // never has to hit a twig. Drawing stays inside each slice, so off-screen slices can skip painting.
 import { parseISO } from "date-fns";
 import { useId, type CSSProperties, type ReactNode } from "react";
+import { Bird, BIRD_KINDS, Owl, OWL_BOX, Squirrel, SQUIRREL_BOX } from "./Critters";
 import { dayHeight, LANE, MONTH_H, REST_STEP, restHeight, WEEK_H } from "./geometry";
 import { KINDS, type Kind } from "@/lib/activity-kind";
 import type { OffKind } from "@/lib/intervals";
@@ -12,6 +13,7 @@ import {
   LEVEL_COLOR,
   perchSpots,
   rng,
+  seedOf,
   type Chapter,
   type TreeBranch,
   type TrunkEdge,
@@ -173,8 +175,12 @@ function offRuns(days: TreeDay[]): [number, number][] {
 /** "3 days sick", for labels. */
 function offWord(n: number, kind: OffKind): string {
   return kind === "SICK"
-    ? n === 1 ? t("sick", "malato") : t(`${n} days sick`, `${n} giorni malato`)
-    : n === 1 ? t("injured", "infortunato") : t(`${n} days injured`, `${n} giorni infortunato`);
+    ? n === 1
+      ? t("sick", "malato")
+      : t(`${n} days sick`, `${n} giorni malato`)
+    : n === 1
+      ? t("injured", "infortunato")
+      : t(`${n} days injured`, `${n} giorni infortunato`);
 }
 
 /** Leaf colour: the activity's intensity, or a muted kind colour when there's no power data. */
@@ -222,31 +228,50 @@ function Leaves({
 /** Most birds drawn on one branch; more would hide it. */
 const MAX_BIRDS = 8;
 
-/**
- * A small sparrow perched facing outward, its feet at (x, y). Drawn facing right in a unit box (feet at the origin,
- * about 16 × 10) and mirrored for the left side.
- */
-function Bird({ x, y, side, s = 1 }: { x: number; y: number; side: -1 | 1; s?: number }) {
-  return (
-    <g transform={`translate(${x} ${y}) scale(${side * s} ${s})`}>
-      <path d="M0.4,-0.9 L0.2,0 M1.7,-0.9 L1.6,0" stroke="var(--birch)" strokeWidth={0.7} strokeLinecap="round" />
-      {/* Tail, back, head, breast and belly as one outline. */}
-      <path
-        d="M-6.6,-2.3 L-7.1,-4 L-3.4,-4.6 C-2.2,-7.6 1.4,-8.4 3,-7.6 C3.3,-9.8 6.8,-10 7.2,-7.5 C7.4,-6.3 6.6,-5.4 5.6,-5 C5.4,-2.4 3.2,-0.8 0.7,-0.8 C-1.4,-0.7 -2.8,-1.7 -3.5,-2.7 Z"
-        fill={BIRD}
-      />
-      <ellipse cx={2.6} cy={-2.8} rx={2.5} ry={1.6} fill={BIRD_BELLY} />
-      <path d="M-2.8,-3.7 C-1,-6.6 2.4,-6.5 3.3,-4.5 C1.7,-3.4 -0.6,-3 -2.8,-3.7 Z" fill={BIRD_WING} />
-      <path d="M7.1,-7.4 L9,-6.8 L7,-6.3 Z" fill="var(--birch)" />
-      <circle cx={5.7} cy={-7.7} r={0.6} fill="var(--background)" />
-    </g>
+/** Size of a bird on a daily branch with room to spare (the drawing is about 16 units wide). */
+const BIRD_SCALE = 1.6;
+
+/** A branch's guardians: the squirrel on the longest ride ever, the owl on the ride with the most climbing. */
+const guardiansOf = (b: TreeBranch) =>
+  [
+    b.longest && ({ kind: "squirrel", box: SQUIRREL_BOX } as const),
+    b.mostClimbing && ({ kind: "owl", box: OWL_BOX } as const),
+  ].filter((g) => !!g);
+
+function Guardian({
+  kind,
+  x,
+  y,
+  side,
+  s,
+}: {
+  kind: "squirrel" | "owl";
+  x: number;
+  y: number;
+  side: -1 | 1;
+  s: number;
+}) {
+  return kind === "squirrel" ? (
+    <Squirrel x={x} y={y} side={side} s={s} />
+  ) : (
+    <Owl x={x} y={y} s={s} />
   );
 }
 
-/** Size of a bird on a daily branch with room to spare (the drawing is about 16 units wide). */
-const BIRD_SCALE = 1.4;
+/** A bird species for each of a branch's brioches, at random but the same on every render and device. */
+function birdKinds(b: TreeBranch, n: number) {
+  const r = rng(seedOf(`${b.id}:birds`));
+  return Array.from({ length: n }, () => BIRD_KINDS[Math.floor(r() * BIRD_KINDS.length)]!);
+}
 
-/** One bird per brioche, on free stretches of the branch (clear of the leaves on top), sitting on it. */
+/** Size of the squirrel and the owl relative to their drawings (a bit bigger than a bird: they're the records). */
+const GUARDIAN_SCALE = 1.45;
+
+/**
+ * The branch's animals, sitting on it: its guardians first (a squirrel on the longest ride ever, an owl on the ride
+ * with the most climbing), low on the branch where there's headroom, then one bird per brioche on the free stretches
+ * left, each a species picked at random from the ride (the same on every render and device).
+ */
 function Birds({
   b,
   at,
@@ -260,13 +285,35 @@ function Birds({
 }) {
   const n = Math.min(b.brioches, MAX_BIRDS);
   // On a short branch (a phone, a short ride) birds shrink a little so they fit side by side, down to 2/3 size.
-  const scale = Math.max(BIRD_SCALE * 0.65, Math.min(BIRD_SCALE, (length * 0.8) / (n * 16 * 1.1)));
-  const spots = perchSpots(n, b.leaves, from, length, 16 * scale);
+  const scale = Math.max(
+    BIRD_SCALE * 0.65,
+    Math.min(BIRD_SCALE, (length * 0.8) / (Math.max(1, n) * 16 * 1.1)),
+  );
+  const taken: { t: number; w: number }[] = [];
+  const guardians: ReactNode[] = [];
+  for (const g of guardiansOf(b)) {
+    const [t] = perchSpots(1, b.leaves, from, length, g.box.w * GUARDIAN_SCALE, {
+      taken,
+      upTo: 0.55,
+    });
+    if (t == null) continue;
+    const [x, y] = at(t);
+    const feet = y - b.thickness / 2;
+    // Never taller than the room above the branch in this row (rows clip what sticks out).
+    const s = Math.max(0.6, Math.min(GUARDIAN_SCALE, (feet - 1) / g.box.h));
+    taken.push({ t, w: g.box.w * s });
+    guardians.push(<Guardian key={g.kind} kind={g.kind} x={x} y={feet} side={b.side} s={s} />);
+  }
+  const spots = perchSpots(n, b.leaves, from, length, 16 * scale, { taken });
+  const kinds = birdKinds(b, spots.length);
   return (
     <>
+      {guardians}
       {spots.map((t, i) => {
         const [x, y] = at(t);
-        return <Bird key={i} x={x} y={y - b.thickness / 2} side={b.side} s={scale} />;
+        return (
+          <Bird key={i} x={x} y={y - b.thickness / 2} side={b.side} s={scale} kind={kinds[i]!} />
+        );
       })}
     </>
   );
@@ -295,7 +342,12 @@ function Branch({ b, cx, trunk, y0 }: { b: TreeBranch; cx: number; trunk: number
         strokeLinecap="round"
       />
       <Leaves b={b} at={quad(x0, y0, qx, qy, x1, y1)} from={0.4} size={4.2} />
-      <Birds b={b} at={quad(x0, y0, qx, qy, x1, y1)} length={Math.hypot(x1 - x0, y1 - y0)} from={0.4} />
+      <Birds
+        b={b}
+        at={quad(x0, y0, qx, qy, x1, y1)}
+        length={Math.hypot(x1 - x0, y1 - y0)}
+        from={0.4}
+      />
       {/* Not a ride: a bud at the tip in the activity's colour. Rides are plain wood. */}
       {!RIDES.has(b.kind) && (
         <circle cx={x1} cy={y1} r={Math.max(2.4, b.thickness * 0.55)} fill={KINDS[b.kind].color} />
@@ -575,7 +627,9 @@ export function WeekRow({
           tintBelow={olderChapter ? CHAPTER_TINT[olderChapter] : CHAPTER_TINT[week.chapter]}
         />
         {week.count > 0 && <Bough week={week} cx={cx} />}
-        {week.off && <Knot cx={cx} trunk={week.trunk} y={WEEK_H * 0.4} side={week.side} room={WEEK_H * 0.8} />}
+        {week.off && (
+          <Knot cx={cx} trunk={week.trunk} y={WEEK_H * 0.4} side={week.side} room={WEEK_H * 0.8} />
+        )}
         <Label
           cx={cx}
           trunk={week.trunk}
@@ -596,10 +650,6 @@ export function WeekRow({
 }
 
 const OLD_WOOD = "color-mix(in oklab, var(--bark) 80%, black)";
-/** A sparrow: warm light brown body, darker wing, cream belly, all readable on the dark sky and on the wood. */
-const BIRD = "color-mix(in oklab, var(--autumn) 55%, color-mix(in oklab, var(--foreground) 55%, var(--bark)))";
-const BIRD_WING = "color-mix(in oklab, var(--bark) 55%, var(--autumn))";
-const BIRD_BELLY = "color-mix(in oklab, var(--foreground) 85%, var(--birch))";
 const RIDES = new Set<Kind>(["road", "gravel", "mtb", "indoor", "ebike"]);
 /** This week's branches: new growth, a warmer, lighter brown than the old wood of past weeks. */
 const YOUNG_WOOD = "color-mix(in oklab, var(--bark) 82%, var(--birch))";
@@ -615,6 +665,26 @@ function Bough({ week, cx }: { week: TreeWeek; cx: number }) {
   const x1 = x0 + side * reach;
   const thickness = 2 + Math.min(1, week.load / 900) * 7;
   const n = week.twigs.length;
+  // A record ride's guardian sits on the bough itself, on the bare stretch next to the trunk (the twigs start
+  // further out), as big as the room above the bough allows.
+  const guardians: ReactNode[] = [];
+  let along = 2;
+  for (const g of week.twigs.flatMap(guardiansOf)) {
+    const gs = Math.min(GUARDIAN_SCALE, (y0 - thickness / 2 - 1) / g.box.h);
+    const w = g.box.w * gs;
+    along += w / 2;
+    guardians.push(
+      <Guardian
+        key={g.kind}
+        kind={g.kind}
+        x={x0 + side * along}
+        y={y0 - (3 * along) / reach - thickness / 2}
+        side={side}
+        s={gs}
+      />,
+    );
+    along += w / 2 + 2;
+  }
   return (
     <g>
       <path
@@ -623,6 +693,7 @@ function Bough({ week, cx }: { week: TreeWeek; cx: number }) {
         strokeWidth={thickness}
         strokeLinecap="round"
       />
+      {guardians}
       {week.twigs.map((t, j) => {
         // Twigs spread along the outer part of the bough; alternate up (long) and down (short).
         const along = 0.3 + (0.65 * (j + 0.5)) / n;
@@ -640,7 +711,9 @@ function Bough({ week, cx }: { week: TreeWeek; cx: number }) {
               strokeLinecap="round"
             />
             <Leaves b={{ ...t, side }} at={at} from={0.2} size={3} />
-            {t.brioches > 0 && <Bird x={bx + side * 4} y={by - 1} side={side} s={0.95} />}
+            {t.brioches > 0 && (
+              <Bird x={bx + side * 4} y={by - 1} side={side} s={1.1} kind={birdKinds(t, 1)[0]!} />
+            )}
           </g>
         );
       })}

@@ -213,7 +213,8 @@ const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 
 /**
  * One member's small tree: a leaning, tapered trunk that forks into limbs, then a rounded canopy in their season,
- * shaded underneath and lit on top (a seedling before they've published).
+ * shaded underneath and lit on top (a seedling before they've published). `growth` (see lib/forest/age) makes an
+ * old tree taller, with a somewhat broader crown and a thicker trunk.
  */
 export function MiniTree({
   tr,
@@ -221,12 +222,14 @@ export function MiniTree({
   y,
   size,
   seed,
+  growth = 1,
 }: {
   tr: SceneTree;
   x: number;
   y: number;
   size: number;
   seed: string;
+  growth?: number;
 }) {
   const crown = tr.header?.crown ?? null;
   const shadow = (
@@ -266,15 +269,17 @@ export function MiniTree({
   }
   const season: Season | null = crown.season;
   const r = rng(seedOf(seed));
-  const h = 46 * size;
+  // Height follows age fully; width only partly, so old trees read as taller rather than just bigger.
+  const broad = 0.7 + 0.3 * growth;
+  const h = 46 * size * growth;
   const lean = (r() - 0.5) * 4 * size;
-  const trunkW = 2.4 + 2.2 * size;
+  const trunkW = (2.4 + 2.2 * size) * broad;
   const forkY = y - h * 0.46;
   const forkX = x + lean;
   const cx = forkX + lean * 0.4;
   const cy = y - h * 0.72;
-  const rx = 17 * size;
-  const ry = 13.5 * size;
+  const rx = 17 * size * broad;
+  const ry = 13.5 * size * broad;
   const color = season ? SEASON_COLOR[season] : "var(--muted-foreground)";
   const dark = `color-mix(in oklab, ${color} 62%, black)`;
   const light = `color-mix(in oklab, ${color} 60%, white)`;
@@ -306,7 +311,7 @@ export function MiniTree({
     return {
       bx: cx + Math.cos(a) * rx * d,
       by: cy + Math.sin(a) * ry * d,
-      br: (4.6 + r() * 1.8) * size,
+      br: (4.6 + r() * 1.8) * size * broad,
     };
   });
   const blossom =

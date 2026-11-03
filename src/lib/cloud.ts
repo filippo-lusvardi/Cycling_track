@@ -16,7 +16,8 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import { db, uid } from "./firebase";
+import { uid } from "./firebase";
+import { db } from "./db";
 import type { SavedSegment } from "./segment-store";
 
 export type Profile = {

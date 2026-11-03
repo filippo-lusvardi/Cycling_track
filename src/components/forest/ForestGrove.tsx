@@ -1,8 +1,10 @@
 import { useId, useMemo } from "react";
 import { MiniTree, WildPines, type SceneTree } from "@/components/forest/ForestScene";
 import { auth } from "@/lib/firebase";
+import { treeGrowth } from "@/lib/forest/age";
 import { t } from "@/lib/i18n";
 import { ridgeAcross } from "@/lib/ridge";
+import { isoDate } from "@/lib/training";
 import { rng, seedOf } from "@/lib/tree";
 
 const TOP = 74;
@@ -36,9 +38,11 @@ export function ForestGrove({
   // the trees further apart; the wild hills behind keep the phone's size.
   const big = W > 360 ? 2 : 1;
   const gap = big > 1 ? GAP * 1.3 : GAP;
-  const mrow = big > 1 ? ROW * 1.5 : ROW;
+  // Rows leave room for the oldest, tallest trees (see lib/forest/age) to clear the names in the row behind.
+  const mrow = big > 1 ? ROW * 1.8 : ROW * 1.1;
   const perRow = W <= 360 ? 3 : Math.floor(W / gap) - 1;
   const uid = `grove${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const today = isoDate(new Date());
   // Me first, then by name.
   const sorted = [...trees].sort(
     (a, b) => Number(b.uid === me) - Number(a.uid === me) || a.name.localeCompare(b.name),
@@ -151,6 +155,7 @@ export function ForestGrove({
               const r = rng(seedOf(`${seed}${tr.uid}`));
               r(); // the offset, taken in spots
               const y = hillY(row, x) + 3;
+              const grow = treeGrowth(tr.header, today);
               const open = () => onTree(tr.uid);
               return (
                 <g
@@ -166,8 +171,10 @@ export function ForestGrove({
                     tr={tr}
                     x={x}
                     y={y}
-                    size={(1.25 + r() * 0.15) * big}
+                    // Only a touch of randomness: height is for age and kilometres to tell.
+                    size={(1.3 + r() * 0.05) * big}
                     seed={`${seed}${tr.uid}`}
+                    growth={grow}
                   />
                   <text
                     x={x}
@@ -181,9 +188,9 @@ export function ForestGrove({
                   </text>
                   <rect
                     x={x - 48 * big}
-                    y={y - 82 * big}
+                    y={y - 82 * big * Math.max(0.8, grow)}
                     width={96 * big}
-                    height={82 * big + 28 + (big - 1) * 6}
+                    height={82 * big * Math.max(0.8, grow) + 28 + (big - 1) * 6}
                     fill="transparent"
                   />
                 </g>

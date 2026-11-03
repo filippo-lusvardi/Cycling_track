@@ -18,6 +18,8 @@ export const FOCUS_PIN = "cadence_focus_pin";
 export const GARMIN = "cadence_garmin";
 /** Where this account's training data comes from: "intervals" (default) or "native" (uploaded ride files). */
 export const SOURCE = "cadence_source";
+/** This device doesn't send speed measurements (Firebase Performance Monitoring). Kept across sign-outs. */
+export const NO_PERF = "cadence_no_perf";
 
 export function readSetting<T>(key: string): T | null {
   try {

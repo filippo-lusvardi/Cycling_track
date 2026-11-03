@@ -1,11 +1,9 @@
 // The signed-in session: bring the account's profile onto this device, keep segments in step, wipe on sign-out.
+// Firestore code (./cloud, segment sync) is imported on demand, so the first screen doesn't wait for its SDK.
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { clearIndexedDbPersistence, terminate } from "firebase/firestore";
 import { clear, createStore } from "idb-keyval";
 import { toast } from "sonner";
-import { followSegments, syncSegments } from "@/hooks/use-segments";
-import { readProfile, saveProfile, writePlaces } from "./cloud";
-import { auth, db } from "./firebase";
+import { auth } from "./firebase";
 import { readGist, NAMES_FILE } from "./gist";
 import { t } from "./i18n";
 import type { SavedSegment } from "./segment-store";
@@ -14,6 +12,7 @@ import {
   GIST_ID,
   GITHUB_TOKEN,
   LANGUAGE,
+  NO_PERF,
   SEGMENT_HISTORY,
   SOURCE,
   readSetting,
@@ -47,12 +46,16 @@ export function sessionReady(): Promise<void> {
 async function startSession() {
   await pullProfile().catch((e) => console.warn("Profile sync failed", e));
   await importGist().catch((e) => console.warn("Gist import failed", e));
+  const { followSegments, syncSegments } = await import("@/hooks/use-segments");
+  // Signed out while the import was loading: nothing to follow.
+  if (!auth.currentUser) return;
   syncSegments().catch((e) => console.warn("Segment sync failed", e));
   stopFollow = followSegments();
 }
 
 /** The account's settings win; a device that had them before the account existed hands them over. */
 async function pullProfile() {
+  const { readProfile, saveProfile } = await import("./cloud");
   const p = await readProfile();
   const key = readSetting<string>(API_KEY);
   const years = readSetting<number>(SEGMENT_HISTORY);
@@ -70,6 +73,10 @@ async function pullProfile() {
 /** One-off move from the GitHub gist that synced segments before accounts existed. */
 async function importGist() {
   if (!readSetting<string>(GITHUB_TOKEN)) return;
+  const [{ syncSegments }, { writePlaces }] = await Promise.all([
+    import("@/hooks/use-segments"),
+    import("./cloud"),
+  ]);
   const [segs, names] = await Promise.all([
     readGist<SavedSegment[]>(),
     readGist<Record<string, string | null>>(NAMES_FILE),
@@ -88,10 +95,14 @@ async function importGist() {
 export async function signOutAndWipe() {
   stopFollow?.();
   await signOut(auth);
+  const [{ clearIndexedDbPersistence, terminate }, { db }] = await Promise.all([
+    import("firebase/firestore"),
+    import("./db"),
+  ]);
   await terminate(db);
   await clearIndexedDbPersistence(db).catch(() => {});
   for (const k of Object.keys(localStorage))
-    if (k.startsWith("cadence_") && k !== LANGUAGE) localStorage.removeItem(k);
+    if (k.startsWith("cadence_") && k !== LANGUAGE && k !== NO_PERF) localStorage.removeItem(k);
   await Promise.all([
     clear(),
     clear(createStore("cadence-tracks", "tracks")),

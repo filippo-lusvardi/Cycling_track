@@ -2,7 +2,8 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { Panel } from "@/components/StatCard";
 import { Switch } from "@/components/ui/switch";
-import { db, uid } from "@/lib/firebase";
+import { uid } from "@/lib/firebase";
+import { db } from "@/lib/db";
 import { watchMyForests, type Forest } from "@/lib/forest/forests";
 import { republish } from "@/lib/forest/publish";
 import {

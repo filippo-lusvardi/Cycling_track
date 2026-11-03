@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { get as idbGet, set as idbSet } from "idb-keyval";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { OpenScene } from "@/components/forest/ForestScene";
 import { ForestWorld } from "@/components/forest/ForestWorld";
@@ -19,7 +20,9 @@ import {
 } from "@/lib/forest/forests";
 import { watchHeaders } from "@/lib/forest/trees";
 import type { TreeHeader } from "@/lib/forest/types";
+import { uid } from "@/lib/firebase";
 import { t } from "@/lib/i18n";
+import { useScreenTrace } from "@/lib/perf";
 
 export const Route = createFileRoute("/forest/")({
   head: () => ({ meta: [{ title: t("Forest — Cirmolo", "Bosco — Cirmolo") }] }),
@@ -31,10 +34,13 @@ function ForestPage() {
   const [forests, setForests] = useState<Forest[] | null>(null);
   const [planting, setPlanting] = useState(false);
   const [failed, setFailed] = useState(false);
+  /** Firestore has answered (otherwise what's drawn is the saved view). */
+  const fresh = useRef(false);
   useEffect(
     () =>
       watchMyForests(
         (f) => {
+          fresh.current = true;
           setForests(f);
           setFailed(false);
         },
@@ -42,7 +48,26 @@ function ForestPage() {
       ),
     [],
   );
-  const live = useWoods(forests ?? []);
+  const [live, seedLive] = useWoods(forests ?? []);
+  useScreenTrace("forest_open", forests !== null, !fresh.current);
+
+  // The last view this device saw, drawn at once while the live listeners catch up; saved again as they report.
+  const viewKey = `forest-view:${uid()}`;
+  useEffect(() => {
+    void idbGet<CachedView>(viewKey)
+      .then((v) => {
+        if (!v) return;
+        setForests((f) => f ?? v.forests);
+        seedLive(v.live);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewKey]);
+  useEffect(() => {
+    if (!forests) return;
+    const t = setTimeout(() => void idbSet(viewKey, { forests, live }).catch(() => {}), 1000);
+    return () => clearTimeout(t);
+  }, [viewKey, forests, live]);
 
   return (
     // Room at the bottom for the floating Tree · Years · Forest switch, so the clearing never hides under it.
@@ -68,8 +93,8 @@ function ForestPage() {
               forest: f,
               trees: f.members.map((uid) => ({
                 uid,
-                name: live[f.id]?.members.find((m) => m.uid === uid)?.name ?? "",
-                header: live[f.id]?.headers[uid],
+                name: live[f.id]?.members?.find((m) => m.uid === uid)?.name ?? "",
+                header: live[f.id]?.headers?.[uid],
               })),
               waiting: live[f.id]?.waiting ?? 0,
             }))}
@@ -103,15 +128,22 @@ function ForestPage() {
   );
 }
 
-type Live = { headers: Record<string, TreeHeader>; members: Member[]; waiting: number };
+/** What the listeners (or the saved view) have reported so far for one forest. */
+type Live = Partial<{ headers: Record<string, TreeHeader>; members: Member[]; waiting: number }>;
+type CachedView = { forests: Forest[]; live: Record<string, Live> };
 
-/** Every forest's crowns, member names and waiting requests, live. */
-function useWoods(forests: Forest[]): Record<string, Live> {
+/**
+ * Every forest's crowns, member names and waiting requests, live, and a way to seed them from a saved view (what the
+ * listeners have already reported wins).
+ */
+function useWoods(
+  forests: Forest[],
+): [Record<string, Live>, (saved: Record<string, Live>) => void] {
   const [live, setLive] = useState<Record<string, Live>>({});
   const ids = forests.map((f) => f.id).join(",");
   useEffect(() => {
     const patch = (fid: string, p: Partial<Live>) =>
-      setLive((l) => ({ ...l, [fid]: { headers: {}, members: [], waiting: 0, ...l[fid], ...p } }));
+      setLive((l) => ({ ...l, [fid]: { ...l[fid], ...p } }));
     const stops = forests.flatMap((f) => [
       watchHeaders(f.id, (headers) => patch(f.id, { headers })),
       watchMembers(f.id, (members) => patch(f.id, { members })),
@@ -120,7 +152,16 @@ function useWoods(forests: Forest[]): Record<string, Live> {
     return () => stops.forEach((s) => s());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
-  return live;
+  const seed = (saved: Record<string, Live>) =>
+    setLive((l) =>
+      Object.fromEntries(
+        [...new Set([...Object.keys(saved), ...Object.keys(l)])].map((fid) => [
+          fid,
+          { ...saved[fid], ...l[fid] },
+        ]),
+      ),
+    );
+  return [live, seed];
 }
 
 function PlantForm({ onDone }: { onDone: () => void }) {

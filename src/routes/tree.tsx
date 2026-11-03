@@ -22,6 +22,7 @@ import { addDays, isoDate } from "@/lib/training";
 import { buildDays, buildYears, crownFor, offDays } from "@/lib/tree";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { recordSinceLoad } from "@/lib/perf";
 
 export const Route = createFileRoute("/tree")({
   head: () => ({ meta: [{ title: t("Tree — Cirmolo", "Albero — Cirmolo") }] }),
@@ -35,6 +36,8 @@ export const Route = createFileRoute("/tree")({
 const ZOOMS: Zoom[] = ["tree", "years"];
 
 function TreePage() {
+  // Opening the app to the moment the tree is drawn with its data: the startup that matters.
+  useEffect(() => recordSinceLoad("first_tree", ["/", "/tree"]), []);
   const today = isoDate(new Date());
   const { data: acts } = useSuspenseQuery(allActivitiesQuery());
   const oldest = acts.length

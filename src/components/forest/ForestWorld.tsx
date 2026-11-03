@@ -1,8 +1,10 @@
 import { useId, useMemo } from "react";
 import { MiniTree, WildPines, type SceneTree } from "@/components/forest/ForestScene";
+import { treeGrowth } from "@/lib/forest/age";
 import type { Forest } from "@/lib/forest/forests";
 import { t } from "@/lib/i18n";
 import { ridgeAcross } from "@/lib/ridge";
+import { isoDate } from "@/lib/training";
 import { rng, seedOf } from "@/lib/tree";
 
 export type WorldWood = { forest: Forest; trees: SceneTree[]; waiting: number };
@@ -263,12 +265,19 @@ function Wood({
   const r = rng(seedOf(forest.id));
   // Up to 14 trees on the hill, back rows first so the front ones overlap them.
   const shown = trees.slice(0, 14);
+  const today = isoDate(new Date());
   const placed = shown
     .map((tr, k) => {
       const a = (k + r() * 0.6) / Math.max(1, shown.length);
       const dx = (a - 0.5) * 132 + (r() - 0.5) * 10;
       const dy = (r() - 0.5) * 16 - Math.cos((dx / 70) * (Math.PI / 2)) * 8;
-      return { tr, x: x + dx, y: y + 18 + dy, size: 0.62 + r() * 0.2 };
+      return {
+        tr,
+        x: x + dx,
+        y: y + 18 + dy,
+        size: 0.7 + r() * 0.06,
+        grow: treeGrowth(tr.header, today),
+      };
     })
     .sort((a, b) => a.y - b.y);
   const open = () => onOpen(forest.id);
@@ -299,6 +308,7 @@ function Wood({
           y={p.y}
           size={p.size}
           seed={`${forest.id}${p.tr.uid}`}
+          growth={p.grow}
         />
       ))}
       <text

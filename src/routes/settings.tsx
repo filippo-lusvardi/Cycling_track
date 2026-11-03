@@ -28,6 +28,7 @@ import { addDays, isoDate } from "@/lib/training";
 import { historyYears, segmentEngine, startSegments } from "@/lib/segment-app";
 import {
   API_KEY,
+  NO_PERF,
   QUIET_TREE,
   SEGMENT_HISTORY,
   SOURCE,
@@ -381,6 +382,7 @@ function Account() {
             {t("Privacy notice", "Informativa privacy")}
           </Link>
         </p>
+        <SpeedMeasurements />
         <form onSubmit={changePassword} className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="current-password">{t("Current password", "Password attuale")}</Label>
@@ -585,8 +587,22 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
   {
     term: t("Birds", "Uccellini"),
     text: t(
-      "One per brioche eaten on that ride (set it at the bottom of the ride's page).",
-      "Uno per ogni brioche mangiata in quell'uscita (impostala in fondo alla pagina dell'uscita).",
+      "One per brioche eaten on that ride (set it at the bottom of the ride's page). Each is a sparrow, robin, snow bunting, blackbird, blue tit, goldfinch or kingfisher, at random.",
+      "Uno per ogni brioche mangiata in quell'uscita (impostala in fondo alla pagina dell'uscita). Ognuno è un passero, un pettirosso, uno zigolo delle nevi, un merlo, una cinciarella, un cardellino o un martin pescatore, a caso.",
+    ),
+  },
+  {
+    term: t("Squirrel", "Scoiattolo"),
+    text: t(
+      "Lives on the branch of your longest ride ever.",
+      "Vive sul ramo della tua uscita più lunga di sempre.",
+    ),
+  },
+  {
+    term: t("Owl", "Gufo"),
+    text: t(
+      "Keeps watch on the branch of the ride with the most climbing ever.",
+      "Fa la guardia sul ramo dell'uscita con più dislivello di sempre.",
     ),
   },
   {
@@ -639,6 +655,31 @@ const TREE_GUIDE: { term: string; text: string; points?: string[] }[] = [
     ],
   },
 ];
+
+/** Opt-out of Firebase Performance Monitoring on this device (see lib/perf). */
+function SpeedMeasurements() {
+  const [noPerf, setNoPerf] = useLocalStore(NO_PERF, false);
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <Label htmlFor="speed-measurements" className="block space-y-1">
+        <span className="block">
+          {t("Share anonymous speed measurements", "Condividi misure anonime di velocità")}
+        </span>
+        <span className="block text-sm font-normal text-muted-foreground">
+          {t(
+            "How long the app takes to start and open screens on this device, to keep it fast. No training data.",
+            "Quanto tempo impiega l'app ad avviarsi e ad aprire le schermate su questo dispositivo, per mantenerla veloce. Nessun dato di allenamento.",
+          )}
+        </span>
+      </Label>
+      <Switch
+        id="speed-measurements"
+        checked={!noPerf}
+        onCheckedChange={(v) => setNoPerf(() => !v)}
+      />
+    </div>
+  );
+}
 
 function QuietTree() {
   const [quiet, setQuiet] = useLocalStore(QUIET_TREE, false);

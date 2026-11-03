@@ -204,6 +204,8 @@ Cirmolo is a static site plus a free Firebase project for accounts.
    ```
 
 6. **Authentication → Settings → Authorized domains**: add your site's address (e.g. `ora-xxxx.pages.dev`).
+   Speed measurements (startup and screen-open times, custom traces only) appear under **Performance** in the
+   Firebase console by themselves, about a day after the first visits; users can turn them off in Settings → Account.
 7. Set your name and a contact email at the top of `src/routes/privacy.tsx`: the privacy notice (linked from the
    sign-in page and the footer) names you as the one responsible for the account data.
 

@@ -2,7 +2,8 @@
 // rides from before joining follow "Show rides from before I joined", later ones "Share new rides".
 //   users/{uid}/rideVisibility/{rideId}   { [fid]: true | false }
 import { collection, doc, getDocs, onSnapshot, setDoc } from "firebase/firestore";
-import { db, uid } from "../firebase";
+import { uid } from "../firebase";
+import { db } from "../db";
 import { isoDate } from "../training";
 
 export type Overrides = Record<string, Record<string, boolean>>;

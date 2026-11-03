@@ -8,7 +8,7 @@ import {
   useRouterState,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Bike,
   CalendarDays,
@@ -30,10 +30,15 @@ import { sessionReady } from "@/lib/account";
 import { auth, authReady } from "@/lib/firebase";
 import { AuthError } from "@/lib/intervals";
 import { AppFooter } from "@/components/AppFooter";
-import { ForestSync } from "@/components/forest/ForestSync";
+import { recordSinceLoad } from "@/lib/perf";
 import { hasSource } from "@/lib/source";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+
+// Background forest sync needs Firestore: loaded after the first screen, not before it.
+const ForestSync = lazy(() =>
+  import("@/components/forest/ForestSync").then((m) => ({ default: m.ForestSync })),
+);
 
 function NotFoundComponent() {
   return (
@@ -160,6 +165,8 @@ const NAV = [
 ] as const;
 
 function RootComponent() {
+  // The app shell is on screen (the page itself may still be loading its data).
+  useEffect(() => recordSinceLoad("app_start"), []);
   const [more, setMore] = useState(false);
   const online = useOnline();
   const synced = useLastSynced();
@@ -294,7 +301,9 @@ function RootComponent() {
         </SheetContent>
       </Sheet>
       <DailyCheckIn />
-      <ForestSync />
+      <Suspense fallback={null}>
+        <ForestSync />
+      </Suspense>
       <Toaster position="top-center" />
       <PwaUpdater />
     </>

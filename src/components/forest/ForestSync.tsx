@@ -3,7 +3,7 @@ import { get as idbGet, set as idbSet } from "idb-keyval";
 import { useEffect } from "react";
 import { forestKey, forestSegments } from "@/lib/forest/engine-link";
 import { watchMyForests, type Forest } from "@/lib/forest/forests";
-import { bestShared, publishTime, watchClimbs, type ForestClimb } from "@/lib/forest/leaderboard";
+import { bestShared, publishTime, readClimbs, type ForestClimb } from "@/lib/forest/leaderboard";
 import { fingerprint } from "@/lib/forest/snapshot";
 import {
   isShared,
@@ -12,7 +12,8 @@ import {
   type Overrides,
   type SharePrefs,
 } from "@/lib/forest/visibility";
-import { db, uid } from "@/lib/firebase";
+import { uid } from "@/lib/firebase";
+import { db } from "@/lib/db";
 import { segmentEngine, startSegments } from "@/lib/segment-app";
 import { liveSegments, type SavedSegment } from "@/lib/segment-store";
 import { readSetting, SEGMENTS } from "@/lib/settings";
@@ -29,6 +30,9 @@ export function ForestSync() {
     const prefs = new Map<string, SharePrefs>();
     let overrides: Overrides = {};
     const stops = new Map<string, (() => void)[]>();
+    /** The `climbsAt` stamp each forest's climbs were last read at. */
+    const stamps = new Map<string, number>();
+    let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const register = () => {
@@ -75,14 +79,27 @@ export function ForestSync() {
           s.forEach((stop) => stop());
           stops.delete(fid);
           climbs.delete(fid);
+          stamps.delete(fid);
         }
-      for (const f of next)
-        if (!stops.has(f.id))
-          stops.set(f.id, [
-            watchClimbs(f.id, (c) => {
+      for (const f of next) {
+        // Climbs are read again only when the forest's stamp moves (someone added or removed one).
+        const at = f.climbsAt ?? 0;
+        if (stamps.get(f.id) !== at) {
+          stamps.set(f.id, at);
+          void readClimbs(f.id, at).then(
+            (c) => {
+              if (stopped || stamps.get(f.id) !== at) return;
               climbs.set(f.id, c);
               register();
-            }),
+            },
+            (e) => {
+              console.warn("Forest climbs unavailable", e);
+              stamps.delete(f.id);
+            },
+          );
+        }
+        if (!stops.has(f.id))
+          stops.set(f.id, [
             onSnapshot(
               doc(db, "forests", f.id, "members", me),
               (m) => {
@@ -92,6 +109,7 @@ export function ForestSync() {
               () => {},
             ),
           ]);
+      }
       register();
     });
     const stopOverrides = watchOverrides((o) => {
@@ -102,6 +120,7 @@ export function ForestSync() {
     void startSegments(false);
 
     return () => {
+      stopped = true;
       clearTimeout(timer);
       stopForests();
       stopOverrides();

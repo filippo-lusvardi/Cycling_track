@@ -9,9 +9,10 @@ import { API_KEY } from "@/lib/settings";
 const fb = vi.hoisted(() => ({
   auth: { currentUser: null as { uid: string } | null },
   authReady: Promise.resolve(),
-  db: {},
+  app: {},
 }));
 vi.mock("@/lib/firebase", () => fb);
+vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/account", () => ({ sessionReady: () => Promise.resolve() }));
 
 const load = async (path: string) => {

@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "cirmolo-b91f0"
-  }
+    "default": "cirmolo-b91f0",
+    "Cirmolo": "cirmolo-b91f0"
+  },
+  "targets": {},
+  "etags": {}
 }

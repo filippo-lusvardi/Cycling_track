@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { ArrowLeft } from "lucide-react";
@@ -10,6 +11,7 @@ import { watchMembers, type Member } from "@/lib/forest/forests";
 import { fromSnapshot } from "@/lib/forest/snapshot";
 import { readTree } from "@/lib/forest/trees";
 import { format, t } from "@/lib/i18n";
+import { useScreenTrace } from "@/lib/perf";
 import type { Activity } from "@/lib/intervals";
 import { addDays, formatDuration, formatKm, isoDate } from "@/lib/training";
 import { RIDE_PAGE_DAYS } from "@/lib/forest/rides";
@@ -26,16 +28,21 @@ type Loaded = ReturnType<typeof fromSnapshot> & { day: string };
 function MemberTree() {
   const { fid, uid } = Route.useParams();
   const [members, setMembers] = useState<Member[]>([]);
-  const [tree, setTree] = useState<Loaded | null | undefined>(undefined);
+  // The published tree, kept on the device (persisted query cache) and checked again after 15 minutes.
+  const q = useQuery({
+    queryKey: ["forest-tree", fid, uid],
+    queryFn: () => readTree(fid, uid),
+    staleTime: 15 * 60_000,
+  });
+  const raw = q.isError ? null : q.data;
+  useScreenTrace("member_tree_open", raw !== undefined, !q.isFetchedAfterMount);
+  const tree = useMemo<Loaded | null | undefined>(
+    () => (raw ? { ...fromSnapshot(raw.header, raw.years), day: raw.header.day } : raw),
+    [raw],
+  );
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [ref, w] = useWidth();
   useEffect(() => watchMembers(fid, setMembers), [fid]);
-  useEffect(() => {
-    void readTree(fid, uid).then(
-      (r) => setTree(r ? { ...fromSnapshot(r.header, r.years), day: r.header.day } : null),
-      () => setTree(null),
-    );
-  }, [fid, uid]);
   const name = members.find((m) => m.uid === uid)?.name ?? "";
   const today = isoDate(new Date());
   const days = useMemo(() => {

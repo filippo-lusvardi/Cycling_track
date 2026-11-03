@@ -1,7 +1,6 @@
 // Where an account's training data comes from: intervals.icu, or Cirmolo itself (rides from uploaded FIT files, computed on the device and stored in the account). Both expose the same functions, so pages don't
 // care which one an account uses. Types stay in ./intervals.
 import * as intervals from "./intervals";
-import * as native from "./native";
 import { API_KEY, readSetting, SOURCE } from "./settings";
 
 export type SourceKind = "intervals" | "native";
@@ -33,12 +32,14 @@ type Source = Pick<
 export const sourceKind = (): SourceKind =>
   readSetting<SourceKind>(SOURCE) === "native" ? "native" : "intervals";
 
-const impl = (): Source => (sourceKind() === "native" ? native : intervals);
+// Cirmolo's own store needs Firestore, so it's loaded only by accounts that use it (every Source function is async).
+const impl = async (): Promise<Source> =>
+  sourceKind() === "native" ? await import("./native") : intervals;
 
 /** The function `k` of the account's source, looked up at call time (the source can change in Settings). */
 function via<K extends keyof Source>(k: K): Source[K] {
-  return ((...args: unknown[]) =>
-    (impl()[k] as (...a: unknown[]) => unknown)(...args)) as Source[K];
+  return (async (...args: unknown[]) =>
+    ((await impl())[k] as (...a: unknown[]) => unknown)(...args)) as Source[K];
 }
 
 export const getAthlete = via("getAthlete");

@@ -15,6 +15,7 @@ export function GradientProfile({
   hover,
   onHover,
   markers,
+  focus,
 }: {
   dist: number[];
   alt: number[];
@@ -22,6 +23,8 @@ export function GradientProfile({
   onHover?: (i: number | null) => void;
   /** Dots on the altitude line at these distances (m), e.g. the riders of a ghost race. */
   markers?: { dist: number; color: string }[];
+  /** A stretch to highlight (distances in m, e.g. a climb within a ride): the rest of the profile is dimmed. */
+  focus?: { from: number; to: number } | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(600);
@@ -33,7 +36,12 @@ export function GradientProfile({
   }, []);
 
   const chunks = useMemo(() => gradeChunks(dist, alt), [dist, alt]);
-  if (chunks.length === 0) return <p className="text-sm text-muted-foreground">{t("No altitude data.", "Nessun dato altimetrico.")}</p>;
+  if (chunks.length === 0)
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("No altitude data.", "Nessun dato altimetrico.")}
+      </p>
+    );
 
   const total = dist.at(-1)!;
   const lo = Math.min(...chunks.map((c) => Math.min(c.altFrom, c.altTo)));
@@ -44,7 +52,11 @@ export function GradientProfile({
   const x = (d: number) => PAD.l + (d / total) * (w - PAD.l - PAD.r);
   const y = (a: number) => PAD.t + (1 - (a - yMin) / (yMax - yMin)) * (H - PAD.t - PAD.b);
   const bottom = H - PAD.b;
-  const kmStep = total > 20000 ? 5 : total > 8000 ? 2 : total > 3000 ? 1 : 0.5;
+  // Pick the smallest "nice" step that keeps labels (e.g. "120 km") at least ~52 px apart, so narrow phone
+  // screens get fewer ticks instead of overlapping ones.
+  const kmPerPx = total / 1000 / (w - PAD.l - PAD.r);
+  const kmStep =
+    [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((s) => s / kmPerPx >= 52) ?? 1000;
   const kms = Array.from({ length: Math.floor(total / 1000 / kmStep) + 1 }, (_, i) => i * kmStep);
   const hc = hover != null ? chunks.find((c) => hover >= c.i0 && hover <= c.i1) : undefined;
 
@@ -66,12 +78,29 @@ export function GradientProfile({
         onPointerDown={pick}
         onPointerLeave={() => onHover?.(null)}
         role="img"
-        aria-label={t("Elevation profile coloured by gradient", "Profilo altimetrico colorato per pendenza")}
+        aria-label={t(
+          "Elevation profile coloured by gradient",
+          "Profilo altimetrico colorato per pendenza",
+        )}
       >
         {[lo, hi].map((a) => (
           <g key={a}>
-            <line x1={PAD.l} x2={w - PAD.r} y1={y(a)} y2={y(a)} stroke="var(--border)" strokeDasharray="2 4" />
-            <text x={PAD.l - 6} y={y(a)} textAnchor="end" dominantBaseline="middle" fontSize="10" fill="var(--muted-foreground)">
+            <line
+              x1={PAD.l}
+              x2={w - PAD.r}
+              y1={y(a)}
+              y2={y(a)}
+              stroke="var(--border)"
+              strokeDasharray="2 4"
+            />
+            <text
+              x={PAD.l - 6}
+              y={y(a)}
+              textAnchor="end"
+              dominantBaseline="middle"
+              fontSize="10"
+              fill="var(--muted-foreground)"
+            >
               {Math.round(a)}
             </text>
           </g>
@@ -113,14 +142,60 @@ export function GradientProfile({
           </g>
         ))}
         <polyline
-          points={chunks.map((c) => `${x(c.from)},${y(c.altFrom)}`).join(" ") + ` ${x(total)},${y(chunks.at(-1)!.altTo)}`}
+          points={
+            chunks.map((c) => `${x(c.from)},${y(c.altFrom)}`).join(" ") +
+            ` ${x(total)},${y(chunks.at(-1)!.altTo)}`
+          }
           fill="none"
           stroke="var(--foreground)"
           strokeWidth="1.5"
         />
+        {focus && (
+          <g pointerEvents="none">
+            <rect
+              x={PAD.l}
+              y={PAD.t}
+              width={Math.max(0, x(focus.from) - PAD.l)}
+              height={bottom - PAD.t}
+              fill="var(--background)"
+              opacity={0.65}
+            />
+            <rect
+              x={x(focus.to)}
+              y={PAD.t}
+              width={Math.max(0, w - PAD.r - x(focus.to))}
+              height={bottom - PAD.t}
+              fill="var(--background)"
+              opacity={0.65}
+            />
+            <line
+              x1={x(focus.from)}
+              x2={x(focus.from)}
+              y1={PAD.t}
+              y2={bottom}
+              stroke="var(--pine)"
+              strokeWidth={2}
+            />
+            <line
+              x1={x(focus.to)}
+              x2={x(focus.to)}
+              y1={PAD.t}
+              y2={bottom}
+              stroke="var(--lingon)"
+              strokeWidth={2}
+            />
+          </g>
+        )}
         <line x1={PAD.l} x2={w - PAD.r} y1={bottom} y2={bottom} stroke="var(--muted-foreground)" />
         {kms.map((k) => (
-          <text key={k} x={x(k * 1000)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--muted-foreground)">
+          <text
+            key={k}
+            x={x(k * 1000)}
+            y={H - 8}
+            textAnchor={x(k * 1000) > w - PAD.r - 20 ? "end" : "middle"}
+            fontSize="10"
+            fill="var(--muted-foreground)"
+          >
             {k} km
           </text>
         ))}
@@ -128,14 +203,35 @@ export function GradientProfile({
           const a = lineAlt(chunks, mk.dist);
           return (
             <g key={i} pointerEvents="none">
-              <line x1={x(mk.dist)} x2={x(mk.dist)} y1={y(a)} y2={bottom} stroke={mk.color} strokeWidth={1.5} />
-              <circle cx={x(mk.dist)} cy={y(a)} r={6} fill={mk.color} stroke="#0b1220" strokeWidth={2} />
+              <line
+                x1={x(mk.dist)}
+                x2={x(mk.dist)}
+                y1={y(a)}
+                y2={bottom}
+                stroke={mk.color}
+                strokeWidth={1.5}
+              />
+              <circle
+                cx={x(mk.dist)}
+                cy={y(a)}
+                r={6}
+                fill={mk.color}
+                stroke="#0b1220"
+                strokeWidth={2}
+              />
             </g>
           );
         })}
         {hover != null && dist[hover] != null && (
           <g pointerEvents="none">
-            <line x1={x(dist[hover]!)} x2={x(dist[hover]!)} y1={PAD.t} y2={bottom} stroke="var(--foreground)" strokeDasharray="3 3" />
+            <line
+              x1={x(dist[hover]!)}
+              x2={x(dist[hover]!)}
+              y1={PAD.t}
+              y2={bottom}
+              stroke="var(--foreground)"
+              strokeDasharray="3 3"
+            />
             <text
               x={Math.min(w - 90, Math.max(PAD.l + 4, x(dist[hover]!) + 6))}
               y={PAD.t + 10}
@@ -143,7 +239,8 @@ export function GradientProfile({
               fill="var(--foreground)"
               className="stat-num"
             >
-              {(dist[hover]! / 1000).toFixed(2)} km · {Math.round(alt[hover]!)} m{hc ? ` · ${hc.grade.toFixed(1)}%` : ""}
+              {(dist[hover]! / 1000).toFixed(2)} km · {Math.round(alt[hover]!)} m
+              {hc ? ` · ${hc.grade.toFixed(1)}%` : ""}
             </text>
           </g>
         )}
@@ -174,12 +271,28 @@ function lineAlt(chunks: Chunk[], d: number): number {
   return c.altFrom + (c.altTo - c.altFrom) * f;
 }
 
-/** Map polylines for a path, one per 100 m chunk, coloured by gradient like the profile. */
-export function gradientLines(t: { lat: number[]; lng: number[]; dist: number[]; alt: number[] }) {
-  return gradeChunks(t.dist, t.alt).map((c) => ({
+/**
+ * Map polylines for a path, one per 100 m chunk, coloured by gradient like the profile. With `focus` (point indices),
+ * the chunks outside it are faded and the stretch itself gets a white outline, so it stands out on the map.
+ */
+export function gradientLines(
+  t: { lat: number[]; lng: number[]; dist: number[]; alt: number[] },
+  focus?: { i0: number; i1: number } | null,
+) {
+  const lines = gradeChunks(t.dist, t.alt).map((c) => ({
     lat: t.lat.slice(c.i0, c.i1 + 1),
     lng: t.lng.slice(c.i0, c.i1 + 1),
     color: gradeColor(c.grade),
     weight: 6,
+    opacity: focus && (c.i1 <= focus.i0 || c.i0 >= focus.i1) ? 0.35 : 1,
   }));
+  if (!focus) return lines;
+  const outline = {
+    lat: t.lat.slice(focus.i0, focus.i1 + 1),
+    lng: t.lng.slice(focus.i0, focus.i1 + 1),
+    color: "#ffffff",
+    weight: 11,
+    opacity: 0.9,
+  };
+  return [outline, ...lines];
 }

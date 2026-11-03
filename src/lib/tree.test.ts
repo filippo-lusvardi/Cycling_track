@@ -14,6 +14,7 @@ import {
   returningFromBreak,
   leafSpots,
   perchSpots,
+  rideRecords,
   seasonLabel,
   seasonOf,
   seasonPhase,
@@ -391,6 +392,13 @@ describe("bird perches", () => {
     expect(spots[0]! * len).toBeGreaterThanOrEqual(bird * 0.8 - 1e-6);
     expect(spots[3]!).toBeLessThanOrEqual(1);
   });
+  it("keeps birds clear of an animal already sitting there, and a tall one low", () => {
+    const [g] = perchSpots(1, 2, 0.4, len, 30, { upTo: 0.5 });
+    expect(g!).toBeLessThanOrEqual(0.5);
+    const spots = perchSpots(3, 2, 0.4, len, bird, { taken: [{ t: g!, w: 30 }] });
+    for (const s of spots)
+      expect(Math.abs(s - g!) * len).toBeGreaterThanOrEqual((30 + bird) / 2 - 1);
+  });
   it("still places every bird when the branch is crowded", () => {
     expect(perchSpots(8, 20, 0.4, 60, bird)).toHaveLength(8);
     expect(perchSpots(0, 3, 0.4, len, bird)).toEqual([]);
@@ -414,5 +422,45 @@ describe("scars", () => {
       { start: "2026-01-10", end: "2026-01-14", from: 9, to: 13 },
       { start: "2026-03-01", end: "2026-03-01", from: 59, to: 59 },
     ]);
+  });
+});
+
+describe("all-time ride records (squirrel and owl)", () => {
+  const today = "2026-10-20";
+  it("finds the longest ride and the one with the most climbing, among rides only", () => {
+    const acts = [
+      act("flat", "2025-06-01", 300, 200, { distance: 160_000, total_elevation_gain: 400 }),
+      act("alps", "2026-07-10", 280, 260, { distance: 120_000, total_elevation_gain: 3200 }),
+      act("ultra", "2026-05-01", 600, 150, {
+        type: "Run",
+        distance: 200_000,
+        total_elevation_gain: 5000,
+      }),
+    ];
+    expect(rideRecords(acts, today)).toEqual({ longest: "flat", mostClimbing: "alps" });
+  });
+  it("keeps the earlier ride on a tie and ignores the future", () => {
+    const acts = [
+      act("first", "2026-01-01", 60, 50, { distance: 50_000 }),
+      act("again", "2026-02-01", 60, 50, { distance: 50_000 }),
+      act("planned", "2026-12-01", 60, 50, { distance: 90_000 }),
+    ];
+    expect(rideRecords(acts, today)).toEqual({ longest: "first", mostClimbing: null });
+  });
+  it("marks the record branches in the tree", () => {
+    const acts = [
+      act("a", "2026-10-18", 60, 50, { distance: 30_000, total_elevation_gain: 900 }),
+      act("b", "2026-10-19", 90, 70, { distance: 60_000, total_elevation_gain: 300 }),
+    ];
+    const days = buildDays(acts, [], "2026-10-18", today);
+    const branches = days.flatMap((d) => d.branches);
+    expect(branches.find((b) => b.id === "b")).toMatchObject({
+      longest: true,
+      mostClimbing: false,
+    });
+    expect(branches.find((b) => b.id === "a")).toMatchObject({
+      longest: false,
+      mostClimbing: true,
+    });
   });
 });

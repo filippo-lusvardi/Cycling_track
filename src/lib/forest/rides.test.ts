@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effortOf, ridePage, trimEnds } from "./rides";
+import { climbOnRoute, effortOf, ridePage, trimEnds } from "./rides";
 import type { SharedRide } from "./types";
 
 const track = (km: number) => {
@@ -73,5 +73,48 @@ describe("effortOf", () => {
       icu_weighted_avg_watts: null,
     };
     expect(effortOf(none, { watts: [null, 0] })).toBeNull();
+  });
+});
+
+describe("a forest climb on a shared route", () => {
+  // 60 km, thinned to 400 points (about 150 m apart) like a published page.
+  const route = ridePage(ride, track(60), true).route!;
+  const climb = (fromM: number, toM: number, lng = 11) => ({
+    lat1: 46 + fromM / 1e5,
+    lng1: lng,
+    lat2: 46 + toM / 1e5,
+    lng2: lng,
+    length: toM - fromM,
+  });
+
+  it("finds where the climb starts and ends, in the route's own distances", () => {
+    const span = climbOnRoute(route, climb(20_000, 25_000))!;
+    expect(span).not.toBeNull();
+    // The route starts 1 km into the ride (hidden end).
+    expect(span.from).toBeGreaterThan(19_000 - 200);
+    expect(span.from).toBeLessThan(19_000 + 200);
+    expect(span.to).toBeGreaterThan(24_000 - 200);
+    expect(span.to).toBeLessThan(24_000 + 200);
+    expect(span.i1).toBeGreaterThan(span.i0);
+  });
+
+  it("isn't found elsewhere or in a hidden end", () => {
+    expect(climbOnRoute(route, climb(20_000, 25_000, 11.2))).toBeNull();
+    expect(climbOnRoute(route, climb(0, 600))).toBeNull();
+  });
+});
+
+describe("lifetime riding, for the tree's height", () => {
+  it("takes the first ride ever and every ride's kilometres, not other sports", async () => {
+    const { lifetime } = await import("./publish");
+    const a = (id: string, date: string, type: string, distance: number) =>
+      ({ id, type, start_date_local: `${date}T08:00:00`, distance }) as never;
+    expect(
+      lifetime([
+        a("r1", "2021-04-02", "Ride", 50_000),
+        a("run", "2019-01-01", "Run", 10_000),
+        a("r2", "2024-06-01", "GravelRide", 80_400),
+      ]),
+    ).toEqual({ since: "2021-04-02", km: 130 });
   });
 });

@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
 import type { Forest, Member } from "@/lib/forest/forests";
 import type { ForestClimb, ForestTime } from "@/lib/forest/leaderboard";
+import { RIDE_PAGE_DAYS } from "@/lib/forest/rides";
 import { format, t } from "@/lib/i18n";
 import { gradeChunks, maxGrade } from "@/lib/profile";
-import { formatClock } from "@/lib/training";
+import { addDays, formatClock, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 
 /** A forest climb's page: like one's own climb page, with the forest's leaderboard instead of one's efforts. */
@@ -149,7 +150,7 @@ export function ForestClimbView({
       )}
 
       <Panel title={t("Leaderboard", "Classifica")}>
-        <Leaderboard times={times} names={names} me={me} />
+        <Leaderboard fid={fid} sid={sid} times={times} names={names} me={me} />
       </Panel>
 
       {canRemove && (
@@ -163,12 +164,19 @@ export function ForestClimbView({
   );
 }
 
-/** Everyone's best time from the rides they share here, fastest first; mine highlighted. */
+/**
+ * Everyone's best time from the rides they share here, fastest first; mine highlighted. Each opens its ride: mine my
+ * own ride page, a friend's the page they share with the forest (published for the last year's rides only).
+ */
 function Leaderboard({
+  fid,
+  sid,
   times,
   names,
   me,
 }: {
+  fid: string;
+  sid: string;
   times: ForestTime[];
   names: Map<string, string>;
   me: string | undefined;
@@ -182,6 +190,7 @@ function Leaderboard({
         )}
       </p>
     );
+  const since = addDays(isoDate(new Date()), -RIDE_PAGE_DAYS);
   return (
     <ol className="-mx-4 divide-y divide-border">
       {times.map((x, i) => {
@@ -218,14 +227,19 @@ function Leaderboard({
           </>
         );
         const cls = cn("flex items-center gap-3 px-4 py-3", x.uid === me && "bg-primary/5");
+        const link = cn(cls, "hover:bg-secondary/40");
         return (
           <li key={x.uid}>
-            {/* My own time opens my ride; friends' rides stay theirs. */}
             {x.uid === me ? (
+              <Link to="/rides/$id" params={{ id: x.rideId }} className={link}>
+                {row}
+              </Link>
+            ) : x.date.slice(0, 10) >= since ? (
               <Link
-                to="/rides/$id"
-                params={{ id: x.rideId }}
-                className={cn(cls, "hover:bg-secondary/40")}
+                to="/forest/$fid/$uid/ride/$rid"
+                params={{ fid, uid: x.uid, rid: x.rideId }}
+                search={{ climb: sid }}
+                className={link}
               >
                 {row}
               </Link>

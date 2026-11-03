@@ -26,7 +26,9 @@ service cloud.firestore {
         && request.resource.data.members == [me()]
         && request.resource.data.name is string && request.resource.data.name.size() <= 40;
       allow update: if signedIn() && me() in resource.data.members
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["members", "name"])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["members", "name", "climbsAt"])
+        // Stamped when a climb is added or removed, so members' apps re-read climbs only then.
+        && (!("climbsAt" in request.resource.data) || request.resource.data.climbsAt is number)
         && request.resource.data.name is string && request.resource.data.name.size() <= 40
         && request.resource.data.members.size() <= 30
         && membersChangeOk(resource.data, request.resource.data.members);

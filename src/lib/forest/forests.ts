@@ -1,7 +1,7 @@
 // Forests: friends and teammates whose trees grow side by side. Membership lives in Firestore; each member's own
 // app publishes a filtered copy of their tree into every forest they're in (./publish.ts), since training data
 // never passes through a server.
-//   forests/{fid}                 { name, createdBy, createdAt, members: [uid] }
+//   forests/{fid}                 { name, createdBy, createdAt, members: [uid], climbsAt? }
 //   forests/{fid}/invites/{key}   { name, by }            the secret in an invite link
 //   forests/{fid}/requests/{uid}  { name, key, at, consentAt }
 //   forests/{fid}/members/{uid}   { name, joinedAt, consentAt, defaultShared, sharePast }
@@ -21,7 +21,8 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { del, keys } from "idb-keyval";
-import { auth, db, uid } from "../firebase";
+import { auth, uid } from "../firebase";
+import { db } from "../db";
 
 /** A name to start from: the part of the account's email before the @. */
 export const defaultName = () => auth.currentUser?.email?.split("@")[0] ?? "";
@@ -35,6 +36,8 @@ export type Forest = {
   createdBy: string;
   createdAt: number;
   members: string[];
+  /** When a climb was last added or removed (missing until the first change after stamps existed). */
+  climbsAt?: number;
 };
 export type Member = {
   uid: string;
