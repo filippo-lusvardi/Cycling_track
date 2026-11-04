@@ -1,7 +1,7 @@
 import { useId, useMemo } from "react";
 import { MiniTree, WildPines, type SceneTree } from "@/components/forest/ForestScene";
 import { useNow } from "@/hooks/use-now";
-import { daylight, lit } from "@/lib/daylight";
+import { daylight, hazed, lit } from "@/lib/daylight";
 import { treeGrowth } from "@/lib/forest/age";
 import type { Forest } from "@/lib/forest/forests";
 import { t } from "@/lib/i18n";
@@ -129,7 +129,7 @@ export function ForestWorld({
   const clock = useNow();
   const d = daylight(now ?? clock);
   const L = (c: string) => lit(c, d);
-  const pines = L("color-mix(in oklab, var(--pine) 22%, var(--background))");
+  const pines = L("color-mix(in oklab, var(--pine) 22%, var(--scene-background))");
   const ridge = (key: string, top: number, depth: number) => {
     const ys = ridgeAcross(`world${key}`, W, 1.3);
     const pts = ys.map(
@@ -147,37 +147,44 @@ export function ForestWorld({
     >
       <defs>
         <linearGradient id={`${uid}valley`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: L("var(--secondary)") }} />
-          <stop offset="1" style={{ stopColor: L("var(--background)") }} />
+          <stop offset="0" style={{ stopColor: L("var(--scene-secondary)") }} />
+          <stop offset="1" style={{ stopColor: L("var(--scene-background)") }} />
         </linearGradient>
         {/* Pale where the trail comes toward you, fading into the dark up by the mountains. */}
         <linearGradient id={`${uid}trail`} x1="0" y1="0" x2="0" y2="1">
           <stop
             offset="0"
-            style={{ stopColor: L("color-mix(in oklab, var(--birch) 12%, var(--secondary))") }}
+            style={{
+              stopColor: L("color-mix(in oklab, var(--birch) 12%, var(--scene-secondary))"),
+            }}
             stopOpacity={0.2}
           />
           <stop
             offset="1"
-            style={{ stopColor: L("color-mix(in oklab, var(--birch) 22%, var(--secondary))") }}
+            style={{
+              stopColor: L("color-mix(in oklab, var(--birch) 22%, var(--scene-secondary))"),
+            }}
             stopOpacity={0.9}
           />
         </linearGradient>
         <radialGradient id={`${uid}hill`} cx="0.5" cy="0.3" r="0.7">
           <stop
             offset="0"
-            style={{ stopColor: L("color-mix(in oklab, var(--pine) 18%, var(--secondary))") }}
+            style={{ stopColor: L("color-mix(in oklab, var(--pine) 18%, var(--scene-secondary))") }}
           />
-          <stop offset="1" style={{ stopColor: L("var(--card)") }} />
+          <stop offset="1" style={{ stopColor: L("var(--scene-card)") }} />
         </radialGradient>
       </defs>
       {/* The sky is the page's own (components/sky/SkyPage), behind this scene from the window's top. */}
       <polygon
         points={ridge("far", SKY + 18, 50)}
-        fill={L("color-mix(in oklab, var(--border) 80%, var(--primary))")}
-        opacity={0.5 + d.light * 0.2}
+        fill={hazed(
+          L("color-mix(in oklab, var(--scene-border) 80%, var(--primary))"),
+          d,
+          0.5 + d.light * 0.2,
+        )}
       />
-      <polygon points={ridge("mid", SKY + 44, 44)} fill={L("var(--muted)")} />
+      <polygon points={ridge("mid", SKY + 44, 44)} fill={L("var(--scene-muted)")} />
       <path
         d={`M0,${TOP} Q${W / 2},${TOP - 26} ${W},${TOP} L${W},${H} L0,${H} Z`}
         fill={`url(#${uid}valley)`}
@@ -291,7 +298,7 @@ function Wood({
         rx={98}
         ry={28}
         fill="none"
-        stroke="var(--border)"
+        stroke="var(--scene-border)"
         strokeOpacity={0.6}
       />
       {placed.map((p) => (
@@ -358,7 +365,7 @@ function Clearing({
       onClick={onPlant}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onPlant()}
     >
-      <ellipse cx={x} cy={y + 26} rx={70} ry={20} fill="var(--card)" opacity={0.7} />
+      <ellipse cx={x} cy={y + 26} rx={70} ry={20} fill="var(--scene-card)" opacity={0.7} />
       <circle
         className="ring"
         cx={x}

@@ -99,6 +99,7 @@ day, with the moon at night; the weather is your form). Tap the tree for the Tre
 yoga class, hike, swim or ski outing of the last 8 weeks is a plant in its sport's bed (tomatoes, pumpkins, flowers,
 herbs, water lilies…), its fruit ripening over the week after. Older months go into the **Pantry**, a jar per month
 (the *Garden · Pantry* switch at the bottom). Tap a plant to open its activity.
+Settings → *What grows for each sport* picks the plants, and adds sports of your own (padel, tennis…) with a bed each.
 
 **The Tree** grows from your rides only; other sports show as a small sprout on that day's bark and live in the
 Garden. Trunk and crown still count all your training. Besides seasons, sky and branches (Settings → *How to read

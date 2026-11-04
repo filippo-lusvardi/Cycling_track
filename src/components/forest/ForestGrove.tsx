@@ -68,7 +68,7 @@ export function ForestGrove({
   const ridgeFoot = W <= 360 ? TOP + 50 : back ? TOP + 96 : TOP + pad + mrow - 30;
   const clock = useNow();
   const d = daylight(now ?? clock);
-  const pines = lit("color-mix(in oklab, var(--pine) 22%, var(--background))", d);
+  const pines = lit("color-mix(in oklab, var(--pine) 22%, var(--scene-background))", d);
   const far = ridgeAcross(`${seed}grove`, W, 1.3);
   // Each row its own gentle hill, a little lighter toward you; trees stand on its line.
   const hillY = (row: number, x: number) => {
@@ -118,7 +118,7 @@ export function ForestGrove({
         points={`0,${H} 0,${ridgeFoot} ${far.map((y, i) => `${((i / (far.length - 1)) * W).toFixed(1)},${(SKY + 14 + (1 - y) * 52).toFixed(1)}`).join(" ")} ${W},${ridgeFoot} ${W},${H}`}
         // Opaque: land, never sky, behind the trees (a bright dusk sky would hide their trunks).
         fill={lit(
-          "color-mix(in oklab, var(--border) 70%, color-mix(in oklab, var(--primary) 20%, var(--background)))",
+          "color-mix(in oklab, var(--scene-border) 70%, color-mix(in oklab, var(--primary) 20%, var(--scene-background)))",
           d,
         )}
       />
@@ -128,7 +128,7 @@ export function ForestGrove({
             d={hill(row)}
             style={{
               fill: lit(
-                `color-mix(in oklab, var(--summer) ${Math.round(d.light * 14)}%, color-mix(in oklab, var(--secondary) ${shade(row)}%, var(--background)))`,
+                `color-mix(in oklab, var(--summer) ${Math.round(d.light * 14)}%, color-mix(in oklab, var(--scene-secondary) ${shade(row)}%, var(--scene-background)))`,
                 d,
               ),
             }}

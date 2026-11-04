@@ -92,7 +92,7 @@ function RideDetail() {
         to="/rides"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> {t("Rides", "Attività")}
+        <ArrowLeft className="h-4 w-4" /> {t("Activities", "Attività")}
       </Link>
       <div>
         <div className="eyebrow">
@@ -101,7 +101,9 @@ function RideDetail() {
             : ""}{" "}
           · {a.type}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">{a.name ?? t("Activity", "Attività")}</h1>
+        <h1 className="on-sky text-3xl font-bold tracking-tight">
+          {a.name ?? t("Activity", "Attività")}
+        </h1>
         {a.garmin && <p className="mt-1 text-sm text-muted-foreground">{a.garmin}</p>}
         {withoutBrioches(a.description) && (
           <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">

@@ -78,7 +78,7 @@ function Body() {
     <div className="space-y-6">
       <div>
         <div className="eyebrow">{t("Last 180 days", "Ultimi 180 giorni")}</div>
-        <h1 className="text-3xl font-bold tracking-tight">{t("Body & Weight", "Corpo e peso")}</h1>
+        <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Body & Weight", "Corpo e peso")}</h1>
       </div>
       <div
         className={`grid grid-cols-2 gap-3 ${lean != null ? "md:grid-cols-4" : "md:grid-cols-3"}`}

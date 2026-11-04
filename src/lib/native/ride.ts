@@ -1,5 +1,6 @@
 // A ride as Cirmolo stores it for accounts without intervals.icu. Pure, so mappers and tests need no Firebase.
 import type { ActivityDetail } from "../intervals";
+import type { FileTotals } from "../metrics";
 
 export type Origin = "fit" | "manual";
 
@@ -10,6 +11,10 @@ export type Stored = ActivityDetail & {
   /** Outdoors with GPS: the Segments engine reads it. */
   outdoor: boolean;
   hasStreams: boolean;
+  /** The ride file's own summary, kept so recomputing the numbers later still uses it. */
+  totals?: FileTotals;
+  /** Which version of the file parser wrote it (older rides have none). */
+  parser?: number;
 };
 
 /** A ride with no numbers yet, for the fields a source doesn't provide. */

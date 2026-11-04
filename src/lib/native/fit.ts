@@ -3,9 +3,12 @@ import { Decoder, Stream } from "@garmin/fitsdk";
 import { garminAttribution } from "../garmin";
 import { t } from "../i18n";
 import type { ActivityDetail, RideStreams } from "../intervals";
-import { toOneHz } from "../metrics";
+import { toOneHz, type FileTotals } from "../metrics";
 
 type Rec = Record<string, unknown>;
+
+/** Bump when parsing changes what a file yields: re-uploading a file stored by an older version then refreshes it. */
+export const FIT_PARSER = 2;
 
 export type ParsedRide = {
   id: string;
@@ -14,6 +17,8 @@ export type ParsedRide = {
   start_date_local: string;
   trainer: boolean;
   garmin: string | null;
+  calories: number | null;
+  totals: FileTotals;
   streams: RideStreams;
   intervals: NonNullable<ActivityDetail["icu_intervals"]>;
 };
@@ -77,18 +82,82 @@ function rideName(start: Date, type: string) {
   return t(`${part} ${what}`, `${what[0]!.toUpperCase()}${what.slice(1)} · ${part.toLowerCase()}`);
 }
 
-export function parseFit(buf: ArrayBuffer): ParsedRide {
+/** One sample per timestamp: Strava's exports split each second over several records (distance, GPS, heart rate). */
+export function mergeRecords(records: Rec[]): Rec[] {
+  const out: Rec[] = [];
+  let at = NaN;
+  for (const r of records) {
+    const time = (r["timestamp"] as Date).getTime();
+    if (time === at) Object.assign(out[out.length - 1]!, r);
+    else out.push({ ...r });
+    at = time;
+  }
+  return out;
+}
+
+/**
+ * Spreads a distance that repeats for a moment and then jumps (a phone updates it every other second) over those
+ * seconds, so standing still isn't read between strides. A longer repeat is a real stop and stays.
+ */
+export function evenDistance(time: number[], distance: number[], maxSecs = 5) {
+  for (let i = 0; i < distance.length; i++) {
+    let next = i + 1;
+    while (next < distance.length && distance[next] === distance[i]) next++;
+    if (next >= distance.length || next === i + 1) continue;
+    const span = time[next]! - time[i]!;
+    if (span <= maxSecs)
+      for (let k = i + 1; k < next; k++)
+        distance[k] =
+          distance[i]! + ((distance[next]! - distance[i]!) * (time[k]! - time[i]!)) / span;
+    i = next - 1;
+  }
+}
+
+/** The ride's real laps, cut to its end: Strava's exports add a phantom lap starting after the last sample. */
+export function lapIntervals(laps: Rec[], t0: number, tEnd: number): ParsedRide["intervals"] {
+  const real = laps.filter(
+    (l) => l["startTime"] instanceof Date && (l["startTime"] as Date).getTime() < tEnd,
+  );
+  if (real.length < 2) return [];
+  return real.map((l, i) => {
+    const from = Math.round(((l["startTime"] as Date).getTime() - t0) / 1000);
+    const secs = num(l["totalElapsedTime"]) ?? num(l["totalTimerTime"]) ?? 0;
+    return {
+      id: i + 1,
+      label: t(`Lap ${i + 1}`, `Giro ${i + 1}`),
+      type: null,
+      moving_time: num(l["totalTimerTime"]),
+      average_watts: num(l["avgPower"]),
+      average_heartrate: num(l["avgHeartRate"]),
+      start_time: from,
+      end_time: Math.min(Math.round(from + secs), Math.round((tEnd - t0) / 1000)),
+    };
+  });
+}
+
+/** "Corsa_serale.fit" → "Corsa serale": Strava names its exports after the activity's title. */
+const titleFromFile = (fileName: string) =>
+  fileName
+    .replace(/\.fit$/i, "")
+    .replace(/_+/g, " ")
+    .trim();
+
+/** A sensor's last value through the odd second without a sample; a longer silence stays empty. */
+const SENSOR_HOLD = 10;
+
+export function parseFit(buf: ArrayBuffer, fileName = ""): ParsedRide {
   const decoder = new Decoder(Stream.fromArrayBuffer(buf));
   if (!decoder.isFIT()) throw new Error("not a FIT file");
   const { messages } = decoder.read();
-  const records = ((messages["recordMesgs"] as Rec[]) ?? []).filter(
-    (r) => r["timestamp"] instanceof Date,
+  const records = mergeRecords(
+    ((messages["recordMesgs"] as Rec[]) ?? []).filter((r) => r["timestamp"] instanceof Date),
   );
   if (!records.length) throw new Error("no samples");
   const session = ((messages["sessionMesgs"] as Rec[]) ?? [])[0] ?? {};
   const fileId = ((messages["fileIdMesgs"] as Rec[]) ?? [])[0] ?? {};
   const start = (session["startTime"] as Date) ?? (records[0]!["timestamp"] as Date);
   const t0 = (records[0]!["timestamp"] as Date).getTime();
+  const tEnd = (records.at(-1)!["timestamp"] as Date).getTime();
 
   const hasGps = records.some((r) => num(r["positionLat"]) != null);
   let lastLat = 0;
@@ -103,13 +172,27 @@ export function parseFit(buf: ArrayBuffer): ParsedRide {
     lat: [],
     lng: [],
   };
+  // Last seen per sensor, carried over the brief holes between its samples.
+  const seen: Record<string, { at: number; value: number }> = {};
+  const held = (key: string, value: number | null, at: number) => {
+    if (value != null) seen[key] = { at, value };
+    const s = seen[key];
+    return s && at - s.at <= SENSOR_HOLD ? s.value : null;
+  };
+  const firstAltitude =
+    records.map((r) => num(r["enhancedAltitude"]) ?? num(r["altitude"])).find((a) => a != null) ??
+    0;
   for (const r of records) {
-    raw.time.push(((r["timestamp"] as Date).getTime() - t0) / 1000);
+    const at = ((r["timestamp"] as Date).getTime() - t0) / 1000;
+    raw.time.push(at);
     raw.distance.push(num(r["distance"]) ?? raw.distance.at(-1) ?? 0);
-    raw.altitude.push(num(r["enhancedAltitude"]) ?? num(r["altitude"]) ?? raw.altitude.at(-1) ?? 0);
-    raw.watts.push(num(r["power"]));
-    raw.heartrate.push(num(r["heartRate"]));
-    raw.cadence.push(num(r["cadence"]));
+    // Before the first reading, the first reading: a 0 would count as a climb from sea level.
+    raw.altitude.push(
+      num(r["enhancedAltitude"]) ?? num(r["altitude"]) ?? raw.altitude.at(-1) ?? firstAltitude,
+    );
+    raw.watts.push(held("watts", num(r["power"]), at));
+    raw.heartrate.push(held("hr", num(r["heartRate"]), at));
+    raw.cadence.push(held("cadence", num(r["cadence"]), at));
     if (hasGps) {
       const la = num(r["positionLat"]);
       const lo = num(r["positionLong"]);
@@ -121,6 +204,7 @@ export function parseFit(buf: ArrayBuffer): ParsedRide {
   // Before the first fix, use the first fix so the track doesn't start at 0,0.
   const first = raw.lat.findIndex((v) => v !== 0);
   for (let i = 0; i < first; i++) [raw.lat[i], raw.lng[i]] = [raw.lat[first]!, raw.lng[first]!];
+  evenDistance(raw.time, raw.distance);
   const streams = toOneHz(raw);
 
   // Zwift's own files: a virtual ride whatever the sub-sport says (its GPS track is the game's map).
@@ -128,30 +212,13 @@ export function parseFit(buf: ArrayBuffer): ParsedRide {
   const { type, trainer } = zwift
     ? { type: "VirtualRide", trainer: true }
     : rideType(session["sport"], session["subSport"]);
-  const laps = ((messages["lapMesgs"] as Rec[]) ?? []).filter(
-    (l) => l["startTime"] instanceof Date,
-  );
-  const intervals =
-    laps.length > 1
-      ? laps.map((l, i) => {
-          const from = Math.round(((l["startTime"] as Date).getTime() - t0) / 1000);
-          const secs = num(l["totalElapsedTime"]) ?? num(l["totalTimerTime"]) ?? 0;
-          return {
-            id: i + 1,
-            label: t(`Lap ${i + 1}`, `Giro ${i + 1}`),
-            type: null,
-            moving_time: num(l["totalTimerTime"]),
-            average_watts: num(l["avgPower"]),
-            average_heartrate: num(l["avgHeartRate"]),
-            start_time: from,
-            end_time: Math.round(from + secs),
-          };
-        })
-      : [];
+  const intervals = lapIntervals((messages["lapMesgs"] as Rec[]) ?? [], t0, tEnd);
+  // Strava titles its exports; anything else gets a name from the time of day.
+  const title = fileId["manufacturer"] === "strava" ? titleFromFile(fileName) : "";
 
   return {
     id: `fit-${Math.round(start.getTime() / 1000)}`,
-    name: rideName(start, type),
+    name: title || rideName(start, type),
     type,
     start_date_local: localIso(start),
     trainer: trainer || (type.includes("Ride") && !hasGps),
@@ -162,6 +229,12 @@ export function parseFit(buf: ArrayBuffer): ParsedRide {
             deviceLabel(fileId["garminProduct"] ?? fileId["product"]),
           )
         : null,
+    calories: num(session["totalCalories"]),
+    totals: {
+      moving: num(session["totalMovingTime"]) ?? num(session["totalTimerTime"]),
+      distance: num(session["totalDistance"]),
+      ascent: num(session["totalAscent"]),
+    },
     streams,
     intervals,
   };

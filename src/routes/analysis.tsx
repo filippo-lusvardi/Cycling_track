@@ -63,7 +63,7 @@ function Analysis() {
     <div className="space-y-6">
       <div>
         <div className="eyebrow">{t("Performance", "Prestazione")}</div>
-        <h1 className="text-3xl font-bold tracking-tight">{t("Analysis", "Analisi")}</h1>
+        <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Analysis", "Analisi")}</h1>
       </div>
       <FitnessSection />
       <PowerSection />

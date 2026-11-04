@@ -347,9 +347,10 @@ export function createSegmentEngine(deps: EngineDeps) {
       return snapshot;
     },
     loadTrack,
-    /** Forget the analysis and redo it from stored tracks (no downloads). */
-    async rebuild() {
+    /** Forget the analysis and redo it from stored tracks; only `changed` rides, whose tracks are out of date, are downloaded. */
+    async rebuild(changed: string[] = []) {
       await running;
+      for (const id of changed) await deps.tracks.del(id);
       await deps.meta.set("version", -1);
       state = null;
       await load();

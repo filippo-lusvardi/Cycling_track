@@ -163,7 +163,7 @@ function CalendarPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">{t("Training & wellness", "Allenamento e benessere")}</div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="on-sky text-3xl font-bold tracking-tight">
             {weekView
               ? `${format(parseISO(first), "d MMM")} – ${format(parseISO(last), "d MMM")}`
               : format(anchor, "MMMM yyyy")}

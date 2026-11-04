@@ -15,7 +15,7 @@ import { treeGrowth } from "@/lib/forest/age";
 import { buildGarden } from "@/lib/garden";
 import { myTreeHeader } from "@/lib/home";
 import { t } from "@/lib/i18n";
-import { rememberSeason } from "@/lib/accent";
+import { rememberTree } from "@/lib/accent";
 import { recordSinceLoad } from "@/lib/perf";
 import { resetSky, setSky } from "@/lib/sky-store";
 import {
@@ -68,8 +68,11 @@ function HomePage() {
     () => crownFor(wellness, acts, today, offEvents),
     [wellness, acts, today, offEvents],
   );
-  // The app's accent follows today's season.
-  useEffect(() => rememberSeason(crown.season), [crown.season]);
+  // The app's colours follow today's season and weather.
+  useEffect(
+    () => rememberTree(crown.season, crown.weather, crown.weatherPhase),
+    [crown.season, crown.weather, crown.weatherPhase],
+  );
   // My forests get a copy of my tree from here too, as from the Tree page.
   usePublishTree({ acts, wellness, offEvents, crown, today });
   const [cropMap] = useCropMap();
@@ -132,8 +135,7 @@ function HomePage() {
       {/* A soft darkening at the top of the sky, so today's words read on a noon sky as on a night one. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute top-0 h-56 bg-gradient-to-b from-background/60 via-background/25 to-transparent"
-        style={{ left: "calc(50% - 50vw)", width: "100vw" }}
+        className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-gradient-to-b from-background/60 via-background/25 to-transparent"
       />
       <div ref={recap} className="absolute inset-x-0 top-0 mx-auto max-w-md px-1 pt-3">
         <TodayRecap

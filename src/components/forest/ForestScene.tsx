@@ -1,13 +1,10 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useWidth } from "@/components/tree/TreeBody";
-import { ridgeAcross } from "@/lib/ridge";
+import { ridgeAcross, worldWidth } from "@/lib/ridge";
 import { SEASON_COLOR, rng, seedOf, type Season } from "@/lib/tree";
 import type { TreeHeader } from "@/lib/forest/types";
 
 export type SceneTree = { uid: string; name: string; header: TreeHeader | undefined };
-
-/** The scenes' width in drawing units: the phone's 360; wider screens get more land, drawn a little larger. */
-const worldWidth = (px: number) => (px < 640 ? 360 : Math.round(px / 1.5));
 
 /**
  * A night scene across the whole window, drawn as wide as the window allows (see worldWidth). `fit` is the height,
@@ -45,7 +42,7 @@ export function WildPines({
   count,
   at,
   size = 1,
-  tone = "color-mix(in oklab, var(--pine) 22%, var(--background))",
+  tone = "color-mix(in oklab, var(--pine) 22%, var(--scene-background))",
 }: {
   seed: string;
   w: number;
@@ -141,23 +138,23 @@ export function ForestScene({
     <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img">
       <defs>
         <linearGradient id={`${uid}sky`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="var(--background)" />
+          <stop offset="0" stopColor="var(--scene-background)" />
           <stop
             offset="1"
-            style={{ stopColor: "color-mix(in oklab, var(--primary) 12%, var(--card))" }}
+            style={{ stopColor: "color-mix(in oklab, var(--primary) 12%, var(--scene-card))" }}
           />
         </linearGradient>
         <linearGradient id={`${uid}hill`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="var(--secondary)" />
-          <stop offset="1" stopColor="var(--background)" />
+          <stop offset="0" stopColor="var(--scene-secondary)" />
+          <stop offset="1" stopColor="var(--scene-background)" />
         </linearGradient>
       </defs>
       <rect width={W} height={H} fill={`url(#${uid}sky)`} />
       {stars.map(([x, y, o], i) => (
         <circle key={i} cx={x} cy={y} r={0.7} fill="var(--snow)" opacity={o} />
       ))}
-      <polygon points={ridge("far", H * 0.25, H * 0.3)} fill="var(--border)" opacity={0.45} />
-      <polygon points={ridge("mid", H * 0.4, H * 0.25)} fill="var(--muted)" opacity={0.8} />
+      <polygon points={ridge("far", H * 0.25, H * 0.3)} fill="var(--scene-border)" opacity={0.45} />
+      <polygon points={ridge("mid", H * 0.4, H * 0.25)} fill="var(--scene-muted)" opacity={0.8} />
       <path d={`M0,${H} L0,${groundY(0)} ${hill} L${W},${H} Z`} fill={`url(#${uid}hill)`} />
       <WildPines
         seed={seed}

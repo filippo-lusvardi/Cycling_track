@@ -57,25 +57,36 @@
 /* Nordic palette: deep fjord slate, frost cyan, pine, birch gold, lingonberry. */
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.18 0.025 255);
-  --foreground: oklch(0.95 0.01 230);
-  --card: oklch(0.22 0.03 255);
-  --card-foreground: oklch(0.95 0.01 230);
-  --popover: oklch(0.22 0.03 255);
-  --popover-foreground: oklch(0.95 0.01 230);
+  /* The tree's colours (lib/accent sets these four from today's season and weather); here, the classic blue. */
+  --surface-h: 255;
+  --surface-c: 0.03;
+  --surface-dl: 0;
+  --text-h: 235;
+  --background: oklch(calc(0.18 + var(--surface-dl)) calc(var(--surface-c) * 0.83) var(--surface-h));
+  --foreground: oklch(0.95 0.01 var(--text-h));
+  --card: oklch(calc(0.22 + var(--surface-dl)) var(--surface-c) var(--surface-h));
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
   --primary: oklch(0.82 0.1 210);
   --primary-foreground: oklch(0.18 0.03 250);
-  --secondary: oklch(0.27 0.03 255);
-  --secondary-foreground: oklch(0.95 0.01 230);
-  --muted: oklch(0.27 0.03 255);
-  --muted-foreground: oklch(0.7 0.025 240);
-  --accent: oklch(0.29 0.035 250);
-  --accent-foreground: oklch(0.95 0.01 230);
+  --secondary: oklch(calc(0.27 + var(--surface-dl)) var(--surface-c) var(--surface-h));
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: oklch(0.7 0.025 var(--text-h));
+  --accent: oklch(calc(0.29 + var(--surface-dl)) calc(var(--surface-c) * 1.17) var(--surface-h));
+  --accent-foreground: var(--foreground);
   --destructive: oklch(0.6 0.17 18);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.31 0.03 255);
-  --input: oklch(0.33 0.03 255);
+  --border: oklch(calc(0.31 + var(--surface-dl)) var(--surface-c) var(--surface-h));
+  --input: oklch(calc(0.33 + var(--surface-dl)) var(--surface-c) var(--surface-h));
   --ring: oklch(0.82 0.1 210);
+  /* The landscapes keep their own colours, whatever the tree does to the cards over them. */
+  --scene-background: oklch(0.18 0.025 255);
+  --scene-card: oklch(0.22 0.03 255);
+  --scene-secondary: oklch(0.27 0.03 255);
+  --scene-muted: oklch(0.27 0.03 255);
+  --scene-border: oklch(0.31 0.03 255);
   --fitness: oklch(0.75 0.11 225);
   --fatigue: oklch(0.65 0.15 15);
   --form: oklch(0.82 0.12 85);
@@ -305,6 +316,57 @@
 html.time-sky body {
   background-color: var(--page-sky);
   transition: background-color 2s ease;
+}
+/* Readable over a noon sky as over a night one: the greys that suit a dark card are too faint straight on the blue, so
+   on these pages they are lighter, and every line of text carries a soft halo (cards are dark, so it vanishes there). */
+html.time-sky {
+  --muted-foreground: oklch(0.88 0.02 var(--text-h));
+  --foreground: oklch(0.98 0.008 var(--text-h));
+  --primary: oklch(0.9 0.09 205);
+  /* The reds are the darkest data colours: a little lighter, to read on a card with the noon sky mixed in. */
+  --lingon: oklch(0.66 0.17 15);
+}
+/* The tree's colours under the sky: still opaque, darker than off the sky, with some of the hour's sky mixed in. */
+html.time-sky.tree-colors {
+  --background: color-mix(
+    in oklab,
+    oklch(calc(0.18 + var(--surface-dl)) calc(var(--surface-c) * 0.83) var(--surface-h)) 88%,
+    var(--page-sky)
+  );
+  --card: color-mix(
+    in oklab,
+    oklch(calc(0.205 + var(--surface-dl)) var(--surface-c) var(--surface-h)) 88%,
+    var(--page-sky)
+  );
+  --popover: var(--card);
+  --secondary: color-mix(
+    in oklab,
+    oklch(calc(0.26 + var(--surface-dl)) var(--surface-c) var(--surface-h)) 88%,
+    var(--page-sky)
+  );
+  --accent: color-mix(
+    in oklab,
+    oklch(calc(0.28 + var(--surface-dl)) calc(var(--surface-c) * 1.17) var(--surface-h)) 88%,
+    var(--page-sky)
+  );
+  --border: color-mix(
+    in oklab,
+    oklch(calc(0.36 + var(--surface-dl)) var(--surface-c) var(--surface-h)) 80%,
+    var(--page-sky)
+  );
+  --input: color-mix(
+    in oklab,
+    oklch(calc(0.38 + var(--surface-dl)) var(--surface-c) var(--surface-h)) 80%,
+    var(--page-sky)
+  );
+}
+html.time-sky main {
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.55),
+    0 0 10px rgb(0 0 0 / 0.25);
+}
+html.time-sky main :is(.bg-card, [class*="bg-card"], [role="dialog"], button, input, select, textarea, table) {
+  text-shadow: none;
 }
 /* Text written straight on the sky: a soft halo keeps it readable on a noon sky as on a night one. */
 @utility on-sky {

@@ -25,15 +25,19 @@ export function UploadRides({ onDone }: { onDone?: () => void }) {
     const r = await uploadFitFiles(files, (done, total) => setProgress([done, total]));
     setProgress(null);
     await qc.invalidateQueries();
-    if (r.added.length) void segmentEngine.sync();
+    if (r.updated.length) void segmentEngine.rebuild(r.updated);
+    else if (r.added.length) void segmentEngine.sync();
     const parts = [
       r.added.length && t(`${r.added.length} added`, `${r.added.length} aggiunte`),
+      r.updated.length && t(`${r.updated.length} updated`, `${r.updated.length} aggiornate`),
       r.skipped.length &&
         t(`${r.skipped.length} already there`, `${r.skipped.length} già presenti`),
       r.failed.length && t(`${r.failed.length} unreadable`, `${r.failed.length} illeggibili`),
     ].filter(Boolean);
-    (r.failed.length && !r.added.length ? toast.error : toast.success)(parts.join(" · "));
-    if (r.added.length) onDone?.();
+    (r.failed.length && !r.added.length && !r.updated.length ? toast.error : toast.success)(
+      parts.join(" · "),
+    );
+    if (r.added.length || r.updated.length) onDone?.();
   }
 
   return (

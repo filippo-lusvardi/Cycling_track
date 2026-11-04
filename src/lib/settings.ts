@@ -18,10 +18,12 @@ export const FOCUS_PIN = "cadence_focus_pin";
 export const GARMIN = "cadence_garmin";
 /** Where this account's training data comes from: "intervals" (default) or "native" (uploaded ride files). */
 export const SOURCE = "cadence_source";
-/** The app's accent colour follows today's readiness season (true, the default) or stays the classic blue. */
+/** The app's colours follow today's tree, its season and weather (true, the default), or stay the classic blue. */
 export const SEASON_ACCENT = "cadence_season_accent";
-/** Today's readiness season as last computed on this device, so the accent is right from the first paint. */
+/** Today's readiness season as last computed on this device, so the colours are right from the first paint. */
 export const LAST_SEASON = "cadence_last_season";
+/** Today's form-weather and how fair it is within its kind, as last computed on this device, for the same reason. */
+export const LAST_WEATHER = "cadence_last_weather";
 /** Which vegetable grows for which sport in the garden (a partial map; the rest keep their default). */
 export const GARDEN_CROPS = "cadence_garden_crops";
 /** This device doesn't send speed measurements (Firebase Performance Monitoring). Kept across sign-outs. */

@@ -1,6 +1,9 @@
 // Mountain ridges for the night scenes (summit book cover, forest landscapes). Pure.
 import { rng, seedOf } from "./tree";
 
+/** The scenes' width in drawing units: the phone's 360; wider screens get more land, drawn a little larger. */
+export const worldWidth = (px: number) => (px < 640 ? 360 : Math.round(px / 1.5));
+
 /** A ridge for the far range: midpoint displacement from a seed, so each place keeps its own mountains. */
 export function farRidge(seed: string, n: number, rough: number): number[] {
   const r = rng(seedOf(seed));

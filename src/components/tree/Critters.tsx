@@ -9,7 +9,7 @@
 const mix = (a: string, pa: number, b: string) => `color-mix(in oklab, ${a} ${pa}%, ${b})`;
 
 const FG = "var(--foreground)";
-const BG = "var(--background)";
+const BG = "var(--scene-background)";
 const BIRCH = "var(--birch)";
 const BARK = "var(--bark)";
 const AUTUMN = "var(--autumn)";

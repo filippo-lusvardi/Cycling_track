@@ -151,7 +151,7 @@ function Segments() {
                 : t("last year", "ultimo anno")
               : t("all history", "tutto lo storico")}
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("Segments", "Segmenti")}</h1>
+          <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Segments", "Segmenti")}</h1>
         </div>
         <div className="flex gap-1 rounded-lg bg-secondary p-1">
           {FILTERS.map((f) => (
@@ -182,8 +182,11 @@ function Segments() {
         >
           {lines.length > 0 ? (
             <RouteMap
-              fitKey={`${filter}-${lines.length}`}
+              // Only a new filter or search re-fits. Not the number of lines: it changes with every highlight.
+              fitKey={`${filter}|${query.trim()}`}
               home={home}
+              onHome={() => setFocused(null)}
+              wheelZoom
               lines={lines}
               focus={focusPath}
               className="h-[30dvh] min-h-40 lg:h-auto lg:min-h-0 lg:flex-1"

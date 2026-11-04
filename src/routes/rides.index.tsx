@@ -27,7 +27,7 @@ function groupByMonth<T extends { start_date_local: string }>(acts: T[]): [strin
 export const Route = createFileRoute("/rides/")({
   head: () => ({
     meta: [
-      { title: t("Rides — Cirmolo", "Attività — Cirmolo") },
+      { title: t("Activities — Cirmolo", "Attività — Cirmolo") },
       {
         name: "description",
         content: t(
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/rides/")({
           "Tutte le attività e gli allenamenti sincronizzati da Garmin tramite intervals.icu.",
         ),
       },
-      { property: "og:title", content: t("Rides — Cirmolo", "Attività — Cirmolo") },
+      { property: "og:title", content: t("Activities — Cirmolo", "Attività — Cirmolo") },
       {
         property: "og:description",
         content: t(
@@ -98,7 +98,7 @@ function Rides() {
             ? ` · ${t("since", "dal")} ${format(parseISO(data.at(-1)!.start_date_local), "MMM yyyy")}`
             : ""}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">{t("Rides", "Attività")}</h1>
+        <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Activities", "Attività")}</h1>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard

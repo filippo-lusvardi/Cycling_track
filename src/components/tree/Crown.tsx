@@ -231,9 +231,9 @@ export function CrownView({
       canopy.push(
         <circle
           key={i}
-          {...blob([lerp(5, 7), lerp(10, 13)])}
+          {...blob([lerp(6, 8), lerp(11, 14)])}
           fill={leaf()}
-          opacity={0.65 + r() * 0.3}
+          opacity={0.75 + r() * 0.25}
         />,
       );
     for (let i = 0; i < Math.round(lerp(16, 3)); i++)
@@ -243,6 +243,18 @@ export function CrownView({
   } else if (crown.season === "winter") {
     // Deep winter: a blizzard, limbs loaded with snow, a deep drift; early winter: the first snow, a light
     // dusting, and the last brown leaves still clinging and falling (as late autumn).
+    // Snow heaped along the limbs and frost-blue shadow beneath it, so the crown is full even with every leaf down.
+    for (let i = 0; i < Math.round(lerp(52, 34)); i++) {
+      const b = blob([lerp(8, 6), lerp(14, 11)], 0.95);
+      canopy.push(
+        <circle
+          key={`w${i}`}
+          {...b}
+          fill={`color-mix(in oklab, var(--snow) ${Math.round(70 + r() * 30)}%, var(--fitness))`}
+          opacity={lerp(0.8, 0.55) + r() * 0.15}
+        />,
+      );
+    }
     for (let i = 0; i < Math.round(lerp(44, 8)); i++) {
       const b = blob([1.2, 2.6], 1.2);
       extras.push(
@@ -293,93 +305,77 @@ export function CrownView({
       className="block w-full text-center focus-visible:outline-none"
       aria-label={`${t("Today", "Oggi")}: ${heading}`}
     >
-      <div className="eyebrow flex flex-wrap justify-center gap-x-1.5">
-        <span className="whitespace-nowrap">
-          {format(parseISO(today), "EEEE d MMMM")}
-          {block && " ·"}
-        </span>
-        {/* A friend's tree in a forest has no training block of mine to show. */}
-        {block && (
-          <span className="whitespace-nowrap">{t(`${block} block`, `blocco ${block}`)}</span>
-        )}
-      </div>
-      <div className="mt-1 text-lg font-semibold" style={{ color }}>
-        {heading}
-      </div>
-      {limit && (
-        <div className="stat-num text-sm font-semibold" style={{ color }}>
-          {ceilingText(limit)}
-        </div>
-      )}
-      {crown.signals.length > 0 && (
-        <div className="text-sm text-birch">
-          {t("Something is changing · tap to see", "Qualcosa sta cambiando · tocca per vedere")}
-        </div>
-      )}
-      {!quiet && (
-        <div className="text-sm text-muted-foreground">
-          {crown.score == null
-            ? t(
-                "Not enough data yet · tap to check in",
-                "Dati ancora insufficienti · tocca per il check-in",
-              )
-            : crown.estimated
-              ? t(
-                  `Readiness ${crown.score} · estimated · check in to refine`,
-                  `Prontezza ${crown.score} · stimata · fai il check-in per affinarla`,
-                )
-              : t(
-                  `Readiness ${crown.score} · tap the crown for today`,
-                  `Prontezza ${crown.score} · tocca la chioma per oggi`,
-                )}
-        </div>
-      )}
-      {!quiet && crown.ctl != null && (
-        // Wraps between whole items, never inside one.
-        <div className="stat-num mt-1 flex flex-wrap justify-center gap-x-3 text-sm">
-          <span className="text-fitness">
-            {t("Fitness", "Forma fisica")} {Math.round(crown.ctl)}
+      {/* The words sit on a dark glass panel: over a noon sky or the hills they are otherwise unreadable. */}
+      <div className="mx-auto mb-2 w-fit max-w-full rounded-2xl bg-black/50 px-4 py-2.5 backdrop-blur-md">
+        <div className="eyebrow flex flex-wrap justify-center gap-x-1.5">
+          <span className="whitespace-nowrap">
+            {format(parseISO(today), "EEEE d MMMM")}
+            {block && " ·"}
           </span>
-          {crown.atl != null && (
-            <span className="text-fatigue">
-              {t("Fatigue", "Fatica")} {Math.round(crown.atl)}
-            </span>
-          )}
-          {crown.form != null && (
-            <span className="whitespace-nowrap text-form">
-              {t("Form", "Forma")} {crown.form > 0 ? "+" : ""}
-              {Math.round(crown.form)}
-              {crown.formPct != null &&
-                crown.ctl != null &&
-                crown.ctl >= 10 &&
-                ` (${Math.round(crown.formPct)}%)`}
-              {crown.weather && (
-                <span className="text-muted-foreground"> · {WEATHER_WORD[crown.weather]}</span>
-              )}
-            </span>
+          {/* A friend's tree in a forest has no training block of mine to show. */}
+          {block && (
+            <span className="whitespace-nowrap">{t(`${block} block`, `blocco ${block}`)}</span>
           )}
         </div>
-      )}
-      <svg className="block" width={w} height={H} aria-hidden>
-        {crown.weather && (
-          <>
-            <Sky
-              weather={crown.weather}
-              phase={crown.weatherPhase}
-              x={Math.min(w - 50, cx + rx + 20)} // beside the crown, never far off on wide screens
-              y={34}
-              seed={seedOf(`${today}sky`)}
-            />
-            <Sky
-              weather={crown.weather}
-              phase={crown.weatherPhase}
-              x={Math.max(50, cx - rx - 20)}
-              y={46}
-              seed={seedOf(`${today}sky-left`)}
-              echo
-            />
-          </>
+        <div className="mt-1 text-lg font-semibold" style={{ color }}>
+          {heading}
+        </div>
+        {limit && (
+          <div className="stat-num text-sm font-semibold" style={{ color }}>
+            {ceilingText(limit)}
+          </div>
         )}
+        {crown.signals.length > 0 && (
+          <div className="text-sm text-birch">
+            {t("Something is changing · tap to see", "Qualcosa sta cambiando · tocca per vedere")}
+          </div>
+        )}
+        {!quiet && (
+          <div className="text-sm text-muted-foreground">
+            {crown.score == null
+              ? t(
+                  "Not enough data yet · tap to check in",
+                  "Dati ancora insufficienti · tocca per il check-in",
+                )
+              : crown.estimated
+                ? t(
+                    `Readiness ${crown.score} · estimated · check in to refine`,
+                    `Prontezza ${crown.score} · stimata · fai il check-in per affinarla`,
+                  )
+                : t(
+                    `Readiness ${crown.score} · tap the crown for today`,
+                    `Prontezza ${crown.score} · tocca la chioma per oggi`,
+                  )}
+          </div>
+        )}
+        {!quiet && crown.ctl != null && (
+          // Wraps between whole items, never inside one.
+          <div className="stat-num mt-1 flex flex-wrap justify-center gap-x-3 text-sm">
+            <span className="text-fitness">
+              {t("Fitness", "Forma fisica")} {Math.round(crown.ctl)}
+            </span>
+            {crown.atl != null && (
+              <span className="text-fatigue">
+                {t("Fatigue", "Fatica")} {Math.round(crown.atl)}
+              </span>
+            )}
+            {crown.form != null && (
+              <span className="whitespace-nowrap text-form">
+                {t("Form", "Forma")} {crown.form > 0 ? "+" : ""}
+                {Math.round(crown.form)}
+                {crown.formPct != null &&
+                  crown.ctl != null &&
+                  crown.ctl >= 10 &&
+                  ` (${Math.round(crown.formPct)}%)`}
+                {crown.weather && (
+                  <span className="text-muted-foreground"> · {WEATHER_WORD[crown.weather]}</span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      <svg className="block" width={w} height={H} aria-hidden>
         <path d={trunkPath} fill="var(--bark)" />
         <path
           d={`M${cx - trunk / 2 + 1},${H} C${cx - trunk / 2 + 1},${H - rise * 0.55} ${cx - forkW / 2 + 1},${fork + rise * 0.35} ${cx - forkW / 2 + 1},${fork + 6}`}
@@ -509,42 +505,6 @@ function Wind({
   );
 }
 
-/** A cloud painted like the canopy: soft overlapping blobs, flatter at the bottom. */
-function Cloud({
-  x,
-  y,
-  s,
-  tone,
-  seed,
-}: {
-  x: number;
-  y: number;
-  s: number;
-  tone: number;
-  seed: number;
-}) {
-  const r = rng(seed);
-  return (
-    <g>
-      {Array.from({ length: 11 }, (_, i) => {
-        const a = r() * Math.PI;
-        const d = Math.sqrt(r());
-        // Blobs sit on an upper half-ellipse, so the cloud has a domed top and a calm, flat base.
-        return (
-          <circle
-            key={i}
-            cx={x + Math.cos(a) * d * 26 * s}
-            cy={y - Math.sin(a) * d * 10 * s}
-            r={(7 + r() * 7) * s}
-            fill={`color-mix(in oklab, var(--muted-foreground) ${tone}%, var(--background))`}
-            opacity={0.55 + r() * 0.35}
-          />
-        );
-      })}
-    </g>
-  );
-}
-
 /**
  * A sun painted like the canopy: a warm disc inside soft layered halos (`glow` scales them), with short rays
  * fading in as `rays` goes 0 → 1.
@@ -603,177 +563,6 @@ export function Sun({
   );
 }
 
-/**
- * Rain, sleet or snow under a cloud at (x, y): `count` particles, `snow` (0 → 1) of them flakes. Drops are
- * slanted on a wrapper, so their own animation only ever moves them down.
- */
-function Precip({
-  x,
-  y,
-  count,
-  snow,
-  seed,
-}: {
-  x: number;
-  y: number;
-  count: number;
-  snow: number;
-  seed: number;
-}) {
-  const r = rng(seed + 0.7);
-  return (
-    <>
-      {Array.from({ length: count }, (_, i) => {
-        const flake = r() < snow;
-        // Flakes float over a taller, looser band than drops.
-        const [px, py] = flake
-          ? [x - 28 + (i * 56) / count + r() * 6, y + 16 + r() * 36]
-          : [x - 24 + (i * 50) / count + r() * 3, y + 20 + r() * 22];
-        return flake ? (
-          <circle
-            key={i}
-            cx={px}
-            cy={py}
-            r={1.5 + r() * 1}
-            fill="var(--snow)"
-            opacity={0.8 + r() * 0.2}
-            className="tree-snow"
-            style={{ animationDelay: `${-r() * 3}s` }}
-          />
-        ) : (
-          <g key={i} transform={`rotate(12 ${px} ${py})`} opacity={0.55 + r() * 0.3}>
-            <ellipse
-              cx={px}
-              cy={py}
-              rx={1.3}
-              ry={3.6}
-              fill="var(--fitness)"
-              className="tree-rain"
-              style={{ animationDelay: `${-r() * 1.4}s` }}
-            />
-          </g>
-        );
-      })}
-    </>
-  );
-}
-
-/**
- * Form as weather, one continuous sky from worst to best; `phase` (0 → 1, toward fairer) moves within each kind.
- * Overreached: a snowstorm under heavy cloud → sleet → gentle rain. Training hard: dark overcast with drizzle →
- * clouds breaking up, the sun behind. Neutral: a big cloud over the sun → a small one. Fresh: a pale sun → a
- * blazing one with rays. The `echo` on the other side of the crown repeats the sky without a second sun (a pale
- * fair-weather cloud when it's sunny).
- */
-export function Sky({
-  weather,
-  phase,
-  x,
-  y,
-  seed,
-  echo = false,
-}: {
-  weather: Weather;
-  phase: number;
-  x: number;
-  y: number;
-  seed: number;
-  echo?: boolean;
-}) {
-  const lerp = (a: number, b: number) => a + (b - a) * phase;
-  return (
-    <g>
-      {weather === "sun" &&
-        (echo ? (
-          <g className="tree-drift" opacity={lerp(0.7, 0.3)}>
-            <Cloud x={x} y={y + 6} s={lerp(0.75, 0.45)} tone={95} seed={seed} />
-          </g>
-        ) : (
-          <Sun
-            x={x}
-            y={y}
-            r={lerp(10, 15)}
-            glow={lerp(0.6, 1.7)}
-            rays={Math.max(0, phase - 0.3) / 0.7}
-          />
-        ))}
-      {weather === "partly" && (
-        <>
-          {!echo && (
-            <Sun x={x + lerp(2, 14)} y={y - lerp(2, 8)} r={lerp(9, 12)} glow={lerp(0.4, 1)} />
-          )}
-          <g className="tree-drift" opacity={lerp(1, 0.8)}>
-            <Cloud
-              x={x - 6}
-              y={y + 12}
-              s={lerp(1.1, 0.6)}
-              tone={Math.round(lerp(72, 94))}
-              seed={seed}
-            />
-          </g>
-        </>
-      )}
-      {weather === "clouds" && (
-        <>
-          {/* The sun starts to show through as the clouds break up. */}
-          {!echo && phase > 0.55 && (
-            <g opacity={(phase - 0.55) / 0.45}>
-              <Sun x={x + 16} y={y - 10} r={9} glow={0.5} />
-            </g>
-          )}
-          {/* Drizzle under the darkest overcast. */}
-          {phase < 0.4 && (
-            <Precip x={x} y={y + 4} count={Math.round((0.4 - phase) * 15)} snow={0} seed={seed} />
-          )}
-          <g className="tree-drift">
-            <Cloud
-              x={x + 10}
-              y={y - 2}
-              s={lerp(1, 0.6)}
-              tone={Math.round(lerp(44, 80))}
-              seed={seed + 0.1}
-            />
-            <Cloud
-              x={x - 6}
-              y={y + 12}
-              s={lerp(1.25, 0.8)}
-              tone={Math.round(lerp(58, 92))}
-              seed={seed}
-            />
-          </g>
-        </>
-      )}
-      {weather === "rain" && (
-        <>
-          <Precip
-            x={x}
-            y={y + 4}
-            count={Math.round(lerp(22, 7))}
-            // All snow at the deep end, sleet in between, all rain from two-thirds on.
-            snow={Math.max(0, 1 - phase * 1.5)}
-            seed={seed}
-          />
-          <g className="tree-drift">
-            {/* A second storm cloud, fading out as the snow turns to rain. */}
-            {phase < 0.6 && (
-              <g opacity={Math.min(1, (0.6 - phase) / 0.3)}>
-                <Cloud
-                  x={x + 14}
-                  y={y - 4}
-                  s={lerp(1, 0.7)}
-                  tone={Math.round(lerp(26, 45))}
-                  seed={seed + 0.2}
-                />
-              </g>
-            )}
-            <Cloud x={x} y={y + 8} s={lerp(1.3, 0.9)} tone={Math.round(lerp(32, 62))} seed={seed} />
-          </g>
-        </>
-      )}
-    </g>
-  );
-}
-
 /** Planned workouts, waiting above the crown. */
 export function Buds({
   events,
@@ -784,25 +573,25 @@ export function Buds({
 }) {
   if (!events.length) return null;
   return (
-    <div className="mx-auto mb-2 max-w-sm space-y-1">
+    // The same pill as Home's recap, centred over the crown.
+    <div className="mb-2 flex flex-col items-center gap-1">
       {events.map((e) => (
         <button
           key={e.id}
           type="button"
           onClick={() => onOpen(e)}
-          className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition-colors hover:bg-secondary/40"
+          className="flex min-h-9 max-w-full items-center gap-2 rounded-full bg-black/25 py-1 pl-2 pr-3 text-left text-sm backdrop-blur-sm transition-colors hover:bg-black/35"
         >
-          <svg width={14} height={18} aria-hidden className="shrink-0">
-            <path d="M7,17 L7,9" stroke="var(--bark)" strokeWidth={1.5} />
-            <ellipse cx={7} cy={6} rx={4} ry={5.5} fill="var(--birch)" opacity={0.85} />
+          <svg width={12} height={16} aria-hidden className="shrink-0">
+            <path d="M6,15 L6,8" stroke="var(--bark)" strokeWidth={1.4} />
+            <ellipse cx={6} cy={5} rx={3.4} ry={4.6} fill="var(--birch)" />
           </svg>
-          <span className="w-16 shrink-0 text-muted-foreground">
-            {format(parseISO(e.date), "EEE d")}
-          </span>
-          <span className="min-w-0 flex-1 truncate">{e.name ?? e.category.toLowerCase()}</span>
-          <span className="stat-num shrink-0 text-muted-foreground">
-            {formatDuration(e.moving_time)}
-          </span>
+          <span className="min-w-0 truncate">{e.name ?? e.category.toLowerCase()}</span>
+          {e.moving_time ? (
+            <span className="stat-num shrink-0 text-foreground/75">
+              {formatDuration(e.moving_time)}
+            </span>
+          ) : null}
         </button>
       ))}
     </div>
@@ -832,7 +621,7 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
           y1={c + 10 * Math.sin(a)}
           x2={c + wood * Math.cos(a)}
           y2={c + wood * Math.sin(a)}
-          stroke="var(--background)"
+          stroke="var(--scene-background)"
           strokeOpacity={0.35}
           strokeWidth={0.75}
         />
@@ -904,7 +693,14 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
         <g aria-hidden className="pointer-events-none">
           {scars}
         </g>
-        <circle cx={c} cy={c} r={r1} fill="none" stroke="var(--background)" strokeOpacity={0.5} />
+        <circle
+          cx={c}
+          cy={c}
+          r={r1}
+          fill="none"
+          stroke="var(--scene-background)"
+          strokeOpacity={0.5}
+        />
         {taps}
       </g>
     );

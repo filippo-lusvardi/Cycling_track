@@ -138,7 +138,7 @@ const dayOf = (a: { start_date_local: string }) => a.start_date_local.slice(0, 1
 const inRange = (d: string, r: Range) => d >= r.oldest && d <= r.newest;
 
 function toDetail(s: Stored): ActivityDetail {
-  const { curve: _c, origin: _o, outdoor: _d, hasStreams: _h, ...a } = s;
+  const { curve: _c, origin: _o, outdoor: _d, hasStreams: _h, totals: _t, parser: _p, ...a } = s;
   return { ...a, brioches: briochesIn(a.description) };
 }
 
@@ -220,7 +220,7 @@ export async function createManualActivity(input: ManualActivity) {
  * `base` carries what the file knows (name, type, start, device, laps).
  */
 export async function saveRide(base: Stored, streams: RideStreams) {
-  const m = rideMetrics(streams, await thresholds());
+  const m = rideMetrics(streams, await thresholds(), base.totals);
   const type = base.type ?? "";
   const ride: Stored = {
     ...base,
@@ -239,7 +239,7 @@ export async function saveRide(base: Stored, streams: RideStreams) {
   return ride;
 }
 
-export const rideExists = async (id: string) => (await allRides()).some((a) => a.id === id);
+export const storedRide = async (id: string) => (await allRides()).find((a) => a.id === id);
 
 /** Removed, leaving a marker so other devices drop it too (a new upload of the same file replaces the marker). */
 export async function deleteRide(id: string) {
@@ -310,10 +310,11 @@ const NO_STREAMS: RideStreams = {
 };
 
 export async function getStreams(id: string): Promise<RideStreams> {
-  const key = `streams:native:${id}`;
+  const ride = (await allRides()).find((a) => a.id === id);
+  // By parser version, so a ride re-parsed on another device isn't served from this one's old copy.
+  const key = `streams:native:${id}${ride?.parser ? `:${ride.parser}` : ""}`;
   const hit = await idbGet<RideStreams>(key).catch(() => undefined);
   if (hit) return hit;
-  const ride = (await allRides()).find((a) => a.id === id);
   if (!ride?.hasStreams) return NO_STREAMS;
   const s = await downloadStreams(id);
   idbSet(key, s).catch(() => {});
@@ -477,7 +478,7 @@ export async function recomputeRides(onProgress?: (done: number, total: number) 
   const th = await thresholds();
   const rides = (await allRides()).filter((a) => a.hasStreams);
   for (const [i, a] of rides.entries()) {
-    const m = rideMetrics(await downloadStreams(a.id), th);
+    const m = rideMetrics(await downloadStreams(a.id), th, a.totals);
     await putRide({ ...a, ...m });
     onProgress?.(i + 1, rides.length);
   }

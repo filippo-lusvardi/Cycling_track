@@ -145,8 +145,8 @@ export function skyCover(weather: Weather | null, phase: number) {
   }
 }
 
-const NIGHT_TOP = "var(--background)";
-const NIGHT_BOTTOM = mix("var(--primary)", 8, "var(--card)");
+const NIGHT_TOP = "var(--scene-background)";
+const NIGHT_BOTTOM = mix("var(--primary)", 8, "var(--scene-card)");
 const DAY_TOP = "oklch(0.5 0.09 245)";
 const DAY_BOTTOM = "oklch(0.74 0.06 225)";
 /** The violet above the warm horizon of sunrise and sunset. */
@@ -161,4 +161,12 @@ export function skyColors(d: Pick<Daylight, "light" | "glow">) {
     top: mix(VIOLET, d.glow * 30, mix(DAY_TOP, d.light * 100, NIGHT_TOP)),
     bottom: mix(WARM, d.glow * 55, mix(DAY_BOTTOM, d.light * 100, NIGHT_BOTTOM)),
   };
+}
+
+/**
+ * A far ridge as an opaque colour: `color` thinned toward the sky at the horizon by `o` (what an `opacity` of `o`
+ * would give over it), so a cloud passing behind the mountain is hidden by it instead of showing through.
+ */
+export function hazed(color: string, d: Pick<Daylight, "light" | "glow">, o: number) {
+  return mix(color, o * 100, skyColors(d).bottom);
 }

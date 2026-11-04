@@ -7,7 +7,7 @@ import { useMemo, type ReactNode } from "react";
 import { MiniTree, type SceneTree } from "@/components/forest/ForestScene";
 import { MiniGarden } from "@/components/garden/GardenScene";
 import { Mist, WeatherFront } from "@/components/sky/TimeSky";
-import { daylight, lit, skyCover, type Daylight } from "@/lib/daylight";
+import { daylight, hazed, lit, skyCover, type Daylight } from "@/lib/daylight";
 import type { Garden } from "@/lib/garden";
 import { t } from "@/lib/i18n";
 import { ridgeAcross } from "@/lib/ridge";
@@ -45,7 +45,7 @@ function Place({
 
 /** The meadow's colour in a season, before the light of the moment. */
 function meadow(season: Season | null, d: Daylight) {
-  const base = mix("var(--secondary)", 80, "var(--background)");
+  const base = mix("var(--scene-secondary)", 80, "var(--scene-background)");
   const tint =
     season === "winter"
       ? mix("var(--snow)", 34 + d.light * 20, base)
@@ -170,11 +170,11 @@ export function HomeScene({
   const ground = meadow(sky.season, d);
   const grass = lit(
     sky.season === "winter"
-      ? mix("var(--snow)", 55, "var(--background)")
-      : mix("var(--summer)", 50 + d.light * 15, "var(--background)"),
+      ? mix("var(--snow)", 55, "var(--scene-background)")
+      : mix("var(--summer)", 50 + d.light * 15, "var(--scene-background)"),
     d,
   );
-  const pine = lit(mix("var(--pine)", 26, "var(--background)"), d);
+  const pine = lit(mix("var(--pine)", 26, "var(--scene-background)"), d);
   // The tree's shadow, thrown away from the sun: long at sunrise and sunset, short at noon, gone under thick cloud.
   const shade = d.sun
     ? {
@@ -199,13 +199,16 @@ export function HomeScene({
         <Birds
           x={W * 0.74}
           y={peak + 40}
-          color={lit(mix("var(--background)", 70, "var(--bark)"), d)}
+          color={lit(mix("var(--scene-background)", 70, "var(--bark)"), d)}
         />
       )}
       <polygon
         points={ridge(far, horizon - 48, 48)}
-        fill={lit(mix("var(--border)", 80, "var(--primary)"), d)}
-        opacity={0.5 + d.light * 0.2}
+        fill={hazed(
+          lit(mix("var(--scene-border)", 80, "var(--primary)"), d),
+          d,
+          0.5 + d.light * 0.2,
+        )}
       />
       {sky.season === "winter" && (
         <polygon
@@ -217,7 +220,10 @@ export function HomeScene({
       <polygon
         points={ridge(near, nearTop, 34)}
         style={{
-          fill: lit(mix("var(--pine)", 16, mix("var(--secondary)", 45, "var(--background)")), d),
+          fill: lit(
+            mix("var(--pine)", 16, mix("var(--scene-secondary)", 45, "var(--scene-background)")),
+            d,
+          ),
         }}
       />
       <g style={{ fill: pine }}>

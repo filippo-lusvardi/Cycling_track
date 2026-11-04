@@ -68,6 +68,9 @@ const savedBase = (): keyof typeof BASES => {
   }
 };
 
+const HOME_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+
 /**
  * Leaflet map drawing polylines and pins. It re-fits the view only when `fitKey` changes,
  * so hovering a profile (`cursor`) or highlighting a line doesn't reset the zoom.
@@ -80,6 +83,8 @@ export function RouteMap({
   focus,
   markers,
   home,
+  onHome,
+  wheelZoom = false,
   className,
 }: {
   lines: MapLine[];
@@ -90,8 +95,15 @@ export function RouteMap({
   focus?: { key: string; lat: number[]; lng: number[] } | null;
   /** Moving dots (e.g. the two riders of a ghost race); updated in place, never re-fitting the view. */
   markers?: MapPin[];
-  /** Where the map opens (and returns after a focus) instead of fitting everything drawn. */
+  /**
+   * Where the map opens instead of fitting everything drawn, and what its home button goes back to. Once the
+   * user has moved the map it stays theirs: a focus ends back on the view they chose, not here.
+   */
   home?: [[number, number], [number, number]] | null;
+  /** The home button was pressed (e.g. to drop whatever the page has focused). */
+  onHome?: () => void;
+  /** Wheel zoom from the start, for a map on a page that doesn't scroll. Otherwise it waits for a click on the map. */
+  wheelZoom?: boolean;
   className?: string;
 }) {
   const el = useRef<HTMLDivElement>(null);
@@ -102,10 +114,19 @@ export function RouteMap({
   const fitted = useRef<string | null>(null);
   const all = useRef<L.LatLngBounds | null>(null);
   const focused = useRef<string | null>(null);
+  const hasHome = home !== undefined;
+  // The user touched the map since the app last moved it.
+  const gesture = useRef(false);
+  // The view the user last chose; null while the map is still on the app's own view.
+  const userView = useRef<{ center: L.LatLng; zoom: number } | null>(null);
+  const lastFit = useRef<L.LatLngBounds | null>(null);
+  const homePressed = useRef(onHome);
+  homePressed.current = onHome;
 
   useEffect(() => {
     if (!el.current) return;
-    const m = L.map(el.current, { scrollWheelZoom: false, zoomSnap: 0.5, maxZoom: 18 });
+    const box = el.current;
+    const m = L.map(box, { scrollWheelZoom: wheelZoom, zoomSnap: 0.5, maxZoom: 18 });
     const keys = Object.keys(BASES) as (keyof typeof BASES)[];
     // The control shows translated names; the stored choice stays the language-independent key.
     const layers = Object.fromEntries(keys.map((k) => [BASE_LABEL[k], BASES[k]()]));
@@ -119,18 +140,65 @@ export function RouteMap({
       }
     });
     // Wheel zoom only after clicking the map, so scrolling the page doesn't zoom by accident.
-    m.on("click", () => m.scrollWheelZoom.enable());
-    m.on("mouseout", () => m.scrollWheelZoom.disable());
+    if (!wheelZoom) {
+      m.on("click", () => m.scrollWheelZoom.enable());
+      m.on("mouseout", () => m.scrollWheelZoom.disable());
+    }
+    // Capture phase, so presses on the zoom buttons count too. A wheel only counts if it can zoom the map.
+    const touched = () => {
+      gesture.current = true;
+    };
+    const wheeled = () => {
+      if (m.scrollWheelZoom.enabled()) touched();
+    };
+    box.addEventListener("pointerdown", touched, true);
+    box.addEventListener("keydown", touched, true);
+    box.addEventListener("wheel", wheeled, { capture: true, passive: true });
+    m.on("moveend", () => {
+      if (gesture.current) userView.current = { center: m.getCenter(), zoom: m.getZoom() };
+    });
+    if (hasHome) {
+      const control = new L.Control({ position: "topleft" });
+      control.onAdd = () => {
+        const bar = L.DomUtil.create("div", "leaflet-bar");
+        const a = L.DomUtil.create("a", "", bar);
+        const label = t("Home view", "Vista iniziale");
+        a.href = "#";
+        a.title = label;
+        a.setAttribute("role", "button");
+        a.setAttribute("aria-label", label);
+        a.style.display = "flex";
+        a.style.alignItems = "center";
+        a.style.justifyContent = "center";
+        a.innerHTML = HOME_ICON;
+        L.DomEvent.disableClickPropagation(bar);
+        L.DomEvent.on(a, "click", (e) => {
+          L.DomEvent.preventDefault(e);
+          focused.current = null;
+          userView.current = null;
+          gesture.current = false;
+          if (all.current)
+            m.flyToBounds(all.current, { padding: [24, 24], maxZoom: 16, duration: 0.6 });
+          homePressed.current?.();
+        });
+        return bar;
+      };
+      control.addTo(m);
+    }
     drawn.current = L.layerGroup().addTo(m);
     map.current = m;
     const ro = new ResizeObserver(() => m.invalidateSize());
     ro.observe(el.current);
     return () => {
       ro.disconnect();
+      box.removeEventListener("pointerdown", touched, true);
+      box.removeEventListener("keydown", touched, true);
+      box.removeEventListener("wheel", wheeled, true);
       m.remove();
       map.current = null;
       fitted.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -162,9 +230,27 @@ export function RouteMap({
     }
     const target = home ? L.latLngBounds(home) : bounds;
     if (target.isValid()) all.current = target;
-    if (fitted.current !== fitKey && target.isValid() && !focused.current) {
-      m.fitBounds(target, { padding: [24, 24], maxZoom: 16 });
-      fitted.current = fitKey;
+    if (target.isValid()) {
+      const fit = () => {
+        gesture.current = false;
+        m.fitBounds(target, { padding: [24, 24], maxZoom: 16 });
+        lastFit.current = target;
+      };
+      if (fitted.current !== fitKey) {
+        fitted.current = fitKey;
+        userView.current = null;
+        gesture.current = false;
+        // While focused the map stays put; ending the focus flies to the new target.
+        if (!focused.current) fit();
+      } else if (
+        // Segments still arriving move the home area: follow it until the user takes over the map.
+        hasHome &&
+        !focused.current &&
+        !gesture.current &&
+        !userView.current &&
+        !lastFit.current?.equals(target)
+      )
+        fit();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, pins, fitKey]);
@@ -173,6 +259,7 @@ export function RouteMap({
     const m = map.current;
     if (!m) return;
     if (focus && focus.lat.length > 1) {
+      gesture.current = false;
       m.flyToBounds(L.latLngBounds(focus.lat.map((la, i) => L.latLng(la, focus.lng[i]!))), {
         padding: [40, 40],
         maxZoom: 15,
@@ -181,7 +268,16 @@ export function RouteMap({
       focused.current = focus.key;
     } else if (focused.current) {
       focused.current = null;
-      if (all.current) m.flyToBounds(all.current, { padding: [24, 24], maxZoom: 16, duration: 0.6 });
+      // The user moved the map during the focus: that's where it stays.
+      if (hasHome && gesture.current) {
+        userView.current = { center: m.getCenter(), zoom: m.getZoom() };
+        return;
+      }
+      gesture.current = false;
+      const view = hasHome ? userView.current : null;
+      if (view) m.flyTo(view.center, view.zoom, { duration: 0.6 });
+      else if (all.current)
+        m.flyToBounds(all.current, { padding: [24, 24], maxZoom: 16, duration: 0.6 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.key]);

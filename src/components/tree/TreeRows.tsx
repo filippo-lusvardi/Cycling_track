@@ -107,7 +107,7 @@ export function Bark({
       <path
         d={down(side(-1, 0, 0.24))}
         fill="none"
-        stroke="var(--background)"
+        stroke="var(--scene-background)"
         strokeOpacity={0.18}
       />
       {/* Shaded left edge and lit right edge give the trunk volume, so its width reads at a glance. */}
@@ -569,7 +569,7 @@ export function MonthRow({
           y1={15}
           x2={cx + (edge.top + edge.bottom) / 4}
           y2={15}
-          stroke="var(--background)"
+          stroke="var(--scene-background)"
           strokeOpacity={0.3}
           strokeWidth={1.5}
         />
@@ -593,11 +593,11 @@ export function MonthRow({
   );
 }
 
-// Steady is plain bark, named explicitly so a fade into or out of it has two real colours.
+// The bark is the same brown all the way down: a build or rest chapter shows in its label, never in the wood.
 const CHAPTER_TINT = {
-  build: "var(--birch)",
+  build: "var(--bark)",
   steady: "var(--bark)",
-  rest: "var(--fitness)",
+  rest: "var(--bark)",
 } as const;
 
 /**

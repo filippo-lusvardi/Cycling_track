@@ -30,7 +30,7 @@ import { sessionReady } from "@/lib/account";
 import { auth, authReady } from "@/lib/firebase";
 import { AuthError } from "@/lib/intervals";
 import { AppFooter } from "@/components/AppFooter";
-import { PageSky } from "@/components/sky/SkyPage";
+import { PageSky, SkyLand } from "@/components/sky/SkyPage";
 import { SKY_PAGE, useSkyPage } from "@/hooks/use-sky-page";
 import { recordSinceLoad } from "@/lib/perf";
 import { hasSource } from "@/lib/source";
@@ -162,7 +162,7 @@ const NAV = [
   { to: "/calendar", label: t("Calendar", "Calendario"), icon: CalendarDays, bar: true },
   { to: "/analysis", label: t("Analysis", "Analisi"), icon: ChartSpline, bar: true },
   { to: "/body", label: t("Body", "Corpo"), icon: Scale, bar: false },
-  { to: "/rides", label: t("Rides", "Attività"), icon: Bike, bar: false },
+  { to: "/rides", label: t("Activities", "Attività"), icon: Bike, bar: false },
   { to: "/settings", label: t("Settings", "Impostazioni"), icon: Settings, bar: false },
 ] as const;
 
@@ -188,6 +188,20 @@ function RootComponent() {
   // Home, the Garden and the forests live under the sky of the moment: the page takes its colour, the bar is glass.
   const skyPage = useRouterState({ select: (s) => SKY_PAGE.test(s.location.pathname) });
   useSkyPage(skyPage);
+  // The sun and moon cross the sky only on Home, the Garden and the forests; the other pages get the plain sky over
+  // low hills (the forests draw their own land).
+  // A member's tree (/forest/<forest>/<member>) and their rides are plain pages too: plain sky, high hills.
+  const memberTree = useRouterState({
+    select: (s) =>
+      /^\/forest\/(?!join\/)[^/]+\/[^/]+(\/ride\/[^/]+)?\/?$/.test(s.location.pathname),
+  });
+  const forestPage = useRouterState({
+    select: (s) => /^\/forest(\/|$)/.test(s.location.pathname) && !memberTree,
+  });
+  const sunPage =
+    useRouterState({
+      select: (s) => /^\/(garden(\/|$)|$)/.test(s.location.pathname),
+    }) || forestPage;
 
   if (bare)
     return (
@@ -203,14 +217,15 @@ function RootComponent() {
   return (
     <>
       {/* Home, the Garden and the forests: one sky behind the whole window, from its very top. */}
-      {skyPage && <PageSky />}
+      {skyPage && <PageSky bodies={sunPage} own={!sunPage && !forestPage && !memberTree} />}
+      {skyPage && !sunPage && !forestPage && <SkyLand high />}
       {/* Desktop only: on the phone each page's own title is the top, and the bottom bar navigates. */}
       <header
         className={cn(
           "sticky top-0 z-20 hidden backdrop-blur lg:block",
           // Over the sky, glass dense enough for the links to read on a noon sky as on a night one.
           skyPage
-            ? "border-b border-foreground/10 bg-background/55"
+            ? "bg-gradient-to-b from-background/55 to-background/0 backdrop-blur-none"
             : "border-b border-border bg-background/80",
         )}
       >

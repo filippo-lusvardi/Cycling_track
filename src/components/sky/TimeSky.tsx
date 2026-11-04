@@ -45,7 +45,7 @@ function Moon({
         />
       ))}
       {/* The dark part still shows faintly against the sky (earthshine). */}
-      <circle cx={x} cy={y} r={r} fill={mix(pale, 12, "var(--background)")} />
+      <circle cx={x} cy={y} r={r} fill={mix(pale, 12, "var(--scene-background)")} />
       {lit > 0.02 && <path d={shape} fill={pale} />}
       {lit > 0.4 && (
         <g fill={mix(pale, 80, "var(--muted-foreground)")} opacity={0.5}>
@@ -80,7 +80,7 @@ function Cloud({
   const r = rng(seed);
   // By day white to slate; by night the sky's own dark blue, a little lighter than it.
   const dayBody = mix("oklch(0.55 0.02 250)", dark * 100, "oklch(0.95 0.01 240)");
-  const nightBody = mix("oklch(0.3 0.03 260)", 100 - dark * 40, "var(--background)");
+  const nightBody = mix("oklch(0.3 0.03 260)", 100 - dark * 40, "var(--scene-background)");
   const body = mix(dayBody, d.light * 100, nightBody);
   const top = mix(body, 75, d.light > 0.3 ? "white" : "oklch(0.45 0.03 260)");
   const under = mix(WARM, d.glow * 60, mix(body, 80, "black"));
@@ -128,6 +128,7 @@ export function TimeSky({
   h,
   horizon,
   peak = 44,
+  bodies = true,
   weather,
   phase,
   seed,
@@ -137,6 +138,8 @@ export function TimeSky({
   h: number;
   horizon: number;
   peak?: number;
+  /** Draw the sun and moon (default); off, the sky keeps its colour, stars and cloud only. */
+  bodies?: boolean;
   weather: Weather | null;
   phase: number;
   seed: string;
@@ -204,7 +207,8 @@ export function TimeSky({
             opacity={o! * starLight}
           />
         ))}
-      {d.sun &&
+      {bodies &&
+        d.sun &&
         (() => {
           const p = arc(d.sun);
           return (
@@ -229,7 +233,8 @@ export function TimeSky({
             </>
           );
         })()}
-      {d.moon &&
+      {bodies &&
+        d.moon &&
         (() => {
           const p = arc(d.moon);
           return <Moon x={p.x} y={p.y} r={10} lit={d.moon.lit} waxing={d.moon.waxing} />;
@@ -239,7 +244,7 @@ export function TimeSky({
         <rect
           width={w}
           height={h}
-          fill={mix("oklch(0.45 0.02 250)", d.light * 100, "var(--background)")}
+          fill={mix("oklch(0.45 0.02 250)", d.light * 100, "var(--scene-background)")}
           opacity={c.clouds * c.dark * 0.75}
         />
       )}
@@ -348,7 +353,7 @@ export function Mist({
   const mistColor = mix(
     "var(--snow)",
     30 + d.light * 40,
-    mix(WARM, d.glow * 40, "var(--background)"),
+    mix(WARM, d.glow * 40, "var(--scene-background)"),
   );
   return (
     <g pointerEvents="none" aria-hidden>

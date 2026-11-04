@@ -519,11 +519,11 @@ export const SEASON_COLOR: Record<Season, string> = {
   autumn: "var(--autumn)",
   winter: "var(--snow)",
 };
-/** Canopy blobs [at the season's low end, high end]: a full summer crown, thinner autumn, bare winter. */
+/** Canopy blobs [at the season's low end, high end]: a full crown in every season (autumn only thinner than summer), bare winter (the crown view loads it with snow). */
 const SEASON_LEAVES: Record<Season, [number, number]> = {
   summer: [56, 72],
-  spring: [14, 54],
-  autumn: [8, 36],
+  spring: [46, 76],
+  autumn: [64, 92],
   winter: [0, 0],
 };
 const leavesFor = (season: Season, phase: number) => {

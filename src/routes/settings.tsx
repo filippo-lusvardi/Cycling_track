@@ -54,7 +54,9 @@ function SettingsPage() {
     <div className="space-y-6">
       <div>
         <div className="eyebrow">{t("This device", "Questo dispositivo")}</div>
-        <h1 className="text-3xl font-bold tracking-tight">{t("Settings", "Impostazioni")}</h1>
+        <h1 className="on-sky text-3xl font-bold tracking-tight">
+          {t("Settings", "Impostazioni")}
+        </h1>
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Language />
@@ -709,12 +711,12 @@ function QuietTree() {
       <div className="mt-4 flex items-start justify-between gap-4">
         <Label htmlFor="season-accent" className="block space-y-1">
           <span className="block">
-            {t("Accent in today's season", "Colore della stagione di oggi")}
+            {t("Colours of today's tree", "Colori dell'albero di oggi")}
           </span>
           <span className="block text-sm font-normal text-muted-foreground">
             {t(
-              "Buttons, links and highlights take the colour of today's crown: green in spring and summer, amber in autumn, icy blue in winter. Off: the classic blue.",
-              "Pulsanti, link ed evidenziazioni prendono il colore della chioma di oggi: verde in primavera ed estate, ambra in autunno, azzurro ghiaccio in inverno. Spento: il blu classico.",
+              "Cards, bars, buttons and links take their colour from today's tree: green in spring and summer, amber in autumn, icy blue in winter, greyer the worse the weather. Off: the classic blue.",
+              "Schede, barre, pulsanti e link prendono il colore dall'albero di oggi: verde in primavera ed estate, ambra in autunno, azzurro ghiaccio in inverno, più grigio quanto peggiore è il tempo. Spento: il blu classico.",
             )}
           </span>
         </Label>

@@ -65,8 +65,8 @@ export function ClimbWorld({
     >
       <defs>
         <linearGradient id={`${uid}rock`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: L("var(--secondary)") }} />
-          <stop offset="1" style={{ stopColor: L("var(--background)") }} />
+          <stop offset="0" style={{ stopColor: L("var(--scene-secondary)") }} />
+          <stop offset="1" style={{ stopColor: L("var(--scene-background)") }} />
         </linearGradient>
       </defs>
       {/* The sky is the page's own (components/sky/SkyPage), behind this scene from the window's top. */}
@@ -74,7 +74,7 @@ export function ClimbWorld({
         // Down to the scene's foot: land, never the page's sky, under the ranges and the climbs.
         points={`0,${H} 0,${farFoot} ${far.map((y, i) => `${((i / (far.length - 1)) * W).toFixed(1)},${(10 + (1 - y) * 50).toFixed(1)}`).join(" ")} ${W},${farFoot} ${W},${H}`}
         fill={L(
-          "color-mix(in oklab, var(--border) 70%, color-mix(in oklab, var(--primary) 20%, var(--background)))",
+          "color-mix(in oklab, var(--scene-border) 70%, color-mix(in oklab, var(--primary) 20%, var(--scene-background)))",
         )}
       />
       {nearer && (
@@ -88,10 +88,14 @@ export function ClimbWorld({
               y2={H}
               gradientUnits="userSpaceOnUse"
             >
-              <stop offset="0" style={{ stopColor: L("var(--muted)") }} />
+              <stop offset="0" style={{ stopColor: L("var(--scene-muted)") }} />
               <stop
                 offset="1"
-                style={{ stopColor: L("color-mix(in oklab, var(--muted) 60%, var(--background))") }}
+                style={{
+                  stopColor: L(
+                    "color-mix(in oklab, var(--scene-muted) 60%, var(--scene-background))",
+                  ),
+                }}
               />
             </linearGradient>
           </defs>
@@ -110,7 +114,7 @@ export function ClimbWorld({
               return [x, ridge + 12 + r() ** 1.5 * (foot - ridge) * 0.55];
             }}
             size={0.8}
-            tone={L("color-mix(in oklab, var(--pine) 22%, var(--background))")}
+            tone={L("color-mix(in oklab, var(--pine) 22%, var(--scene-background))")}
           />
         </>
       )}
@@ -189,7 +193,7 @@ function Peak({
         <line x1={tx} y1={ty} x2={tx} y2={ty - 12} />
         <line x1={tx - 3.5} y1={ty - 8.5} x2={tx + 3.5} y2={ty - 8.5} />
       </g>
-      <line x1={x0} y1={base} x2={x0 + w} y2={base} stroke="var(--border)" />
+      <line x1={x0} y1={base} x2={x0 + w} y2={base} stroke="var(--scene-border)" />
       <text
         x={x0 + 2}
         y={base + 18}

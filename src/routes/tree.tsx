@@ -23,7 +23,8 @@ import { addDays, isoDate } from "@/lib/training";
 import { buildDays, buildYears, crownFor, offDays } from "@/lib/tree";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
-import { rememberSeason } from "@/lib/accent";
+import { rememberTree } from "@/lib/accent";
+import { useTreeSky } from "@/hooks/use-tree-sky";
 import { recordSinceLoad } from "@/lib/perf";
 
 export const Route = createFileRoute("/tree")({
@@ -66,8 +67,13 @@ function TreePage() {
     () => crownFor(wellness, acts, today, offEvents ?? []),
     [wellness, acts, today, offEvents],
   );
-  // The app's accent follows today's season.
-  useEffect(() => rememberSeason(crown.season), [crown.season]);
+  // The app's colours follow today's season and weather.
+  useEffect(
+    () => rememberTree(crown.season, crown.weather, crown.weatherPhase),
+    [crown.season, crown.weather, crown.weatherPhase],
+  );
+  // Today's form is the weather of the page's sky, drawn as on Home.
+  useTreeSky(crown.weather, crown.weatherPhase);
   // My forests get a copy of this tree (only the rides I share with each; throttled, only what changed).
   usePublishTree({ acts, wellness, offEvents: offEvents ?? NO_EVENTS, crown, today });
   const limit = crown.score != null && zones ? ceiling(crown.score, zones) : null;
@@ -111,7 +117,7 @@ function TreePage() {
         )}
         {w > 0 && zoom === "years" && (
           <div className="pt-2">
-            <h1 className="mb-1 text-center text-lg font-semibold">
+            <h1 className="on-sky mb-1 text-center text-lg font-semibold">
               {t("The tree, cut across", "L'albero, in sezione")}
             </h1>
             <Rings years={buildYears(days)} w={w} />

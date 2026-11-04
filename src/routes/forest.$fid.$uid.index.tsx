@@ -11,6 +11,7 @@ import { watchMembers, type Member } from "@/lib/forest/forests";
 import { fromSnapshot } from "@/lib/forest/snapshot";
 import { readTree } from "@/lib/forest/trees";
 import { format, t } from "@/lib/i18n";
+import { useTreeSky } from "@/hooks/use-tree-sky";
 import { useScreenTrace } from "@/lib/perf";
 import type { Activity } from "@/lib/intervals";
 import { addDays, formatDuration, formatKm, isoDate } from "@/lib/training";
@@ -43,6 +44,10 @@ function MemberTree() {
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [ref, w] = useWidth();
   useEffect(() => watchMembers(fid, setMembers), [fid]);
+  // The member's form is the weather of the page's sky, as on Home.
+  const weather = tree?.crown?.weather ?? null;
+  const weatherPhase = tree?.crown?.weatherPhase ?? 0;
+  useTreeSky(weather, weatherPhase);
   const name = members.find((m) => m.uid === uid)?.name ?? "";
   const today = isoDate(new Date());
   const days = useMemo(() => {

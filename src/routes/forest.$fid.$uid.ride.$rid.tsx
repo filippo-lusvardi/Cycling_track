@@ -111,7 +111,7 @@ function FriendRide() {
           {format(parseISO(ride.start_date_local), "EEEE d MMMM yyyy")}
           {name && ` · ${name}`}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">{ride.name ?? ride.type}</h1>
+        <h1 className="on-sky text-3xl font-bold tracking-tight">{ride.name ?? ride.type}</h1>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label={t("Distance", "Distanza")} value={formatKm(ride.distance)} />

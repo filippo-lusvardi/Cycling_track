@@ -29,7 +29,15 @@ export function toOneHz(s: RideStreams, maxGap = 10): RideStreams {
     const keep = gap <= maxGap;
     const at = <T>(a: T[]) => (a.length ? a[j] : undefined);
     out.time.push(sec);
-    out.distance.push(at(s.distance) ?? out.distance.at(-1) ?? 0);
+    // Along the way between two samples: holding it would read as stopping and then jumping.
+    const d = at(s.distance);
+    const dNext = s.distance[j + 1];
+    const span = j + 1 < n ? s.time[j + 1]! - s.time[j]! : 0;
+    out.distance.push(
+      d != null && dNext != null && span > 0 && span <= maxGap
+        ? d + ((dNext - d) * gap) / span
+        : (d ?? out.distance.at(-1) ?? 0),
+    );
     out.altitude.push(at(s.altitude) ?? out.altitude.at(-1) ?? 0);
     out.watts.push(keep ? (at(s.watts) ?? null) : null);
     out.heartrate.push(keep ? (at(s.heartrate) ?? null) : null);
@@ -115,13 +123,20 @@ export type RideMetrics = {
   curve: (number | null)[];
 };
 
+/** The summary a ride file carries: the device's own numbers, trusted over what the streams would add up to. */
+export type FileTotals = {
+  moving: number | null;
+  distance: number | null;
+  ascent: number | null;
+};
+
 /**
  * Everything the app reads off a ride, from 1 Hz streams. Load is TSS from power when there's an FTP, else an
  * hrTSS-style load from heart rate against threshold heart rate; zones follow power, else heart rate.
  */
-export function rideMetrics(s: RideStreams, th: Thresholds): RideMetrics {
+export function rideMetrics(s: RideStreams, th: Thresholds, file?: FileTotals): RideMetrics {
   const n = s.time.length;
-  const dist = s.distance.at(-1) ?? 0;
+  const dist = file?.distance ?? s.distance.at(-1) ?? 0;
   // Moving: seconds where the distance advanced (or power/cadence say you were pedalling, on a trainer).
   let moving = 0;
   let maxSpeed = 0;
@@ -130,7 +145,9 @@ export function rideMetrics(s: RideStreams, th: Thresholds): RideMetrics {
   for (let i = 1; i < n; i++) {
     const v = (s.distance[i] ?? 0) - (s.distance[i - 1] ?? 0);
     if (v > 0.5 || (s.watts[i] ?? 0) > 0 || (s.cadence[i] ?? 0) > 0) moving++;
-    if (v < 40) maxSpeed = Math.max(maxSpeed, v);
+    // Over 5 s, as Strava and Garmin report it: second by second, GPS jumps read as sprints.
+    if (i >= 5)
+      maxSpeed = Math.max(maxSpeed, ((s.distance[i] ?? 0) - (s.distance[i - 5] ?? 0)) / 5);
     // Climbing counted in 2 m steps, so GPS/barometer jitter doesn't add up to phantom metres.
     const a = s.altitude[i] ?? alt;
     if (a - alt >= 2) {
@@ -138,6 +155,10 @@ export function rideMetrics(s: RideStreams, th: Thresholds): RideMetrics {
       alt = a;
     } else if (alt - a >= 2) alt = a;
   }
+  // The file's moving time, unless a timer left running through a stop puts it well past what the streams show.
+  if (file?.moving != null && (!moving || file.moving <= moving * 1.1))
+    moving = Math.round(file.moving);
+  gain = file?.ascent ?? gain;
   const hasPower = s.watts.some((w) => w != null && w > 0);
   const np = hasPower ? normalizedPower(s.watts) : null;
   const avgW = hasPower ? mean(s.watts.map((w) => w ?? 0)) : null;
