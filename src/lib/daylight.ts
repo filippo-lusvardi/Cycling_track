@@ -1,4 +1,4 @@
-// The time of day for the Home and Garden skies: when the sun rises and sets, where it stands, how light it is, and
+// The time of day for the Garden and forest skies: when the sun rises and sets, where it stands, how light it is, and
 // the moon's place and phase at night. Approximate on purpose (a picture, not an almanac): sunrise and sunset come
 // from the date at about 45° N (northern Italy), solar noon from the clock's daylight-saving shift. Pure.
 import type { Weather } from "./tree";

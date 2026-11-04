@@ -1,12 +1,15 @@
 // A ride as Cirmolo stores it for accounts without intervals.icu. Pure, so mappers and tests need no Firebase.
 import type { ActivityDetail } from "../intervals";
 import type { FileTotals } from "../metrics";
+import type { RunSummary } from "../run-metrics";
 
 export type Origin = "fit" | "manual";
 
 /** A ride as stored: what the pages read, plus its power curve and where it came from. */
 export type Stored = ActivityDetail & {
   curve: (number | null)[];
+  /** A run's pace numbers, independent of any threshold. Older runs have none until first needed. */
+  run?: RunSummary;
   origin: Origin;
   /** Outdoors with GPS: the Segments engine reads it. */
   outdoor: boolean;

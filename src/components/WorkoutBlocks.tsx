@@ -1,5 +1,6 @@
 import { formatDuration } from "@/lib/training";
 import { t } from "@/lib/i18n";
+import { powerZone } from "@/lib/workout";
 
 type Iv = {
   id: number;
@@ -10,18 +11,6 @@ type Iv = {
   average_watts: number | null;
   moving_time: number | null;
 };
-
-/** Power zone (1–7) from % of FTP, Coggan-style like intervals.icu. */
-export function powerZone(watts: number, ftp: number): number {
-  const p = watts / ftp;
-  if (p < 0.55) return 1;
-  if (p < 0.75) return 2;
-  if (p < 0.9) return 3;
-  if (p < 1.05) return 4;
-  if (p < 1.2) return 5;
-  if (p < 1.5) return 6;
-  return 7;
-}
 
 /**
  * Interval blocks like the intervals.icu calendar: width = duration, height = power, colour = zone.

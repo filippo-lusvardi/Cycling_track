@@ -18,6 +18,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TreeRouteImport } from './routes/tree'
+import { Route as WorkoutsRouteImport } from './routes/workouts'
 import { Route as ForestIndexRouteImport } from './routes/forest.index'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
 import { Route as RidesIdRouteImport } from './routes/rides.$id'
@@ -72,6 +73,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const TreeRoute = TreeRouteImport.update({
   id: '/tree',
   path: '/tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkoutsRoute = WorkoutsRouteImport.update({
+  id: '/workouts',
+  path: '/workouts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForestIndexRoute = ForestIndexRouteImport.update({
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/tree': typeof TreeRoute
+  '/workouts': typeof WorkoutsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/forest/': typeof ForestIndexRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/tree': typeof TreeRoute
+  '/workouts': typeof WorkoutsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/forest': typeof ForestIndexRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/tree': typeof TreeRoute
+  '/workouts': typeof WorkoutsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/forest/': typeof ForestIndexRoute
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/settings'
     | '/tree'
+    | '/workouts'
     | '/rides/$id'
     | '/segments/$id'
     | '/forest/'
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/settings'
     | '/tree'
+    | '/workouts'
     | '/rides/$id'
     | '/segments/$id'
     | '/forest'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/settings'
     | '/tree'
+    | '/workouts'
     | '/rides/$id'
     | '/segments/$id'
     | '/forest/'
@@ -265,6 +277,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
   TreeRoute: typeof TreeRoute
+  WorkoutsRoute: typeof WorkoutsRoute
   RidesIdRoute: typeof RidesIdRoute
   SegmentsIdRoute: typeof SegmentsIdRoute
   ForestIndexRoute: typeof ForestIndexRoute
@@ -340,6 +353,13 @@ declare module '@tanstack/react-router' {
       path: '/tree'
       fullPath: '/tree'
       preLoaderRoute: typeof TreeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workouts': {
+      id: '/workouts'
+      path: '/workouts'
+      fullPath: '/workouts'
+      preLoaderRoute: typeof WorkoutsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forest/': {
@@ -425,6 +445,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
   TreeRoute: TreeRoute,
+  WorkoutsRoute: WorkoutsRoute,
   RidesIdRoute: RidesIdRoute,
   SegmentsIdRoute: SegmentsIdRoute,
   ForestIndexRoute: ForestIndexRoute,

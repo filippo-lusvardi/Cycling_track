@@ -16,10 +16,10 @@ export default defineConfig({
       registerType: "prompt",
       includeAssets: ["favicon.ico", "icon.svg", "apple-touch-icon-180x180.png"],
       manifest: {
-        name: "Cirmolo — Cycling Training",
+        name: "Cirmolo — Endurance Training",
         short_name: "Cirmolo",
         id: "/",
-        description: "Personal cycling training, form and body tracker.",
+        description: "Personal cycling and running training, form and body tracker.",
         start_url: "/",
         scope: "/",
         display: "standalone",

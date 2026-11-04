@@ -1,27 +1,63 @@
-// The garden under the sky of the moment (the real time of day, today's form as weather). Nothing here is ruled
-// straight: the beds are soft mounds of earth of different lengths, plants stand where they were planted (older to
-// the left, today's to the right) but scattered in depth, flowers grow in loose clumps by an irregular pond, the
-// fence is old and leans, grass grows where it likes. The soil darkens with regular training off the bike; today's readiness season lies over everything (snow,
-// blossom, fallen leaves, fireflies in summer).
-import { useEffect, type ReactNode } from "react";
+// The garden under the sky of the moment (the real time of day, today's form as weather): a traditional vegetable
+// garden, with your tree standing beyond its old fence. Each bed is a mound of earthed-up soil only as long as what
+// grows in it, lit along its crown and worked by hand, so a few sessions make a small tended plot rather than a field
+// with mud in it: the fewer the plants, the bigger they stand and the more of the sky stays. Plants keep their order
+// (oldest at the left, today's at the right). The soil darkens with regular training off the bike; today's readiness
+// season lies over everything (snow, blossom, fallen leaves, fireflies in summer). Flowers grow at the front, and the
+// pond appears once something grows in it.
+import { useEffect, useMemo, type ReactNode } from "react";
+import { MiniTree, type SceneTree } from "@/components/forest/ForestScene";
 import { Mist, WeatherFront } from "@/components/sky/TimeSky";
 import { GardenCritter, Plant, Scarecrow, type Look } from "@/components/garden/Crops";
 import {
-  bedName,
-  CROP_NAME,
-  GROWING_DAYS,
+  sportSign,
   type Crop,
+  type CropMap,
   type Garden,
   type Plant as GardenPlant,
   type Sport,
 } from "@/lib/garden";
-import { daylight, hazed, lit, type Daylight } from "@/lib/daylight";
+import { daylight, WARM, type Daylight } from "@/lib/daylight";
 import { t } from "@/lib/i18n";
 import { ridgeAcross } from "@/lib/ridge";
 import { rng, seedOf, type Season, type Weather } from "@/lib/tree";
 
 const mix = (a: string, pa: number, b: string) =>
   `color-mix(in oklab, ${a} ${Math.round(Math.min(100, Math.max(0, pa)))}%, ${b})`;
+
+/** A colour by day and by night, warmed at sunrise and sunset. */
+function tone(d: Daylight, day: string, night: string) {
+  const c = mix(day, d.light * 100, night);
+  return d.glow > 0 ? mix(c, 100 - d.glow * 16, WARM) : c;
+}
+
+/** The land: `depth` 0 where the light falls, higher in shade. Calm, so the plants stand out against it. */
+function land(season: Season | null, d: Daylight, depth: number) {
+  const k = Math.max(0, depth);
+  const day = (l: number, step = 0.11) => (l - k * step).toFixed(3);
+  const night = (l: number) => (l - k * 0.045).toFixed(3);
+  if (season === "winter")
+    return tone(d, `oklch(${day(0.86, 0.05)} 0.022 232)`, `oklch(${night(0.4)} 0.03 250)`);
+  if (season === "autumn")
+    return tone(d, `oklch(${day(0.6)} 0.07 95)`, `oklch(${night(0.28)} 0.03 130)`);
+  if (season === "spring")
+    return tone(d, `oklch(${day(0.63)} 0.09 128)`, `oklch(${night(0.28)} 0.04 175)`);
+  return tone(d, `oklch(${day(0.61)} 0.095 130)`, `oklch(${night(0.27)} 0.035 185)`);
+}
+
+/** Earth keeps its meaning: pale and dry when resting, dark and moist with regular training. `k` lifts or sinks it. */
+function earth(d: Daylight, soil: number, k = 0) {
+  const dayL = 0.54 - soil * 0.17 + k;
+  const nightL = 0.29 - soil * 0.08 + k * 0.6;
+  return tone(
+    d,
+    `oklch(${dayL.toFixed(3)} ${(0.055 + soil * 0.01).toFixed(3)} 58)`,
+    `oklch(${nightL.toFixed(3)} 0.03 55)`,
+  );
+}
+
+const wood = (d: Daylight, k = 0) =>
+  tone(d, `oklch(${0.58 + k} 0.045 72)`, `oklch(${0.35 + k} 0.025 60)`);
 
 /** Crops that grow by the water or in the front border rather than in a bed. */
 const POND: Crop[] = ["lily", "reeds"];
@@ -39,17 +75,8 @@ const look = (p: GardenPlant, season: Season | null): Look => ({
   season,
 });
 
-/** Where a plant stands along a stretch: oldest at the left, today at the right, loosely (it's a garden). */
-const along = (p: GardenPlant, x0: number, x1: number) =>
-  x0 + ((GROWING_DAYS - 1 - p.age) / (GROWING_DAYS - 1)) * (x1 - x0) + (p.seed - 0.5) * 10;
-
-/** Soil from resting (pale, dry) to well watered (dark, moist). */
-const soilColor = (soil: number) =>
-  mix(
-    mix("var(--bark)", 62, mix("var(--autumn)", 12, "var(--scene-background)")),
-    35 + soil * 65,
-    mix("var(--bark)", 75, "var(--birch)"),
-  );
+/** How big a bed's plants stand: a rare session isn't a speck. */
+const plantScale = (n: number) => (n <= 2 ? 1.8 : n <= 4 ? 1.55 : n <= 7 ? 1.2 : 0.98);
 
 /**
  * A soft, irregular closed shape around (cx, cy): an ellipse whose radius wobbles (by `wobble`, 0–1) at a few
@@ -64,53 +91,108 @@ function blob(cx: number, cy: number, rx: number, ry: number, seed: number, wobb
     return [cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k] as const;
   });
   const p = (i: number) => pts[(i + n) % n]!;
-  let d = `M${p(0)[0].toFixed(1)},${p(0)[1].toFixed(1)}`;
+  let s = `M${p(0)[0].toFixed(1)},${p(0)[1].toFixed(1)}`;
   for (let i = 0; i < n; i++) {
     const [p0, p1, p2, p3] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
     const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
     const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-    d += ` C${c1[0]!.toFixed(1)},${c1[1]!.toFixed(1)} ${c2[0]!.toFixed(1)},${c2[1]!.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    s += ` C${c1[0]!.toFixed(1)},${c1[1]!.toFixed(1)} ${c2[0]!.toFixed(1)},${c2[1]!.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
   }
-  return `${d} Z`;
+  return `${s} Z`;
 }
 
-/** Tufts of grass scattered over a stretch of ground. */
+/** Tufts of curved grass blades in two tones, growing bigger toward the front. */
 function Grass({
   seed,
   count,
-  x0,
-  x1,
+  W,
   y0,
   y1,
-  color,
-  near = 0,
-  avoid = () => false,
+  c1,
+  c2,
+  avoid,
 }: {
   seed: string;
   count: number;
-  x0: number;
-  x1: number;
+  W: number;
   y0: number;
   y1: number;
-  color: string;
-  /** How much bigger the tufts grow toward the front (y1), nearer to you. */
-  near?: number;
-  avoid?: (x: number, y: number) => boolean;
+  c1: string;
+  c2: string;
+  avoid: (x: number, y: number) => boolean;
 }) {
   const r = rng(seedOf(seed));
-  const tufts = Array.from(
-    { length: count },
-    () => [x0 + r() * (x1 - x0), y0 + r() * (y1 - y0), 0.7 + r() * 0.6] as const,
-  ).filter(([x, y]) => !avoid(x, y));
+  const tufts: ReactNode[] = [];
+  for (let i = 0; i < count; i++) {
+    const x = r() * W;
+    const y = y0 + r() * (y1 - y0);
+    const s = 0.72 * (0.8 + r() * 0.7) * (1 + (0.7 * (y - y0)) / Math.max(1, y1 - y0));
+    const color = r() < 0.5 ? c1 : c2;
+    const blades = 3 + Math.floor(r() * 3);
+    let d = "";
+    for (let b = 0; b < blades; b++) {
+      const dx = (b - (blades - 1) / 2) * 1.5 * s + (r() - 0.5);
+      d += `M${(x + dx * 0.3).toFixed(1)},${y.toFixed(1)} Q${(x + dx * 0.5).toFixed(1)},${(y - 3 * s).toFixed(1)} ${(x + dx * 1.2).toFixed(1)},${(y - (4 + r() * 2.6) * s).toFixed(1)} `;
+    }
+    if (!avoid(x, y))
+      tufts.push(
+        <path
+          key={i}
+          d={d}
+          stroke={color}
+          strokeWidth={0.75 + s * 0.12}
+          fill="none"
+          strokeLinecap="round"
+        />,
+      );
+  }
+  return <g>{tufts}</g>;
+}
+
+/** A few wildflowers in the grass, meaning nothing but the season. */
+function Wildflowers({
+  W,
+  y0,
+  y1,
+  count,
+  season,
+  d,
+  avoid,
+}: {
+  W: number;
+  y0: number;
+  y1: number;
+  count: number;
+  season: Season | null;
+  d: Daylight;
+  avoid: (x: number, y: number) => boolean;
+}) {
+  if (season === "winter") return null;
+  const r = rng(seedOf("garden-wild"));
+  const hues =
+    season === "autumn"
+      ? ["var(--autumn)", "var(--birch)"]
+      : ["var(--blossom)", "var(--birch)", "var(--snow)"];
   return (
-    <g stroke={color} strokeWidth={0.8} strokeLinecap="round" fill="none">
-      {tufts.map(([x, y, s0], i) => {
-        const s = s0 * (1 + (near * (y - y0)) / Math.max(1, y1 - y0));
+    <g opacity={0.5 + d.light * 0.4}>
+      {Array.from({ length: count }, (_, i) => {
+        const x = r() * W;
+        const y = y0 + r() * (y1 - y0);
+        const hue = hues[Math.floor(r() * hues.length)]!;
+        const h = 3 + r() * 2.5;
+        if (avoid(x, y)) return null;
         return (
-          <path
-            key={i}
-            d={`M${x},${y} l${-1.6 * s},${-3.2 * s} M${x},${y} l${0.2 * s},${-4 * s} M${x},${y} l${1.8 * s},${-2.8 * s}`}
-          />
+          <g key={i}>
+            <line
+              x1={x}
+              y1={y}
+              x2={x}
+              y2={y - h}
+              stroke={mix("var(--summer)", 80, "black")}
+              strokeWidth={0.5}
+            />
+            <circle cx={x} cy={y - h} r={1} fill={hue} />
+          </g>
         );
       })}
     </g>
@@ -153,50 +235,157 @@ const plantLabel = (p: GardenPlant) => {
   return `${p.name}${km}, ${Math.round(p.minutes)} min, ${days}`;
 };
 
-/** An old fence along y: posts of uneven height leaning a little, rails sagging between them, a gap here and there. */
-function Fence({
-  seed,
-  w,
-  y,
-  winter,
+/** A bed of earthed-up soil: lit along its crown, shaded at its foot, with the marks of the hoe and a few clods. */
+function Mound({
+  id,
+  cx,
+  cy,
+  len,
+  hgt,
+  soil,
   d,
+  winter,
+  seed,
 }: {
-  seed: string;
-  w: number;
-  y: number;
-  winter: boolean;
+  id: string;
+  cx: number;
+  cy: number;
+  len: number;
+  hgt: number;
+  soil: number;
   d: Daylight;
+  winter: boolean;
+  seed: number;
 }) {
-  const r = rng(seedOf(`${seed}fence`));
-  const posts: { x: number; h: number; lean: number }[] = [];
-  for (let x = 4 + r() * 6; x < w + 10; x += 19 + r() * 9)
-    if (r() > 0.08) posts.push({ x, h: 14 + r() * 6, lean: (r() - 0.5) * 6 });
-  const wood = lit(mix("var(--bark)", 72, "var(--birch)"), d);
+  const r = rng(seed);
+  const n = 28;
+  const prof = (u: number) => Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.42);
+  const noise = Array.from({ length: n + 1 }, () => (r() - 0.5) * 1.1);
+  const X = (u: number) => cx - len / 2 + u * len;
+  const top = noise.map((v, i) => {
+    const u = i / n;
+    return `${X(u).toFixed(1)},${(cy - hgt * prof(u) + v * prof(u)).toFixed(1)}`;
+  });
+  const bottom = noise.map((v, i) => {
+    const u = 1 - i / n;
+    return `${X(u).toFixed(1)},${(cy + hgt * 0.55 * prof(u) + v * 0.6 * prof(u)).toFixed(1)}`;
+  });
+  const dark = earth(d, soil, -0.13);
   return (
-    <g stroke={wood} strokeLinecap="round" fill="none">
-      {[4, 10].map((dy) => (
+    <g>
+      <ellipse
+        cx={cx}
+        cy={cy + hgt * 0.62}
+        rx={len * 0.52}
+        ry={hgt * 0.42}
+        fill="black"
+        opacity={0.16}
+      />
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: earth(d, soil, 0.075) }} />
+          <stop offset="0.5" style={{ stopColor: earth(d, soil) }} />
+          <stop offset="1" style={{ stopColor: earth(d, soil, -0.1) }} />
+        </linearGradient>
+      </defs>
+      <path d={`M${[...top, ...bottom].join(" L")} Z`} fill={`url(#${id})`} />
+      {[-0.45, 0, 0.32].map((f, li) => {
+        const segs = Math.max(2, Math.round(len / 34));
+        return Array.from({ length: segs }, (_, si) => {
+          const u0 = 0.05 + (si / segs) * 0.9 + r() * 0.02;
+          const u1 = u0 + (0.9 / segs) * (0.5 + r() * 0.42);
+          const skip = r() < 0.14;
+          const bend = (r() - 0.5) * 1.6;
+          if (skip) return null;
+          const yy = (u: number) => cy + f * hgt * prof(u);
+          const m = (u0 + u1) / 2;
+          return (
+            <path
+              key={`${li}-${si}`}
+              d={`M${X(u0).toFixed(1)},${yy(u0).toFixed(1)} Q${X(m).toFixed(1)},${(yy(m) + bend).toFixed(1)} ${X(u1).toFixed(1)},${yy(u1).toFixed(1)}`}
+              stroke={dark}
+              strokeWidth={0.8}
+              strokeLinecap="round"
+              fill="none"
+              opacity={0.6}
+            />
+          );
+        });
+      })}
+      {Array.from({ length: Math.round(len / 7) }, (_, i) => {
+        const u = 0.06 + r() * 0.88;
+        const y = cy + (r() - 0.55) * 1.5 * hgt * prof(u) * 0.75;
+        const big = r();
+        const rx = 0.8 + big * 1.4;
+        const ry = 0.5 + big * 0.5;
+        return (
+          <g key={i}>
+            <ellipse cx={X(u)} cy={y + 0.45} rx={rx} ry={ry} fill={dark} />
+            <ellipse cx={X(u)} cy={y} rx={rx} ry={ry} fill={earth(d, soil, 0.05)} />
+          </g>
+        );
+      })}
+      {winter && (
         <path
-          key={dy}
-          strokeWidth={1.2}
-          d={posts
-            .map((p, i) => {
-              const py = y + dy - p.h + 14 + (r() - 0.5) * 1.5;
-              if (!i) return `M${p.x},${py}`;
-              const prev = posts[i - 1]!;
-              return `Q${(prev.x + p.x) / 2},${py + 2.2} ${p.x},${py}`;
-            })
-            .join(" ")}
+          d={blob(cx, cy - hgt * 0.55, len * 0.4, hgt * 0.4, seed + 3, 0.25)}
+          fill="var(--snow)"
+          opacity={0.85}
         />
+      )}
+    </g>
+  );
+}
+
+/** The old fence across the garden's back: posts leaning, rails sagging between them. */
+function Fence({ w, y, winter, d }: { w: number; y: number; winter: boolean; d: Daylight }) {
+  const r = rng(seedOf("garden-fence"));
+  const n = Math.round((w + 12) / 24);
+  const posts = Array.from({ length: n + 1 }, (_, i) => {
+    const x = -6 + ((w + 12) * i) / n;
+    return { x, y: y - (4 * i) / n, h: (13 + r() * 3) * 0.9, lean: (r() - 0.5) * 2.2 };
+  });
+  const c = wood(d);
+  const dark = wood(d, -0.09);
+  return (
+    <g fill="none" strokeLinecap="round">
+      {[0.42, 0.78].map((f, ri) => (
+        <g key={ri} stroke={ri ? c : dark}>
+          {posts.slice(1).map((p, i) => {
+            const a = posts[i]!;
+            return (
+              <path
+                key={i}
+                strokeWidth={0.95}
+                d={`M${a.x + a.lean * f},${a.y - a.h * f} Q${(a.x + p.x) / 2},${(a.y - a.h * f + p.y - p.h * f) / 2 + 1.3} ${p.x + p.lean * f},${p.y - p.h * f}`}
+              />
+            );
+          })}
+        </g>
       ))}
       {posts.map((p, i) => (
         <g key={i}>
-          <line x1={p.x} y1={y + 16} x2={p.x + p.lean * 0.3} y2={y + 16 - p.h} strokeWidth={2.2} />
+          <line
+            x1={p.x}
+            y1={p.y}
+            x2={p.x + p.lean}
+            y2={p.y - p.h}
+            stroke={dark}
+            strokeWidth={2.1}
+          />
+          <line
+            x1={p.x - 0.45}
+            y1={p.y - 0.5}
+            x2={p.x + p.lean - 0.45}
+            y2={p.y - p.h}
+            stroke={c}
+            strokeWidth={0.7}
+          />
           {winter && (
             <ellipse
-              cx={p.x + p.lean * 0.3}
-              cy={y + 15.5 - p.h}
-              rx={2.2}
-              ry={1}
+              cx={p.x + p.lean}
+              cy={p.y - p.h}
+              rx={1.5}
+              ry={0.75}
               fill="var(--snow)"
               stroke="none"
             />
@@ -207,96 +396,184 @@ function Fence({
   );
 }
 
+/** A little hand-painted sign stuck in the earth, askew. */
+function Sign({ text, s, d, tilt }: { text: string; s: number; d: Daylight; tilt: number }) {
+  const w = text.length * 4.5 + 8;
+  return (
+    <g transform={`rotate(${tilt}) scale(${s})`}>
+      <line
+        x1={0}
+        y1={1}
+        x2={0}
+        y2={-15}
+        stroke={wood(d, -0.09)}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      <rect x={-w / 2} y={-24} width={w} height={10.5} rx={1.6} fill={wood(d, -0.04)} />
+      <rect x={-w / 2} y={-24} width={w} height={1.3} rx={0.6} fill={wood(d, 0.07)} />
+      <text
+        x={0}
+        y={-16.4}
+        textAnchor="middle"
+        fontSize={6.5}
+        letterSpacing="0.06em"
+        fontWeight={650}
+        fill={tone(d, "oklch(0.22 0.02 60)", "oklch(0.88 0.02 80)")}
+      >
+        {text.toUpperCase()}
+      </text>
+    </g>
+  );
+}
+
+/** The watering can, left where it was last used. */
+function Can({ x, y, s, d }: { x: number; y: number; s: number; d: Daylight }) {
+  const c = tone(d, "oklch(0.66 0.012 230)", "oklch(0.4 0.015 240)");
+  const c2 = tone(d, "oklch(0.52 0.012 230)", "oklch(0.3 0.015 240)");
+  return (
+    <g transform={`translate(${x} ${y}) scale(${s})`}>
+      <ellipse cx={1} cy={0.4} rx={8} ry={1.6} fill="black" opacity={0.2} />
+      <path d="M-5,0 L-4.3,-9.5 L4.3,-9.5 L5,0 Z" fill={c} />
+      <path d="M1.2,-9.5 L4.3,-9.5 L5,0 L1.6,0 Z" fill={c2} />
+      <path
+        d="M4.5,-3 L11,-10.5 M11,-10.5 l1.8,1.5"
+        stroke={c}
+        strokeWidth={1.4}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path
+        d="M-3,-9.5 Q0,-15 3,-9.5 M-4.6,-8 Q-9,-6.5 -4.8,-2"
+        stroke={c2}
+        strokeWidth={0.9}
+        fill="none"
+      />
+    </g>
+  );
+}
+
+/** The spade, stuck in the ground. */
+function Spade({ x, y, s, d }: { x: number; y: number; s: number; d: Daylight }) {
+  return (
+    <g transform={`translate(${x} ${y}) rotate(7) scale(${s})`}>
+      <line
+        x1={0}
+        y1={-3}
+        x2={0}
+        y2={-28}
+        stroke={wood(d, -0.02)}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      <path d="M-3,-31 H3" stroke={wood(d, -0.02)} strokeWidth={1.4} strokeLinecap="round" />
+      <path
+        d="M-3,-5 H3 L2.5,1 Q0,3 -2.5,1 Z"
+        fill={tone(d, "oklch(0.55 0.01 240)", "oklch(0.34 0.012 245)")}
+      />
+    </g>
+  );
+}
+
 /**
- * The whole garden, drawn `w` units wide (360 on a phone). Given `h` it fills that height: the land runs to the foot
- * and the beds spread over it, the sky keeping what they don't need (a garden with many beds grows past `h` and
- * scrolls). The lowest `foot` units are left to grass, for what floats over the scene's end.
+ * The whole garden, drawn `w` units wide (360 on a phone). Given `h` it fills that height: the plot takes what it
+ * needs, the sky keeps up to about two fifths (a garden with many beds grows past `h` and scrolls). The lowest `foot`
+ * units are left to grass, for what floats over the scene's end.
  */
 export function GardenScene({
   garden,
   sky,
+  tree,
+  growth = 1,
   w: W = 360,
   h,
   foot = 0,
-  seed = "garden",
   now,
   onPlant,
   onBed,
+  onTree,
   onHorizon,
+  map,
+  onAddSport,
 }: {
   garden: Garden;
+  /** Which sports the beds are, for what their signs say. */
+  map: CropMap;
   sky: GardenSky;
+  /** My tree, beyond the fence; its height factor (see lib/forest/age). */
+  tree?: SceneTree;
+  growth?: number;
   w?: number;
   h?: number;
   foot?: number;
-  seed?: string;
   /** The moment the sky shows (now by default). */
   now?: Date;
   onPlant?: (p: GardenPlant) => void;
   onBed?: (sport: Sport) => void;
+  onTree?: () => void;
+  /** No sports in the garden yet: where to add one. */
+  onAddSport?: (() => void) | undefined;
   /** Where the land begins, in scene units (for the sky behind to set its sun and moon by). */
   onHorizon?: (y: number) => void;
 }) {
   const { season } = sky;
+  const winter = season === "winter";
   const d = daylight(now ?? new Date());
   const beds = garden.beds.filter((b) => !POND.includes(b.crop) && b.crop !== BORDER);
   const border = garden.beds.find((b) => b.crop === BORDER)?.plants ?? [];
-  const pond = garden.beds.filter((b) => POND.includes(b.crop)).flatMap((b) => b.plants);
+  const water = garden.beds.filter((b) => POND.includes(b.crop)).flatMap((b) => b.plants);
   const empty = garden.count === 0;
-  // An empty garden still shows three freshly turned beds, waiting.
-  const rows = empty ? 3 : Math.max(1, beds.length);
-  const r = rng(seedOf(`${seed}layout`));
   // A wide garden is drawn with bigger plants and roomier beds, not just longer ones.
   const wide = W > 360 ? Math.min(1.6, 0.6 + W / 900) : 1;
+  const rowsN = Math.max(empty ? 2 : 1, beds.length);
+  const front = border.length || water.length ? 56 * wide : 18;
 
-  // Each bed its own length and lean, alternating its offset, deeper ones a little smaller.
-  const layout = Array.from({ length: rows }, (_, i) => {
-    const k = 0.82 + (0.18 * i) / Math.max(1, rows - 1);
-    const len = (W - 40) * (0.68 + r() * 0.26) * (0.9 + 0.1 * k);
-    const shift = (i % 2 ? 1 : -1) * (W - 40 - len) * (0.3 + r() * 0.5);
-    return { k, len, cx: W / 2 + shift / 2, tilt: (r() - 0.5) * 5, seed: r() };
-  });
-  // How much land the beds need at their closest, and so what's left of the height given: the sky takes its share
-  // (a band at least, up to about a third), the beds spread over the rest and, with room to spare, grow.
-  const depth = layout.reduce((s, b) => s + 48 * b.k * wide, 0);
-  const need = 24 + 34 + depth + (44 + 38) * wide + foot;
-  const SKY = h ? Math.max(96, Math.min(h * 0.32, h - need)) : 96;
-  const extra = h ? Math.max(0, h - SKY - need) : 0;
-  const big = wide * Math.min(1.4, 1 + extra / depth);
-  const FENCE = SKY + 24;
-  const bedY: number[] = [];
-  let y = FENCE + 34;
-  layout.forEach((b, i) => {
-    y += 48 * b.k * wide;
-    bedY.push(y + (extra * (i + 0.5)) / rows);
-  });
-  // The front strip: flowers and the pond.
-  const FRONT = y + extra + 44 * wide;
-  const H = FRONT + 38 * wide + foot;
+  // Twice over: what's left of the height after a first go lets a small garden's plants stand a little bigger.
+  const layout = (grow: number) => {
+    const rows = Array.from({ length: rowsN }, (_, i) => {
+      const k = 0.84 + (0.16 * i) / Math.max(1, rowsN - 1);
+      const bed = beds[i];
+      const n = bed?.plants.length ?? 0;
+      const s = plantScale(n) * wide * k * grow;
+      return { i, k, bed, n, s, gap: k * wide * 26 + 28 * s };
+    });
+    const need = rows.reduce((a, b) => a + b.gap, 0) + front + foot * 0.86 + 12;
+    const SKY = h ? Math.max(96, Math.min(h * 0.42, h - need - 30)) : 96;
+    return { rows, need, SKY, extra: h ? Math.max(0, h - SKY - 30 - need) : 0 };
+  };
+  const first = layout(1);
+  const { rows, need, SKY, extra } = layout(Math.min(1.3, 1 + first.extra / 500));
+  const H = Math.max(h ?? 0, SKY + 30 + need);
+  const FENCE = SKY + 22;
   useEffect(() => onHorizon?.(SKY), [onHorizon, SKY]);
 
-  const winter = season === "winter";
-  const ground = lit(
-    winter
-      ? mix("var(--snow)", 22, "var(--scene-background)")
-      : season === "autumn"
-        ? mix(mix("var(--summer)", 60, "var(--autumn)"), 16, "var(--scene-background)")
-        : mix("var(--summer)", 18 + d.light * 16, "var(--scene-background)"),
-    d,
-  );
-  const grass = lit(
-    winter
-      ? mix("var(--snow)", 45, "var(--scene-background)")
-      : mix("var(--summer)", 45 + d.light * 15, "var(--scene-background)"),
-    d,
-  );
-  const soil = lit(soilColor(garden.soil), d);
-  const ridge = ridgeAcross(`${seed}ridge`, W, 1.2);
-  const pondRx = Math.min(58 * wide, W * 0.16);
-  const pondX = W - pondRx - 14;
-  const pondY = FRONT + 6;
-  const hedgeR = rng(seedOf(`${seed}hedge`));
-  const deco = rng(seedOf(`${seed}deco`));
+  // Each bed only as long as what grows in it, set a little off the middle.
+  const lay = rng(seedOf("garden-layout"));
+  let cursor = FENCE + 8 + extra * 0.3;
+  const placed = rows.map((row) => {
+    cursor += row.gap + (extra * 0.5) / rowsN;
+    const sign = row.bed ? sportSign(map, row.bed.sport) : null;
+    const signS = Math.min(1.25, Math.max(1, row.s * 0.9));
+    const signW = sign ? (sign.length * 4.5 + 8) * signS : 0;
+    const spacing = (row.n <= 4 ? 40 : 30) * row.s;
+    const want = row.n
+      ? signW * 0.55 + Math.max(0, row.n - 1) * spacing + 44 * row.s
+      : 150 * row.k * wide;
+    const len = Math.min(W - 26, want);
+    const shift = rowsN === 1 ? 0 : (lay() - 0.5) * 0.7;
+    const cx = W / 2 + shift * Math.max(0, W - 34 - len);
+    return { ...row, y: cursor, sign, signS, signW, len, cx, shift };
+  });
+  const end = cursor;
+
+  const far = useMemo(() => ridgeAcross("garden-ridge", W, 1.2), [W]);
+  const hedgeR = rng(seedOf("garden-hedge"));
+  const deco = rng(seedOf("garden-deco"));
+  const clear = (x: number, y: number) =>
+    placed.some((b) => Math.abs(y - b.y) < 15 && Math.abs(x - b.cx) < b.len / 2 + 8);
+  const pond = { x: W - 62 * wide, y: end + 32 * wide };
+  const treeX = Math.min(W * 0.16, 90);
+  const last = placed[placed.length - 1]!;
 
   return (
     <svg
@@ -306,30 +583,31 @@ export function GardenScene({
       aria-label={t("Garden", "Orto")}
     >
       {/* The sky is the page's own (components/sky/SkyPage), behind this scene from the window's top. */}
+      <defs>
+        <linearGradient id="garden-land" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: land(season, d, 0.45) }} />
+          <stop offset="1" style={{ stopColor: land(season, d, 0.95) }} />
+        </linearGradient>
+      </defs>
       <polygon
-        points={`0,${SKY + 10} ${ridge.map((v, i) => `${((i / (ridge.length - 1)) * W).toFixed(1)},${(SKY - 22 + (1 - v) * 26).toFixed(1)}`).join(" ")} ${W},${SKY + 10}`}
-        fill={hazed(lit("var(--scene-border)", d), d, 0.45 + d.light * 0.2)}
+        points={`0,${SKY + 10} ${far.map((v, i) => `${((i / (far.length - 1)) * W).toFixed(1)},${(SKY - 26 + (1 - v) * 30).toFixed(1)}`).join(" ")} ${W},${SKY + 10}`}
+        fill={tone(d, "oklch(0.63 0.04 235)", "oklch(0.27 0.03 255)")}
       />
-      <rect x={0} y={SKY} width={W} height={H - SKY} fill={ground} />
+      <rect x={0} y={SKY} width={W} height={H - SKY} fill="url(#garden-land)" />
       <Mist d={d} w={W} horizon={SKY + 2} weather={sky.weather} phase={sky.weatherPhase} />
 
-      {/* The hedge: bushes of every size in two layers, then the old fence in front. */}
-      {[0, 1].map((layer) =>
-        Array.from({ length: Math.ceil(W / (layer ? 13 : 18)) + 1 }, (_, i) => {
-          const cx = i * (layer ? 13 : 18) + (hedgeR() - 0.5) * 10;
-          const cr = (layer ? 7 : 10) + hedgeR() * 6;
-          const cy = FENCE - (layer ? 2 : 9) - hedgeR() * 4;
-          const fill = lit(mix("var(--pine)", layer ? 52 : 38, "var(--scene-background)"), d);
+      {/* The hedge: bushes of every size in three layers, darkest behind. */}
+      {[0, 1, 2].map((layer) =>
+        Array.from({ length: Math.ceil(W / (layer === 1 ? 13 : 17)) + 1 }, (_, i) => {
+          const cx = i * (layer === 1 ? 13 : 17) + (hedgeR() - 0.5) * 10;
+          const cr = (layer === 1 ? 6.5 : 9) + hedgeR() * 5 - (layer === 2 ? 3.4 : 0);
+          const cy = FENCE - (layer === 0 ? 6 : layer === 1 ? 0 : 4) - hedgeR() * 4;
+          const fill = land(season, d, layer === 0 ? 2.3 : layer === 1 ? 1.85 : 1.45);
           return (
             <g key={`h${layer}-${i}`}>
-              <circle cx={cx} cy={cy} r={cr} fill={fill} />
-              {season === "spring" && hedgeR() < 0.35 && (
-                <circle
-                  cx={cx + (hedgeR() - 0.5) * cr}
-                  cy={cy - cr * 0.5}
-                  r={1.2}
-                  fill="var(--blossom)"
-                />
+              <circle cx={cx} cy={cy} r={Math.max(2, cr)} fill={fill} />
+              {season === "spring" && layer === 2 && hedgeR() < 0.28 && (
+                <circle cx={cx} cy={cy - 3} r={1.1} fill="var(--blossom)" />
               )}
               {winter && layer === 1 && (
                 <path
@@ -344,239 +622,237 @@ export function GardenScene({
           );
         }),
       )}
-      <rect x={0} y={FENCE + 8} width={W} height={H - FENCE - 8} fill={ground} />
-      <Fence seed={seed} w={W} y={FENCE - 6} winter={winter} d={d} />
+      <rect x={0} y={FENCE + 6} width={W} height={H - FENCE - 6} fill="url(#garden-land)" />
+      {/* Your tree beyond the fence: this is still its land. */}
+      {tree && (
+        <Tap label={t("Tree", "Albero")} onTap={onTree}>
+          <MiniTree tr={tree} x={treeX} y={FENCE + 9} size={1.9} seed="home-tree" growth={growth} />
+        </Tap>
+      )}
       <Grass
-        seed={`${seed}grass`}
-        count={Math.round((W * (H - FENCE)) / 1500)}
-        x0={0}
-        x1={W}
+        seed="garden-grass"
+        count={Math.round((W / 360) * (H - FENCE) * 0.13)}
+        W={W}
+        y0={FENCE + 12}
+        y1={H}
+        c1={land(season, d, 1.15)}
+        c2={land(season, d, 0.05)}
+        avoid={clear}
+      />
+      <Wildflowers
+        W={W}
         y0={FENCE + 14}
         y1={H}
-        color={grass}
-        near={0.9}
-        avoid={(gx, gy) =>
-          layout.some((b, i) => Math.abs(gy - bedY[i]!) < 9 && Math.abs(gx - b.cx) < b.len / 2) ||
-          (Math.abs(gx - pondX) < pondRx + 4 && Math.abs(gy - pondY) < 18)
-        }
+        count={Math.round((W / 360) * 12)}
+        season={season}
+        d={d}
+        avoid={clear}
       />
+      <Fence w={W} y={FENCE + 12} winter={winter} d={d} />
 
-      {/* The beds: soft mounds of turned earth, back to front, each with its plants scattered in depth. */}
-      {layout.map((b, i) => {
-        const by = bedY[i]!;
-        const bed = beds[i];
+      {/* Fallen leaves on the grass in autumn. */}
+      {season === "autumn" &&
+        Array.from({ length: 10 }, (_, i) => {
+          const cx = deco() * W;
+          const cy = FENCE + 20 + deco() * (H - FENCE - 24);
+          return (
+            <ellipse
+              key={`fl${i}`}
+              cx={cx}
+              cy={cy}
+              rx={1.8}
+              ry={0.9}
+              fill="var(--autumn)"
+              opacity={0.8}
+              transform={`rotate(${deco() * 180} ${cx} ${cy})`}
+            />
+          );
+        })}
+
+      {/* The beds, back to front. */}
+      {placed.map((b) => {
         const x0 = b.cx - b.len / 2;
         const x1 = b.cx + b.len / 2;
-        const sign = bed ? CROP_NAME[bed.crop]() : null;
-        const pr = rng(seedOf(`${seed}bed${i}`));
-        const signScale = b.k * Math.max(1.25, big);
-        // The plants start past the sign, whatever its length.
-        const signEnd = sign ? (sign.length * 4.6 + 8) * signScale : 0;
-        const plants = (bed?.plants ?? [])
-          .map((p) => ({
+        const plants = b.bed?.plants ?? [];
+        const from = Math.min(x1 - 24 * b.s, x0 + b.signW * 0.62 + 20 * b.s);
+        const to = x1 - 18 * b.s;
+        const step = plants.length > 1 ? (to - from) / (plants.length - 1) : 0;
+        const inRow = plants
+          .map((p, i) => ({
             p,
-            x: along(p, Math.max(x0 + 34 * b.k * big, x0 + signEnd + 12), x1 - 12),
-            dy: (pr() - 0.5) * 7 * b.k * big,
-            s: b.k * big * (0.9 + pr() * 0.2),
+            x: plants.length === 1 ? (from + to) / 2 : from + i * step + (p.seed - 0.5) * 3,
+            dy: plants.length > 5 ? (i % 2 ? -3 : 2) * b.s : (p.seed - 0.5) * 2,
           }))
           .sort((a, c) => a.dy - c.dy);
         return (
-          <g key={`bed${i}`} transform={`rotate(${b.tilt} ${b.cx} ${by})`}>
-            <path
-              d={blob(b.cx, by + 1, b.len / 2, 8 * b.k * big, b.seed, 0.1)}
-              fill={mix(soil, 70, "black")}
-              opacity={0.5}
+          <g key={b.i} transform={`rotate(${(b.shift * 3).toFixed(2)} ${b.cx} ${b.y})`}>
+            <Mound
+              id={`garden-bed${b.i}`}
+              cx={b.cx}
+              cy={b.y}
+              len={b.len}
+              hgt={9.5 * b.k * Math.max(1, Math.min(1.25, b.s * 0.85))}
+              soil={garden.soil}
+              d={d}
+              winter={winter}
+              seed={seedOf(`garden-bed${b.i}`)}
             />
-            <path
-              d={blob(b.cx, by, b.len / 2 - 2, 6.5 * b.k * big, b.seed + 0.1, 0.12)}
-              fill={soil}
-            />
-            {/* A few clods and stones, not furrows. */}
-            {Array.from({ length: Math.round(b.len / 26) }, (_, j) => (
-              <ellipse
-                key={j}
-                cx={x0 + 8 + pr() * (b.len - 16)}
-                cy={by + (pr() - 0.5) * 6 * b.k}
-                rx={1.4 + pr()}
-                ry={0.8}
-                fill={mix(soil, 60, "black")}
-                opacity={0.6}
-              />
-            ))}
-            {winter && (
-              <path
-                d={blob(b.cx, by - 3 * b.k, b.len / 2 - 6, 2.6 * b.k, b.seed + 0.2, 0.25)}
-                fill="var(--snow)"
-                opacity={0.85}
-              />
-            )}
-            {bed && sign && (
-              <Tap label={bedName(bed.name, bed.crop)} onTap={onBed && (() => onBed(bed.sport))}>
-                {/* A little hand-painted sign stuck in the earth at the bed's end, askew. */}
-                <g
-                  transform={`translate(${x0 + 6} ${by - 2}) rotate(${(pr() - 0.5) * 12}) scale(${signScale})`}
-                >
-                  <line
-                    x1={0}
-                    y1={0}
-                    x2={0}
-                    y2={-15}
-                    stroke={mix("var(--bark)", 80, "var(--birch)")}
-                    strokeWidth={1.4}
-                    strokeLinecap="round"
-                  />
-                  <rect
-                    x={-3}
-                    y={-24}
-                    width={sign.length * 4.6 + 8}
-                    height={10}
-                    rx={2.5}
-                    fill={mix("var(--bark)", 70, "var(--birch)")}
-                  />
-                  <text
-                    x={1}
-                    y={-16.6}
-                    fontSize={6.6}
-                    letterSpacing="0.06em"
-                    fill="var(--scene-background)"
-                    fontWeight={600}
-                  >
-                    {sign.toUpperCase()}
-                  </text>
+            {b.bed && b.sign && (
+              <Tap label={b.bed.name} onTap={onBed && (() => onBed(b.bed!.sport))}>
+                <g transform={`translate(${x0 + b.signW * 0.32} ${b.y - 1})`}>
+                  <Sign text={b.sign} s={b.signS} d={d} tilt={(plants[0]!.seed - 0.5) * 7} />
                 </g>
               </Tap>
             )}
-            {plants.map(({ p, x, dy, s }) => (
-              <Tap key={p.id} label={plantLabel(p)} onTap={onPlant && (() => onPlant(p))}>
-                <Plant crop={p.crop} l={look(p, season)} x={x} y={by + dy} s={s} />
-                {p.critter && (
-                  <GardenCritter kind={p.critter} x={x + 9 * s} y={by + dy + 2} s={0.8 * s} />
-                )}
-                <rect
-                  x={x - 9 * s}
-                  y={by + dy - 40 * s}
-                  width={18 * s}
-                  height={42 * s}
-                  fill="transparent"
-                />
-              </Tap>
-            ))}
+            {inRow.map(({ p, x, dy }) => {
+              const y = b.y - 2 + dy;
+              return (
+                <Tap key={p.id} label={plantLabel(p)} onTap={onPlant && (() => onPlant(p))}>
+                  <ellipse
+                    cx={x}
+                    cy={y + 0.2}
+                    rx={5.5 * b.s}
+                    ry={1.2 * b.s}
+                    fill="black"
+                    opacity={0.2}
+                  />
+                  <Plant crop={p.crop} l={look(p, season)} x={x} y={y} s={b.s} />
+                  {p.critter && (
+                    <GardenCritter
+                      kind={p.critter}
+                      x={x + 9 * b.s}
+                      y={y + 2}
+                      s={0.8 * Math.max(1, b.s * 0.85)}
+                    />
+                  )}
+                  <rect
+                    x={x - 11 * b.s}
+                    y={y - 38 * b.s}
+                    width={22 * b.s}
+                    height={41 * b.s}
+                    fill="transparent"
+                  />
+                </Tap>
+              );
+            })}
           </g>
         );
       })}
 
-      {empty && (
-        <>
-          <Scarecrow x={W * 0.56} y={bedY[1]! + 1} s={1.2} />
+      {/* The tools left where they were last used, and whoever guards the seeds in a small garden. */}
+      <Spade
+        x={Math.min(W - 26, placed[0]!.cx + placed[0]!.len / 2 + 14)}
+        y={placed[0]!.y + 3}
+        s={1.3 * wide}
+        d={d}
+      />
+      {!water.length && <Can x={W * 0.74} y={last.y + 24} s={1.35 * wide} d={d} />}
+      {rowsN <= 2 && <Scarecrow x={W * 0.87} y={last.y - 2} s={1.45 * wide} />}
+      {empty &&
+        (onAddSport ? (
+          <Tap label={t("Add a sport", "Aggiungi uno sport")} onTap={onAddSport}>
+            <text
+              x={W / 2}
+              y={end + 42}
+              textAnchor="middle"
+              fontSize={12}
+              fontWeight={600}
+              fill="var(--birch)"
+            >
+              {t("Add a sport to plant its bed", "Aggiungi uno sport per piantare la sua aiuola")}
+            </text>
+            <rect x={W / 2 - 130} y={end + 26} width={260} height={24} fill="transparent" />
+          </Tap>
+        ) : (
           <text
-            x={W * 0.36}
-            y={FRONT + 14}
+            x={W / 2}
+            y={end + 42}
             textAnchor="middle"
             fontSize={11}
-            fill="var(--muted-foreground)"
+            fill="var(--foreground)"
+            opacity={0.85}
           >
-            {t("Your first run plants a tomato", "La tua prima corsa pianta un pomodoro")}
+            {t(
+              "Your first session plants the first seed",
+              "La tua prima sessione pianta il primo seme",
+            )}
           </text>
-        </>
-      )}
-      {/* Fallen leaves on the grass in autumn. */}
-      {season === "autumn" &&
-        Array.from({ length: 10 }, (_, i) => (
-          <ellipse
-            key={`fl${i}`}
-            cx={deco() * W}
-            cy={FENCE + 20 + deco() * (H - FENCE - 24)}
-            rx={1.8}
-            ry={0.9}
-            fill="var(--autumn)"
-            opacity={0.8}
-            transform={`rotate(${deco() * 180})`}
-          />
         ))}
 
-      {/* The flowers grow wild at the front, in loose clumps. */}
-      {border.map((p) => {
-        const x = along(p, 18, pondX - pondRx - 20);
-        const fy = FRONT - 8 * wide + (p.seed - 0.5) * 16 * wide;
+      {/* The flowers grow at the front, in a loose line. */}
+      {border.map((p, i) => {
+        const room = (water.length ? W * 0.6 : W * 0.86) / Math.max(1, border.length);
+        const x = 24 + (i + 0.5) * Math.min(38 * wide, room);
+        const y = end + 32 * wide + (p.seed - 0.5) * 10;
+        const s = 1.15 * wide;
         return (
           <Tap key={p.id} label={plantLabel(p)} onTap={onPlant && (() => onPlant(p))}>
-            <Plant
-              crop="flowers"
-              l={look(p, season)}
-              x={x}
-              y={fy}
-              s={(0.95 + p.seed * 0.2) * wide}
-            />
-            <rect x={x - 9} y={fy - 26} width={18} height={28} fill="transparent" />
+            <ellipse cx={x} cy={y + 0.3} rx={6 * s} ry={1.3 * s} fill="black" opacity={0.18} />
+            <Plant crop="flowers" l={look(p, season)} x={x} y={y} s={s} />
+            <rect x={x - 10 * s} y={y - 28 * s} width={20 * s} height={30 * s} fill="transparent" />
           </Tap>
         );
       })}
 
-      {/* The pond: an irregular pool with stones round it, reeds at its back, lilies on the water. */}
-      <path
-        d={blob(pondX, pondY, pondRx + 4, 18, seedOf(`${seed}pondrim`), 0.1)}
-        fill={lit(mix("var(--bark)", 45, "var(--scene-background)"), d)}
-      />
-      <path
-        d={blob(pondX, pondY, pondRx, 15, seedOf(`${seed}pond`), 0.1)}
-        fill={
-          winter
-            ? mix("var(--snow)", 45, "var(--primary)")
-            : lit(mix("var(--primary)", 28 + d.light * 20, "var(--scene-background)"), d)
-        }
-      />
-      {Array.from({ length: 9 }, (_, i) => {
-        const a = Math.PI * (0.05 + (i / 8) * 0.9);
-        return (
-          <ellipse
-            key={`st${i}`}
-            cx={pondX + Math.cos(a) * (pondRx + 3)}
-            cy={pondY + Math.sin(a) * 17}
-            rx={2.6 + deco() * 1.6}
-            ry={1.6}
-            fill={lit(mix("var(--muted-foreground)", 45, "var(--scene-background)"), d)}
+      {/* The pond: only once something grows in it. Reeds at its back, lilies on the water. */}
+      {water.length > 0 && (
+        <g>
+          <path
+            d={blob(pond.x, pond.y, 46 * wide, 13.5 * wide, 3.3, 0.08)}
+            fill={tone(d, "oklch(0.52 0.03 70)", "oklch(0.28 0.02 245)")}
           />
-        );
-      })}
-      {/* The moon (or the sun) glinting on the water. */}
-      {!winter && (
-        <ellipse
-          cx={pondX + pondRx * (d.moon ? d.moon.x - 0.5 : d.sun ? d.sun.x - 0.5 : 0.3) * 0.8}
-          cy={pondY - 4}
-          rx={pondRx * 0.22}
-          ry={1.6}
-          fill={d.sun ? "var(--birch)" : "var(--snow)"}
-          opacity={d.moon ? 0.15 + d.moon.lit * 0.25 : d.sun ? 0.3 : 0.1}
-        />
+          <path
+            d={blob(pond.x, pond.y, 42 * wide, 11 * wide, 3.5, 0.08)}
+            fill={
+              winter
+                ? tone(d, "oklch(0.86 0.025 225)", "oklch(0.5 0.03 240)")
+                : tone(d, "oklch(0.64 0.07 220)", "oklch(0.33 0.05 245)")
+            }
+          />
+          {!winter && (
+            <ellipse
+              cx={
+                pond.x + 42 * wide * (d.moon ? d.moon.x - 0.5 : d.sun ? d.sun.x - 0.5 : 0.3) * 0.8
+              }
+              cy={pond.y - 3 * wide}
+              rx={13 * wide}
+              ry={1.4 * wide}
+              fill={d.sun ? "var(--birch)" : "var(--snow)"}
+              opacity={d.moon ? 0.15 + d.moon.lit * 0.25 : d.sun ? 0.3 : 0.1}
+            />
+          )}
+          {water
+            .filter((p) => p.crop === "reeds")
+            .map((p, i, list) => {
+              const x = pond.x - 28 * wide + (i * 56 * wide) / Math.max(1, list.length);
+              const y = pond.y - 5 * wide;
+              return (
+                <Tap key={p.id} label={plantLabel(p)} onTap={onPlant && (() => onPlant(p))}>
+                  <Plant crop="reeds" l={look(p, season)} x={x} y={y} s={wide} />
+                  <rect
+                    x={x - 8}
+                    y={y - 30 * wide}
+                    width={16}
+                    height={32 * wide}
+                    fill="transparent"
+                  />
+                </Tap>
+              );
+            })}
+          {water
+            .filter((p) => p.crop === "lily")
+            .map((p, i, list) => {
+              const x = pond.x - 24 * wide + (i * 48 * wide) / Math.max(1, list.length);
+              const y = pond.y + ((i % 2) * 2 + (p.seed - 0.5) * 3) * wide;
+              return (
+                <Tap key={p.id} label={plantLabel(p)} onTap={onPlant && (() => onPlant(p))}>
+                  <Plant crop="lily" l={look(p, season)} x={x} y={y} s={0.85 * wide} />
+                  {p.critter && <GardenCritter kind={p.critter} x={x + 2} y={y - 1} s={0.7} />}
+                </Tap>
+              );
+            })}
+        </g>
       )}
-      {pond
-        .filter((p) => p.crop === "reeds")
-        .map((p) => {
-          const x = along(p, pondX - pondRx * 0.8, pondX + pondRx * 0.6);
-          return (
-            <Tap key={p.id} label={plantLabel(p)} onTap={onPlant && (() => onPlant(p))}>
-              <Plant
-                crop="reeds"
-                l={look(p, season)}
-                x={x}
-                y={pondY - 10 + p.seed * 3}
-                s={0.9 * wide}
-              />
-            </Tap>
-          );
-        })}
-      {pond
-        .filter((p) => p.crop === "lily")
-        .map((p) => {
-          const x = along(p, pondX - pondRx * 0.65, pondX + pondRx * 0.65);
-          const ly = pondY + (p.seed - 0.5) * 12;
-          return (
-            <Tap key={p.id} label={plantLabel(p)} onTap={onPlant && (() => onPlant(p))}>
-              <Plant crop="lily" l={look(p, season)} x={x} y={ly} s={0.9 * wide} />
-              {p.critter && <GardenCritter kind={p.critter} x={x + 2} y={ly - 1} s={0.7} />}
-            </Tap>
-          );
-        })}
 
       {/* Fireflies over a summer garden, once it's dark. */}
       {season === "summer" &&
@@ -585,7 +861,7 @@ export function GardenScene({
           <circle
             key={`ff${i}`}
             cx={20 + deco() * (W - 40)}
-            cy={FENCE + 16 + deco() * (FRONT - FENCE - 24)}
+            cy={FENCE + 16 + deco() * (end - FENCE)}
             r={1.1}
             fill="var(--birch)"
             opacity={0.75}
@@ -600,162 +876,8 @@ export function GardenScene({
         from={SKY}
         weather={sky.weather}
         phase={sky.weatherPhase}
-        seed={seed}
+        seed="garden"
       />
     </svg>
-  );
-}
-
-/**
- * The garden in miniature, for Home: a patch of dark earth in the grass with the last two weeks growing in it,
- * flowers spilling over its front edge, a small pool at its side when there were swims, a bit of old fence behind.
- * Drawn `w` wide, its front edge's middle at (x, y).
- */
-export function MiniGarden({
-  garden,
-  season,
-  x,
-  y,
-  w,
-  d,
-}: {
-  garden: Garden;
-  season: Season | null;
-  x: number;
-  y: number;
-  w: number;
-  /** The time of day lighting it (see lib/daylight). */
-  d: Daylight;
-}) {
-  const recent = garden.beds.flatMap((b) => b.plants.filter((p) => p.age < 14));
-  const water = recent.filter((p) => POND.includes(p.crop));
-  const flowers = recent.filter((p) => p.crop === BORDER);
-  const crops = recent.filter((p) => !POND.includes(p.crop) && p.crop !== BORDER).slice(-9);
-  const soil = lit(soilColor(garden.soil), d);
-  const winter = season === "winter";
-  const ry = w * 0.2;
-  const cy = y - ry;
-  const r = rng(seedOf("mini-garden"));
-  // Plants scattered over the patch in loose depth, back ones first so the front ones overlap them.
-  const placed = crops
-    .map((p, i) => {
-      const f = crops.length === 1 ? 0.5 : i / (crops.length - 1);
-      const depth = r();
-      return {
-        p,
-        x: x - w * 0.36 + f * w * 0.66 + (r() - 0.5) * 10,
-        y: cy - ry * 0.55 + depth * ry * 1.05,
-        s: 0.62 + depth * 0.22,
-      };
-    })
-    .sort((a, b) => a.y - b.y);
-  const pool = { x: x + w * 0.46, y: y - 6 };
-  const wood = lit(mix("var(--bark)", 72, "var(--birch)"), d);
-  return (
-    <g aria-hidden>
-      {/* A stretch of old fence behind the patch. */}
-      <g stroke={wood} strokeLinecap="round" fill="none">
-        <path
-          d={`M${x - w * 0.42},${cy - ry * 0.95} Q${x},${cy - ry * 1.25} ${x + w * 0.4},${cy - ry * 1.0}`}
-          strokeWidth={1.1}
-        />
-        {[-0.4, -0.2, 0.02, 0.22, 0.4].map((f, i) => (
-          <line
-            key={i}
-            x1={x + f * w}
-            y1={cy - ry * 0.75}
-            x2={x + f * w + (i % 2 ? 0.8 : -0.6)}
-            y2={cy - ry * 1.35 - (i % 3)}
-            strokeWidth={1.8}
-          />
-        ))}
-      </g>
-      <path
-        d={blob(x, cy + 2, w * 0.5, ry * 1.05, seedOf("mini-shadow"), 0.08)}
-        fill={mix(soil, 60, "black")}
-        opacity={0.5}
-      />
-      <path
-        d={blob(x, cy, w * 0.48, ry, seedOf("mini-soil"), 0.1)}
-        fill={mix(soil, 82, "var(--scene-background)")}
-      />
-      {/* Lighter where the moon catches the back of the mound. */}
-      <path
-        d={blob(x - w * 0.05, cy - ry * 0.35, w * 0.34, ry * 0.45, seedOf("mini-light"), 0.15)}
-        fill={soil}
-        opacity={0.55}
-      />
-      {Array.from({ length: 10 }, (_, i) => (
-        <ellipse
-          key={i}
-          cx={x + (r() - 0.5) * w * 0.8}
-          cy={cy + (r() - 0.5) * ry * 1.4}
-          rx={1.2 + r()}
-          ry={0.7}
-          fill={mix(soil, 60, "black")}
-          opacity={0.6}
-        />
-      ))}
-      {/* Grass growing up to the patch's edge. */}
-      <Grass
-        seed="mini-grass"
-        count={34}
-        x0={x - w * 0.62}
-        x1={x + w * 0.62}
-        y0={cy - ry * 1.2}
-        y1={y + 8}
-        color={
-          winter
-            ? mix("var(--snow)", 45, "var(--scene-background)")
-            : mix("var(--summer)", 50, "var(--scene-background)")
-        }
-        avoid={(gx, gy) => ((gx - x) / (w * 0.5)) ** 2 + ((gy - cy) / (ry * 1.1)) ** 2 < 1}
-      />
-      {winter && (
-        <path
-          d={blob(x - 4, cy - ry * 0.35, w * 0.36, ry * 0.4, seedOf("mini-snow"), 0.25)}
-          fill="var(--snow)"
-          opacity={0.8}
-        />
-      )}
-      {placed.map(({ p, x: px, y: py, s }) => (
-        <Plant key={p.id} crop={p.crop} l={look(p, season)} x={px} y={py} s={s} />
-      ))}
-      {flowers.slice(-5).map((p, i) => (
-        <Plant
-          key={p.id}
-          crop="flowers"
-          l={look(p, season)}
-          x={x - w * 0.34 + i * 14 + (r() - 0.5) * 6}
-          y={y + 2}
-          s={0.8}
-        />
-      ))}
-      {water.length > 0 && (
-        <g>
-          <path
-            d={blob(pool.x, pool.y, 17, 6, seedOf("mini-pool"), 0.12)}
-            fill={
-              winter
-                ? mix("var(--snow)", 45, "var(--primary)")
-                : mix("var(--primary)", 30, "var(--scene-background)")
-            }
-          />
-          {water.slice(-3).map((p, j) => (
-            <Plant
-              key={p.id}
-              crop={p.crop}
-              l={look(p, season)}
-              x={pool.x - 8 + j * 8}
-              y={p.crop === "reeds" ? pool.y - 4 : pool.y}
-              s={0.55}
-            />
-          ))}
-        </g>
-      )}
-      {crops.length === 0 && flowers.length === 0 && water.length === 0 && (
-        <Scarecrow x={x} y={cy + ry * 0.3} s={0.9} />
-      )}
-    </g>
   );
 }

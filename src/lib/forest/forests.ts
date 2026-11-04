@@ -23,6 +23,7 @@ import {
 import { del, keys } from "idb-keyval";
 import { auth, uid } from "../firebase";
 import { db } from "../db";
+import type { MainSport } from "../sport";
 
 /** A name to start from: the part of the account's email before the @. */
 export const defaultName = () => auth.currentUser?.email?.split("@")[0] ?? "";
@@ -36,9 +37,15 @@ export type Forest = {
   createdBy: string;
   createdAt: number;
   members: string[];
+  /** The sport its trees grow from, chosen when planted and fixed after; missing means cycling. */
+  sport?: "run";
   /** When a climb was last added or removed (missing until the first change after stamps existed). */
   climbsAt?: number;
 };
+/** The sport a forest's trees and leaderboards are about. */
+export const forestSport = (f: Pick<Forest, "sport">): MainSport =>
+  f.sport === "run" ? "run" : "ride";
+
 export type Member = {
   uid: string;
   name: string;
@@ -117,7 +124,7 @@ export const watchRequests = (fid: string, cb: (r: JoinRequest[]) => void) =>
   );
 
 /** Plant a forest: me as its first member, and an invite to pass on. */
-export async function createForest(name: string, myName: string) {
+export async function createForest(name: string, myName: string, sport: MainSport) {
   const me = uid();
   const ref = doc(collection(db, "forests"));
   const now = Date.now();
@@ -126,6 +133,7 @@ export async function createForest(name: string, myName: string) {
     createdBy: me,
     createdAt: now,
     members: [me],
+    ...(sport === "run" ? { sport } : {}),
   });
   await setDoc(doc(sub(ref.id, "members"), me), {
     name: myName.trim().slice(0, 40),
@@ -142,7 +150,12 @@ export async function createForest(name: string, myName: string) {
 export async function inviteLink(f: Forest): Promise<string> {
   const mine = await getDocs(sub(f.id, "invites"));
   const key = mine.docs[0]?.id ?? secret();
-  if (!mine.docs.length) await setDoc(doc(sub(f.id, "invites"), key), { name: f.name, by: uid() });
+  if (!mine.docs.length)
+    await setDoc(doc(sub(f.id, "invites"), key), {
+      name: f.name,
+      by: uid(),
+      ...(f.sport ? { sport: f.sport } : {}),
+    });
   return `${window.location.origin}/forest/join/${f.id}/${key}`;
 }
 
@@ -153,10 +166,15 @@ export async function renewInvite(f: Forest): Promise<string> {
   return inviteLink(f);
 }
 
-/** What an invite link shows before joining: the forest's name, or null when the link is no longer valid. */
-export async function readInvite(fid: string, key: string): Promise<string | null> {
+/** What an invite link shows before joining: the forest's name and sport, or null when the link is no longer valid. */
+export async function readInvite(
+  fid: string,
+  key: string,
+): Promise<{ name: string; sport: MainSport } | null> {
   const s = await getDoc(doc(sub(fid, "invites"), key)).catch(() => null);
-  return s?.exists() ? (s.get("name") as string) : null;
+  return s?.exists()
+    ? { name: s.get("name") as string, sport: forestSport({ sport: s.get("sport") as "run" }) }
+    : null;
 }
 
 export async function requestToJoin(

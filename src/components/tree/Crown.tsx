@@ -16,6 +16,9 @@ import {
   type Weather,
 } from "@/lib/tree";
 import { format, num, t } from "@/lib/i18n";
+import { checkInOn } from "@/lib/settings";
+import { byMain } from "@/lib/sport";
+import type { Ceiling } from "@/lib/readiness";
 
 const H = 262;
 const MONTHS = t(
@@ -41,7 +44,7 @@ export function CrownView({
   trunk: number;
   w: number;
   /** Today's ceiling on an easy or endurance day. */
-  limit: { watts: number | null; bpm: number | null } | null;
+  limit: Ceiling | null;
   /** Quiet tree: the picture without the scores. */
   quiet: boolean;
   /** The current training block's focus, e.g. "VO2max". */
@@ -333,15 +336,19 @@ export function CrownView({
         {!quiet && (
           <div className="text-sm text-muted-foreground">
             {crown.score == null
-              ? t(
-                  "Not enough data yet · tap to check in",
-                  "Dati ancora insufficienti · tocca per il check-in",
-                )
-              : crown.estimated
+              ? checkInOn()
                 ? t(
-                    `Readiness ${crown.score} · estimated · check in to refine`,
-                    `Prontezza ${crown.score} · stimata · fai il check-in per affinarla`,
+                    "Not enough data yet · tap to check in",
+                    "Dati ancora insufficienti · tocca per il check-in",
                   )
+                : t("Not enough data yet", "Dati ancora insufficienti")
+              : crown.estimated
+                ? checkInOn()
+                  ? t(
+                      `Readiness ${crown.score} · estimated · check in to refine`,
+                      `Prontezza ${crown.score} · stimata · fai il check-in per affinarla`,
+                    )
+                  : t(`Readiness ${crown.score} · estimated`, `Prontezza ${crown.score} · stimata`)
                 : t(
                     `Readiness ${crown.score} · tap the crown for today`,
                     `Prontezza ${crown.score} · tocca la chioma per oggi`,
@@ -573,7 +580,7 @@ export function Buds({
 }) {
   if (!events.length) return null;
   return (
-    // The same pill as Home's recap, centred over the crown.
+    // A pill centred over the crown.
     <div className="mb-2 flex flex-col items-center gap-1">
       {events.map((e) => (
         <button
@@ -748,7 +755,10 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
               />
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              {t(`${y.count} rides · load`, `${y.count} uscite · carico`)} {num(Math.round(y.load))}
+              {byMain(
+                t(`${y.count} rides · load`, `${y.count} uscite · carico`),
+                t(`${y.count} runs · load`, `${y.count} corse · carico`),
+              )} {num(Math.round(y.load))}
               {y.crossMinutes >= 60 &&
                 t(
                   ` · ${num(Math.round(y.crossMinutes / 60))} h in the garden`,

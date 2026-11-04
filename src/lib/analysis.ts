@@ -85,11 +85,15 @@ export function polarizationIndex(f: { low: number; mid: number; high: number })
   return Math.log10((f.low / f.mid) * f.high * 100);
 }
 
-export function distributionLabel(f: { low: number; mid: number; high: number }): string {
+export function distributionLabel(
+  f: { low: number; mid: number; high: number },
+  /** The Italian word for threshold is "FTP" on the bike, "soglia" on foot. */
+  thresholdWord = t("Threshold", "FTP"),
+): string {
   const pi = polarizationIndex(f);
   if (pi != null && pi > 2 && f.high > f.mid) return t("Polarized", "Polarizzata");
   if (f.low > f.mid && f.mid > f.high) return t("Pyramidal", "Piramidale");
-  if (f.mid >= f.high && f.mid > 0.2) return t("Threshold", "FTP");
+  if (f.mid >= f.high && f.mid > 0.2) return thresholdWord;
   if (f.high > 0.2) return t("High intensity", "Alta intensità");
   return t("Base / low intensity", "Base / bassa intensità");
 }

@@ -4,7 +4,7 @@ import { Panel } from "@/components/StatCard";
 import { Switch } from "@/components/ui/switch";
 import { uid } from "@/lib/firebase";
 import { db } from "@/lib/db";
-import { watchMyForests, type Forest } from "@/lib/forest/forests";
+import { forestSport, watchMyForests, type Forest } from "@/lib/forest/forests";
 import { republish } from "@/lib/forest/publish";
 import {
   isShared,
@@ -15,10 +15,23 @@ import {
   type SharePrefs,
 } from "@/lib/forest/visibility";
 import { t } from "@/lib/i18n";
+import { sportWords, type MainSport } from "@/lib/sport";
 
-/** On a ride's page: in which of my forests this ride shows. Nothing when I'm in no forest. */
-export function RideVisibility({ rideId, day }: { rideId: string; day: string }) {
-  const [forests, setForests] = useState<Forest[]>([]);
+/**
+ * On a ride's page: in which of my forests of its sport this ride shows. Nothing when I'm in none, or for an activity
+ * no forest is about.
+ */
+export function RideVisibility({
+  rideId,
+  day,
+  sport,
+}: {
+  rideId: string;
+  day: string;
+  sport: MainSport | null;
+}) {
+  const [all, setForests] = useState<Forest[]>([]);
+  const forests = all.filter((f) => forestSport(f) === sport);
   const [overrides, setOverrides] = useState<Overrides>({});
   const [prefs, setPrefs] = useState<Record<string, SharePrefs>>({});
   useEffect(() => watchMyForests(setForests), []);
@@ -35,7 +48,8 @@ export function RideVisibility({ rideId, day }: { rideId: string; day: string })
     return () => stops.forEach((s) => s());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
-  if (!forests.length) return null;
+  if (!forests.length || !sport) return null;
+  const w = sportWords(sport);
 
   return (
     <Panel title={t("Visible in", "Visibile in")}>
@@ -64,8 +78,8 @@ export function RideVisibility({ rideId, day }: { rideId: string; day: string })
       </ul>
       <p className="mt-2 text-xs text-muted-foreground">
         {t(
-          "Hidden rides leave your tree and the leaderboards in that forest.",
-          "Le uscite nascoste spariscono dal tuo albero e dalle classifiche di quel bosco.",
+          `Hidden ${w.rides} leave your tree and the leaderboards in that forest.`,
+          `Le ${w.uscite} nascoste spariscono dal tuo albero e dalle classifiche di quel bosco.`,
         )}
       </p>
     </Panel>

@@ -1,4 +1,4 @@
-// The sky of Home and the Garden: the real time of day (night, dawn, day, dusk) with the sun crossing it or the moon
+// The sky of the Garden and the forests: the real time of day (night, dawn, day, dusk) with the sun crossing it or the moon
 // in its phase, and today's form as weather over the whole of it, as on the tree but everywhere: a few fair clouds
 // when fresh, a sky filling up and darkening as form drops, rain and then snow at the deep end. Clouds take the light
 // of the moment (white by day, slate at night, lit pink and gold from below at sunrise and sunset). `TimeSky` is the

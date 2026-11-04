@@ -1,4 +1,4 @@
-// A tree page's sky: today's form as the weather, drawn as on Home. The clouds sit between the top bar and the hills.
+// A tree page's sky: today's form as the weather. The clouds sit between the top bar and the hills.
 import { useEffect } from "react";
 import { resetSky, setSky } from "@/lib/sky-store";
 import type { Weather } from "@/lib/tree";

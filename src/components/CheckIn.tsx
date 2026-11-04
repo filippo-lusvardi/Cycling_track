@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useLocalStore } from "@/hooks/use-local-store";
 import type { Wellness, WellnessEntry } from "@/lib/intervals";
 import { wellnessQuery } from "@/lib/queries";
+import { CHECK_IN, checkInOn } from "@/lib/settings";
 import { hasSource, sourceKind } from "@/lib/source";
 import { isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
@@ -167,37 +168,39 @@ export function CheckInForm({
           />
         </div>
       )}
-      {SCALES.map((s) => (
-        <div key={s.key} className="space-y-1">
-          <Label>{s.label}</Label>
-          <div className="grid grid-cols-4 gap-1.5">
-            {s.options.map((o, i) => {
-              const level = i + 1;
-              const on = vals[s.key] === level;
-              return (
-                <button
-                  key={o}
-                  type="button"
-                  onClick={() => setVals((v) => ({ ...v, [s.key]: on ? undefined : level }))}
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 rounded-md border px-2 py-2 text-xs transition-colors",
-                    on
-                      ? "border-transparent bg-secondary text-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                  style={on ? { boxShadow: `inset 0 0 0 1.5px ${LEVEL_TONE[i]}` } : undefined}
-                >
-                  <span
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ background: LEVEL_TONE[i] }}
-                  />
-                  {o}
-                </button>
-              );
-            })}
+      {/* With the check-in off the answers wouldn't count, so only what's still logged here is asked. */}
+      {checkInOn() &&
+        SCALES.map((s) => (
+          <div key={s.key} className="space-y-1">
+            <Label>{s.label}</Label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {s.options.map((o, i) => {
+                const level = i + 1;
+                const on = vals[s.key] === level;
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => setVals((v) => ({ ...v, [s.key]: on ? undefined : level }))}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 rounded-md border px-2 py-2 text-xs transition-colors",
+                      on
+                        ? "border-transparent bg-secondary text-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground",
+                    )}
+                    style={on ? { boxShadow: `inset 0 0 0 1.5px ${LEVEL_TONE[i]}` } : undefined}
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: LEVEL_TONE[i] }}
+                    />
+                    {o}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
       {showWeight && (
         <div className="space-y-1">
           <Label htmlFor="checkin-weight">{t("Weight (kg)", "Peso (kg)")}</Label>
@@ -212,7 +215,11 @@ export function CheckInForm({
         </div>
       )}
       <Button type="submit" className="w-full" disabled={busy}>
-        {busy ? t("Saving…", "Salvataggio…") : t("Save check-in", "Salva check-in")}
+        {busy
+          ? t("Saving…", "Salvataggio…")
+          : checkInOn()
+            ? t("Save check-in", "Salva check-in")
+            : t("Save", "Salva")}
       </Button>
       {(!showWeight || onSkip) && (
         <div className="grid grid-cols-2 gap-2">
@@ -298,9 +305,10 @@ export function DailyCheckIn() {
   const today = isoDate(new Date());
   const { data } = useQuery({ ...wellnessQuery(14), enabled: hasSource() });
   const [state, setState] = useCheckInState(today);
+  const [wanted] = useLocalStore(CHECK_IN, true);
   const row = data?.find((w) => w.id === today);
   const needed = !!data && !isCheckedIn(row) && state !== "done";
-  const open = (needed && state === "") || state === "open";
+  const open = wanted && ((needed && state === "") || state === "open");
 
   useEffect(() => {
     const flush = () =>

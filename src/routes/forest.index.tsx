@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { OpenScene } from "@/components/forest/ForestScene";
+import { OpenScene, switchFit } from "@/components/forest/ForestScene";
 import { ForestWorld } from "@/components/forest/ForestWorld";
 import { ZoomSwitch } from "@/components/tree/ZoomSwitch";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
@@ -23,6 +23,7 @@ import type { TreeHeader } from "@/lib/forest/types";
 import { uid } from "@/lib/firebase";
 import { t } from "@/lib/i18n";
 import { useScreenTrace } from "@/lib/perf";
+import { mainSport, sportWords, type MainSport } from "@/lib/sport";
 
 export const Route = createFileRoute("/forest/")({
   head: () => ({ meta: [{ title: t("Forest — Cirmolo", "Bosco — Cirmolo") }] }),
@@ -70,8 +71,8 @@ function ForestPage() {
   }, [viewKey, forests, live]);
 
   return (
-    // Room at the bottom for the floating Tree · Years · Forest switch, so the clearing never hides under it.
-    <div className="space-y-4 pb-16">
+    // The scene runs to the window's foot behind the bottom bar, with nothing below it: the page's padding isn't wanted.
+    <div className="-mb-32 space-y-4 lg:mb-0">
       <div className="on-sky">
         <div className="eyebrow text-foreground/75">
           {t("Friends & teammates", "Amici e compagni")}
@@ -86,11 +87,21 @@ function ForestPage() {
           )}
         </p>
       )}
-      {/* Always drawn, even before the forests arrive or with none: its clearing is where the first one is planted. */}
-      <OpenScene>
-        {(w) => (
+      {!forests?.length && (
+        <p className="on-sky mx-auto max-w-xl text-sm text-foreground/85">
+          {t(
+            "Trees grow better together. Plant a forest and invite friends or teammates with a link: you'll see each other's trees, choose which rides to show, and race on the forest's climbs.",
+            "Gli alberi crescono meglio insieme. Pianta un bosco e invita amici o compagni con un link: vedrete gli alberi degli altri, sceglierete quali uscite mostrare e vi sfiderete sulle salite del bosco.",
+          )}
+        </p>
+      )}
+      {/* Always drawn, even before the forests arrive or with none: its clearing is where the first one is planted.
+          Keyed on what stands above it, which moves its top and so the height that fits. */}
+      <OpenScene key={`${failed}${!forests?.length}`}>
+        {(w, fit) => (
           <ForestWorld
             w={w}
+            {...switchFit(w, fit)}
             woods={(forests ?? []).map((f) => ({
               forest: f,
               trees: f.members.map((uid) => ({
@@ -105,15 +116,6 @@ function ForestPage() {
           />
         )}
       </OpenScene>
-
-      {!forests?.length && (
-        <p className="on-sky mx-auto max-w-xl text-sm text-foreground/85">
-          {t(
-            "Trees grow better together. Plant a forest and invite friends or teammates with a link: you'll see each other's trees, choose which rides to show, and race on the forest's climbs.",
-            "Gli alberi crescono meglio insieme. Pianta un bosco e invita amici o compagni con un link: vedrete gli alberi degli altri, sceglierete quali uscite mostrare e vi sfiderete sulle salite del bosco.",
-          )}
-        </p>
-      )}
       <ZoomSwitch active="forest" />
       <ResponsiveDialog
         open={planting}
@@ -170,7 +172,9 @@ function PlantForm({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [me, setMe] = useState(defaultName);
+  const [sport, setSport] = useState<MainSport>(mainSport);
   const [busy, setBusy] = useState(false);
+  const w = sportWords(sport);
   return (
     <form
       className="space-y-3"
@@ -178,7 +182,7 @@ function PlantForm({ onDone }: { onDone: () => void }) {
         e.preventDefault();
         setBusy(true);
         try {
-          const fid = await createForest(name, me);
+          const fid = await createForest(name, me, sport);
           onDone();
           navigate({ to: "/forest/$fid", params: { fid }, search: { tab: "members" } });
         } catch (err) {
@@ -190,6 +194,28 @@ function PlantForm({ onDone }: { onDone: () => void }) {
       }}
     >
       <div className="space-y-1">
+        <Label>{t("Sport", "Sport")}</Label>
+        <div className="flex gap-1 rounded-lg bg-secondary p-1">
+          {(["ride", "run"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={sport === s}
+              onClick={() => setSport(s)}
+              className={`flex-1 rounded-md px-3 py-1.5 text-xs ${sport === s ? "bg-background text-foreground" : "text-muted-foreground"}`}
+            >
+              {sportWords(s).name}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t(
+            `Everyone's tree and times here come from their ${w.rides}. It can't be changed later.`,
+            `Qui l'albero e i tempi di tutti vengono dalle loro ${w.uscite}. Non si può cambiare dopo.`,
+          )}
+        </p>
+      </div>
+      <div className="space-y-1">
         <Label htmlFor="forest-name">{t("Forest name", "Nome del bosco")}</Label>
         <Input
           id="forest-name"
@@ -197,7 +223,7 @@ function PlantForm({ onDone }: { onDone: () => void }) {
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={t("Tuesday rides", "Uscite del martedì")}
+          placeholder={t(`Tuesday ${w.rides}`, `${w.Uscite} del martedì`)}
         />
       </div>
       <div className="space-y-1">
@@ -214,8 +240,8 @@ function PlantForm({ onDone }: { onDone: () => void }) {
       </div>
       <p className="text-xs text-muted-foreground">
         {t(
-          "Members see your tree: the rides you share, your fitness and today's crown (readiness and form).",
-          "I membri vedono il tuo albero: le uscite che condividi, la tua forma e la chioma di oggi (prontezza e forma).",
+          `Members see your tree: the ${w.rides} you share, your fitness and today's crown (readiness and form).`,
+          `I membri vedono il tuo albero: le ${w.uscite} che condividi, la tua forma e la chioma di oggi (prontezza e forma).`,
         )}
       </p>
       <Button type="submit" className="w-full" disabled={busy || !name.trim() || !me.trim()}>

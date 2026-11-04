@@ -16,6 +16,7 @@ import {
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { uid } from "../firebase";
 import { db } from "../db";
+import type { Splits } from "../ghost";
 import { placeKey } from "../places";
 import type { Attempt, Segment, Trace } from "../segments";
 
@@ -41,6 +42,10 @@ export type ForestTime = {
   rideId: string;
   rideName: string | null;
   avgWatts: number | null;
+  /** Set on runs; missing means a ride. A member has one time per climb, in their main sport. */
+  sport?: "run";
+  /** The effort's pacing, for racing it on the climb's page. Missing on times from before, or without a stored track. */
+  splits?: Splits;
 };
 
 const segs = (fid: string) => collection(db, "forests", fid, "segments");
@@ -129,7 +134,12 @@ export function bestShared(attempts: Attempt[], shared: (a: Attempt) => boolean)
   return best;
 }
 
-export async function publishTime(fid: string, sid: string, a: Attempt | null) {
+export async function publishTime(
+  fid: string,
+  sid: string,
+  a: Attempt | null,
+  splits: Splits | null = null,
+) {
   const ref = doc(db, "forests", fid, "segments", sid, "times", uid());
   if (!a) return deleteDoc(ref);
   await setDoc(ref, {
@@ -137,8 +147,31 @@ export async function publishTime(fid: string, sid: string, a: Attempt | null) {
     date: a.date,
     rideId: a.trackId,
     rideName: a.trackName,
-    avgWatts: a.avgWatts != null ? Math.round(a.avgWatts) : null,
+    avgWatts: a.sport === "run" || a.avgWatts == null ? null : Math.round(a.avgWatts),
+    ...(a.sport === "run" ? { sport: "run" } : {}),
+    ...(splits ? { splits } : {}),
   });
+}
+
+/**
+ * Who races whom (uids), from the raceable members fastest first: A is the reference, B is measured against A. With
+ * nobody picked, the record against me (or against the runner-up if the record is mine); a picked rival faces me if
+ * I have a time, else the record, else the runner-up.
+ */
+export function racePair(
+  uids: string[],
+  me: string | undefined,
+  picked?: string,
+): { a: string; b: string } | null {
+  if (uids.length < 2) return null;
+  const mine = me && uids.includes(me) ? me : undefined;
+  const [first, second] = uids as [string, string];
+  if (picked && uids.includes(picked)) {
+    if (mine && mine !== picked) return { a: mine, b: picked };
+    return { a: picked === first ? second : first, b: picked };
+  }
+  if (mine === first) return { a: first, b: second };
+  return { a: first, b: mine ?? second };
 }
 
 /** One climb of the forest, live (null once removed). */

@@ -4,6 +4,7 @@
 // as they arrive; a group's segment is the stretch all its members share. Cells make "which rides can
 // pass this segment?" a set lookup, so new rides and new segments only touch what they overlap.
 import { detectClimbs } from "./climbs";
+import type { MainSport } from "./sport";
 import { coverage, findAttempts, haversine, samePath, type Attempt, type Path, type Segment, type Trace, type TrackLike } from "./segments";
 
 export const CELL = 0.005; // degrees, ≈ 550 m north–south
@@ -144,9 +145,26 @@ export const segSig = (s: Segment) =>
   `${s.lat1.toFixed(5)},${s.lng1.toFixed(5)},${s.lat2.toFixed(5)},${s.lng2.toFixed(5)},${Math.round(s.length)}`;
 
 /** Cached efforts of one segment, valid while `sig` matches, covering rides processed up to `upTo`. */
-export type EffortRec = { sig: string; upTo: number; attempts: Attempt[]; trace: Trace | null };
+export type EffortRec = {
+  sig: string;
+  upTo: number;
+  attempts: Attempt[];
+  /** The fastest ride's path and profile. */
+  trace: Trace | null;
+  /** The fastest run's: a climb shared by both sports can be two different lines. */
+  runTrace?: Trace | null;
+};
 
-export const ridesIn = (r: EffortRec | undefined) => (r ? new Set(r.attempts.map((a) => a.trackId)).size : 0);
+/** A climb's efforts in one sport: times are only ever compared within a sport. */
+export const attemptsIn = (r: EffortRec | undefined, sport: MainSport) =>
+  (r?.attempts ?? []).filter((a) => (a.sport ?? "ride") === sport);
+
+export const traceIn = (r: EffortRec | undefined, sport: MainSport) =>
+  (sport === "run" ? r?.runTrace : r?.trace) ?? null;
+
+/** How many activities went through, in one sport or (without one) in any. */
+export const ridesIn = (r: EffortRec | undefined, sport?: MainSport) =>
+  r ? new Set((sport ? attemptsIn(r, sport) : r.attempts).map((a) => a.trackId)).size : 0;
 
 /** The path and profile of one effort, for the map and altimetry. */
 export function traceOf(t: TrackLike, a: Pick<Attempt, "i0" | "i1">): Trace {

@@ -2,7 +2,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { useEffect } from "react";
 import { forestKey, forestSegments } from "@/lib/forest/engine-link";
-import { watchMyForests, type Forest } from "@/lib/forest/forests";
+import { forestSport, watchMyForests, type Forest } from "@/lib/forest/forests";
 import { bestShared, publishTime, readClimbs, type ForestClimb } from "@/lib/forest/leaderboard";
 import { fingerprint } from "@/lib/forest/snapshot";
 import {
@@ -12,11 +12,13 @@ import {
   type Overrides,
   type SharePrefs,
 } from "@/lib/forest/visibility";
+import { effortSeries, toSplits, type Splits } from "@/lib/ghost";
 import { uid } from "@/lib/firebase";
 import { db } from "@/lib/db";
 import { segmentEngine, startSegments } from "@/lib/segment-app";
 import { liveSegments, type SavedSegment } from "@/lib/segment-store";
 import { readSetting, SEGMENTS } from "@/lib/settings";
+import { attemptsIn } from "@/lib/segment-index";
 
 /**
  * In the background while the app is open: hand my forests' climbs to the segment engine (so my rides are searched
@@ -60,13 +62,22 @@ export function ForestSync() {
           const id = forestKey(f.id, c.sid);
           const rec = snap.efforts[snap.links[id] ?? id];
           if (!rec) continue;
-          const best = bestShared(rec.attempts, (a) =>
+          // Only the forest's sport is shared: a bike time never lands on a board of runs.
+          const best = bestShared(attemptsIn(rec, forestSport(f)), (a) =>
             isShared({ id: a.trackId, day: a.date.slice(0, 10) }, f.id, p, overrides),
           );
           const key = `forest-time:${me}:${f.id}:${c.sid}`;
-          const fp = fingerprint(best && [best.trackId, best.duration]);
-          if ((await idbGet<string>(key).catch(() => undefined)) === fp) continue;
-          await publishTime(f.id, c.sid, best).catch((e) => console.warn("Time not published", e));
+          const before = await idbGet<string>(key).catch(() => undefined);
+          // Times published before splits existed go out again once, now with them.
+          const full = fingerprint(best && [best.trackId, best.duration, "splits"]);
+          if (before === full) continue;
+          const track = best && (await segmentEngine.loadTrack(best.trackId).catch(() => null));
+          const splits: Splits | null = best && track ? toSplits(effortSeries(track, best)) : null;
+          const fp = splits || !best ? full : fingerprint([best.trackId, best.duration]);
+          if (before === fp) continue;
+          await publishTime(f.id, c.sid, best, splits).catch((e) =>
+            console.warn("Time not published", e),
+          );
           await idbSet(key, fp).catch(() => {});
         }
       }

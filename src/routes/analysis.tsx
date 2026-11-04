@@ -1,8 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 import { ChevronDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import {
   Area,
   CartesianGrid,
@@ -18,6 +18,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { BodySection } from "@/components/BodySection";
 import { FitnessSection } from "@/components/FitnessSection";
 import { Panel, StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
@@ -45,8 +46,15 @@ import {
 import { addDays, formatClock, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
+import { analysisBoth, isSport, mainSport, type MainSport } from "@/lib/sport";
+import { RunAnalysis } from "@/components/analysis/RunAnalysis";
 
 export const Route = createFileRoute("/analysis")({
+  // ?view=body opens the Body view; ?sport= shows the other sport when Settings offers it.
+  validateSearch: (s: Record<string, unknown>): { sport?: MainSport; view?: "body" } => ({
+    ...(s["sport"] === "run" || s["sport"] === "ride" ? { sport: s["sport"] } : {}),
+    ...(s["view"] === "body" ? { view: "body" as const } : {}),
+  }),
   head: () => ({ meta: [{ title: t("Analysis — Cirmolo", "Analisi — Cirmolo") }] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(wellnessQuery(90)),
   component: Analysis,
@@ -58,19 +66,102 @@ const tip = { background: "var(--popover)", border: "1px solid var(--border)", b
 const durLabel = (s: number) =>
   s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${s / 3600}h`;
 
+/** A small two-way switch, for the page's view and for its sport. */
+function Toggle<T extends string>({
+  options,
+  active,
+  onPick,
+}: {
+  options: readonly (readonly [T, string])[];
+  active: T;
+  onPick: (v: T) => void;
+}) {
+  return (
+    <div className="flex gap-1 rounded-lg bg-secondary p-1">
+      {options.map(([v, label]) => (
+        <button
+          key={v}
+          type="button"
+          aria-pressed={active === v}
+          onClick={() => onPick(v)}
+          className={cn(
+            "rounded-md px-3 py-1 text-xs",
+            active === v ? "bg-background text-foreground" : "text-muted-foreground",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Analysis() {
+  const both = analysisBoth();
+  const { sport: chosen, view } = Route.useSearch();
+  const body = view === "body";
+  // Opens on the main sport; the toggle, when Settings offers it, shows the other one.
+  const sport = both ? (chosen ?? mainSport()) : mainSport();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const go = (search: { sport?: MainSport; view?: "body" }) =>
+    void navigate({ search, replace: true, resetScroll: false });
   return (
     <div className="space-y-6">
-      <div>
-        <div className="eyebrow">{t("Performance", "Prestazione")}</div>
-        <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Analysis", "Analisi")}</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="eyebrow">
+            {body ? t("Last 180 days", "Ultimi 180 giorni") : t("Performance", "Prestazione")}
+          </div>
+          <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Analysis", "Analisi")}</h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {both && !body && (
+            <Toggle
+              options={[
+                ["ride", t("Cycling", "Ciclismo")],
+                ["run", t("Running", "Corsa")],
+              ]}
+              active={sport}
+              onPick={(s) => go({ sport: s })}
+            />
+          )}
+          <Toggle
+            options={[
+              ["training", t("Training", "Allenamento")],
+              ["body", t("Body", "Corpo")],
+            ]}
+            active={body ? "body" : "training"}
+            onPick={(v) =>
+              go({
+                ...(chosen ? { sport: chosen } : {}),
+                ...(v === "body" ? { view: "body" } : {}),
+              })
+            }
+          />
+        </div>
       </div>
-      <FitnessSection />
-      <PowerSection />
-      <DurabilitySection />
-      <EftpSection />
-      <DecouplingSection />
-      <ZonesSection />
+      {body ? (
+        <Suspense
+          fallback={
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              {t("Loading…", "Caricamento…")}
+            </p>
+          }
+        >
+          <BodySection />
+        </Suspense>
+      ) : sport === "run" ? (
+        <RunAnalysis />
+      ) : (
+        <>
+          <FitnessSection />
+          <PowerSection />
+          <DurabilitySection />
+          <EftpSection />
+          <DecouplingSection />
+          <ZonesSection />
+        </>
+      )}
     </div>
   );
 }
@@ -78,7 +169,10 @@ function Analysis() {
 function PowerSection() {
   const { data: curves, isLoading } = useQuery(powerCurvesQuery());
   const { data: acts } = useQuery(activitiesQuery(42));
-  const rides = useMemo(() => (acts ?? []).filter((a) => a.icu_average_watts != null), [acts]);
+  const rides = useMemo(
+    () => (acts ?? []).filter((a) => isSport(a, "ride") && a.icu_average_watts != null),
+    [acts],
+  );
   const [rideId, setRideId] = useState<string | null>(null);
   // No ride compared until one is picked.
   const ride = rides.find((r) => r.id === rideId);
@@ -495,7 +589,7 @@ function DecouplingSection() {
       (data ?? [])
         .filter(
           (a) =>
-            (a.type ?? "").includes("Ride") &&
+            isSport(a, "ride") &&
             (a.moving_time ?? 0) >= 3600 &&
             a.icu_intensity != null &&
             a.icu_intensity < 80 &&
@@ -594,7 +688,7 @@ function ZonesSection() {
     const from = addDays(isoDate(new Date()), -weeks * 7);
     const z = Array(7).fill(0) as number[];
     for (const a of data ?? [])
-      if (a.start_date_local.slice(0, 10) >= from)
+      if (isSport(a, "ride") && a.start_date_local.slice(0, 10) >= from)
         a.zoneTimes.forEach((s, i) => (z[i] = (z[i] ?? 0) + s));
     return z;
   }, [data, weeks]);

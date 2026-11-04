@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { auth } from "@/lib/firebase";
 import {
   MAX_MEMBERS,
+  forestSport,
   approve,
   decline,
   inviteLink,
@@ -20,6 +21,7 @@ import {
   type JoinRequest,
   type Member,
 } from "@/lib/forest/forests";
+import { sportWords } from "@/lib/sport";
 import { republish } from "@/lib/forest/publish";
 import { format, t } from "@/lib/i18n";
 
@@ -191,6 +193,7 @@ function Invite({ forest }: { forest: Forest }) {
 }
 
 function MySettings({ forest, me }: { forest: Forest; me: Member }) {
+  const w = sportWords(forestSport(forest));
   const navigate = useNavigate();
   const [name, setName] = useState(me.name);
   const [confirm, setConfirm] = useState(false);
@@ -220,11 +223,13 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
         </form>
         <label className="flex items-center justify-between gap-3">
           <span>
-            <span className="block">{t("Share new rides", "Condividi le nuove uscite")}</span>
+            <span className="block">
+              {t(`Share new ${w.rides}`, `Condividi le nuove ${w.uscite}`)}
+            </span>
             <span className="block text-xs text-muted-foreground">
               {t(
-                "Off: new rides stay hidden here until you show them from the ride's page.",
-                "Spento: le nuove uscite restano nascoste qui finché non le mostri dalla pagina dell'uscita.",
+                `Off: new ${w.rides} stay hidden here until you show them from the ${w.ride}'s page.`,
+                `Spento: le nuove ${w.uscite} restano nascoste qui finché non le mostri dalla pagina ${w.dellUscita}.`,
               )}
             </span>
           </span>
@@ -239,12 +244,15 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
         <label className="flex items-center justify-between gap-3">
           <span>
             <span className="block">
-              {t("Show rides from before I joined", "Mostra le uscite di prima del mio ingresso")}
+              {t(
+                `Show ${w.rides} from before I joined`,
+                `Mostra le ${w.uscite} di prima del mio ingresso`,
+              )}
             </span>
             <span className="block text-xs text-muted-foreground">
               {t(
-                `Rides before ${format(me.joinedAt, "d MMM yyyy")}. Off: your tree here starts that day.`,
-                `Uscite prima del ${format(me.joinedAt, "d MMM yyyy")}. Spento: qui il tuo albero parte da quel giorno.`,
+                `${w.Rides} before ${format(me.joinedAt, "d MMM yyyy")}. Off: your tree here starts that day.`,
+                `${w.Uscite} prima del ${format(me.joinedAt, "d MMM yyyy")}. Spento: qui il tuo albero parte da quel giorno.`,
               )}
             </span>
           </span>
@@ -259,12 +267,12 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
         <label className="flex items-center justify-between gap-3">
           <span>
             <span className="block">
-              {t("Show my ride maps", "Mostra le mappe delle mie uscite")}
+              {t(`Show my ${w.ride} maps`, `Mostra le mappe delle mie ${w.uscite}`)}
             </span>
             <span className="block text-xs text-muted-foreground">
               {t(
-                "Members can open your shared rides of the last year: the route without its first and last kilometre, and its altitude profile.",
-                "I membri possono aprire le tue uscite condivise dell'ultimo anno: il percorso senza il primo e l'ultimo chilometro, e l'altimetria.",
+                `Members can open your shared ${w.rides} of the last year: the route without its first and last kilometre, and its altitude profile.`,
+                `I membri possono aprire le tue ${w.uscite} condivise dell'ultimo anno: il percorso senza il primo e l'ultimo chilometro, e l'altimetria.`,
               )}
             </span>
           </span>
@@ -283,8 +291,8 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
             </span>
             <span className="block text-xs text-muted-foreground">
               {t(
-                "On your shared rides of the last year: average and max heart rate, average and max power, normalized power.",
-                "Sulle tue uscite condivise dell'ultimo anno: frequenza cardiaca media e massima, potenza media e massima, potenza normalizzata.",
+                `On your shared ${w.rides} of the last year: average and max heart rate, average and max power, normalized power.`,
+                `Sulle tue ${w.uscite} condivise dell'ultimo anno: frequenza cardiaca media e massima, potenza media e massima, potenza normalizzata.`,
               )}
             </span>
           </span>

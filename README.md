@@ -92,17 +92,20 @@ On every other device, just sign in with the same account.
 **Language:** Cirmolo is in English and Italian. It starts in the browser's language; switch it in
 **Settings → Language** (each device remembers its own choice).
 
-**Home** is the first page: your tree and your garden side by side, under the sky of the moment (the real time of
-day, with the moon at night; the weather is your form). Tap the tree for the Tree, the garden for the Garden.
+**The Tree** is the first page. **The Garden** has its own place in the bar, under the sky of the moment (the real time
+of day, with the moon at night; the weather is your form). **Body** (weight and composition) is a view of **Analysis**.
 
-**The Garden** is where training off the bike grows (Settings → *How to read the garden*): every run, gym session,
-yoga class, hike, swim or ski outing of the last 8 weeks is a plant in its sport's bed (tomatoes, pumpkins, flowers,
-herbs, water lilies…), its fruit ripening over the week after. Older months go into the **Pantry**, a jar per month
-(the *Garden · Pantry* switch at the bottom). Tap a plant to open its activity.
-Settings → *What grows for each sport* picks the plants, and adds sports of your own (padel, tennis…) with a bed each.
+**The Garden** is where the sports you do grow (Settings → *How to read the garden*). It starts empty: the first activity
+of a new sport gives it a bed, with a vegetable picked at random among those not in use. Every session of those sports
+in the last 8 weeks is a plant in its bed, its fruit ripening over the week after. In Settings → *What grows in the
+garden* you can change a sport's vegetable or remove it (it stays out until added again), and *Add a sport* adds one by
+hand, from the list or by a name of your own (padel, tennis…). Older months go into the **Pantry**, a jar per month
+(the *Garden · Pantry* switch at the bottom). Tap a plant to open its activity, or a jar to list that month's
+activities and open it in the calendar.
+Tracking one sport only? Settings → *Show the Garden* turns it off: the Garden leaves the app and the sprouts leave the
+tree. Nothing is deleted.
 
-**The Tree** grows from your rides only; other sports show as a small sprout on that day's bark and live in the
-Garden. Trunk and crown still count all your training. Besides seasons, sky and branches (Settings → *How to read
+**The Tree** grows from your rides only; the Garden's sports show as a small sprout on that day's bark. Trunk and crown still count all your training. Besides seasons, sky and branches (Settings → *How to read
 the tree*), it shows:
 
 - **Knots** for days ill or injured, from *Sick* / *Injured* events in the intervals.icu calendar. Mark today from
@@ -112,6 +115,8 @@ the tree*), it shows:
 - **Today's ceiling** on easy and endurance days: the power and heart rate to stay under, from your intervals.icu
   zones.
 - **Quiet tree** (Settings → Tree) hides the scores on the tree until you tap.
+- **Morning check-in** (Settings → Tree) can be turned off: it's no longer asked, and the crown comes only from HRV,
+  sleep and form. A check-in skipped for a day works the same way: its part drops out and the others share its weight.
 - **Training focus**: what to train in the current block (base, high aerobic, VO2max, anaerobic, sprint). It weighs
   every race in the next 20 weeks (A more than B and C, nearer more than later) against the gaps in your own power
   curve, puts the base first when it's weak, and tapers around races. Add races in **Calendar → a day → Add race** with
@@ -144,16 +149,55 @@ zones, power curves and eFTP.
 
 ---
 
+## Thresholds and zones
+
+| | With intervals.icu | Without it |
+|---|---|---|
+| **FTP, threshold and max heart rate** | Read from intervals.icu. Editing them in Settings writes them there, after showing what changes | Typed in Settings; FTP estimated from your last 42 days if empty |
+| **Threshold pace** | Typed in Settings, or estimated from your last 90 days of runs | The same |
+| **Power and heart-rate zones** | Edited on intervals.icu | Follow the threshold; Settings → *Zones* sets where each ends |
+| **Pace zones** | Follow Cirmolo's threshold pace; Settings → *Zones* sets where each ends. Not sent to intervals.icu | The same |
+
+Cirmolo has no connection to Garmin or other devices: neither reads zones from them nor sends any.
+
+---
+
+## Workouts
+
+**Workouts** (under *More*) is your workout library, one for each sport. With intervals.icu it's your real intervals.icu
+library, and new workouts go in a *Cirmolo* folder there; without it, the library is kept in your account. Write steps in
+the intervals.icu builder's syntax and the blocks draw as you type:
+
+```
+Warmup
+- 15m Ramp 50-75%
+
+Main set 5x
+- 4m 115%
+- 4m 50%
+
+Cooldown
+- 10m 50%
+```
+
+Targets can be `60%`, `80-90%`, `Z2`, `200w`, `90% LTHR`, `95% Pace` or `4:30/km`. *Starter workouts*, listed by kind (recovery,
+endurance, threshold…), are there to copy.
+Tap a workout to add it to the calendar, or use **Plan a workout** on a day in the Calendar. Planned workouts show as
+blocks in the Calendar and on the Tree; heart-rate targets are drawn approximately.
+
+---
+
 ## Forest
 
 **Forest** (the third option of the *Tree · Years · Forest* switch at the bottom of the Tree) is where friends and teammates grow their trees side by side. You can be in
 several forests.
 
-- **Plant a forest**, then **Members → Show invite link** and send it. Whoever opens it asks to join (with consent
+- **Plant a forest** and choose its sport, cycling or running (forests planted before the choice are cycling; it can't
+  be changed later). Everyone's tree and times there come from that sport, whatever their main sport is. Then **Members → Show invite link** and send it. Whoever opens it asks to join (with consent
   to share their tree), and any member lets them in. *New link* makes the old one stop working. Up to 30 trees.
 - **Trees**: the forest's members as a little grove, each tree in today's season; tap one to see it whole.
-- **What's shared**: each member's own app publishes a copy of their tree into each forest when they open Home or
-  the Tree: the rides they show there (cycling only: the garden stays private), daily fitness/fatigue, sick days and today's crown. Heart rate and power
+- **What's shared**: each member's own app publishes a copy of their tree into each forest when they open
+  the Tree: the activities of the forest's sport they show there (everything else stays private), daily fitness/fatigue, sick days and today's crown. Heart rate and power
   appear only on ride pages, with **Show my heart rate and power** on (off unless turned on).
   Friends see that tree in plain bark, without numbers.
 - **Ride pages**: with **Show my ride maps** on for a forest (asked when joining, or under Members), members can
@@ -161,7 +205,8 @@ several forests.
   Per forest, **Members → Share new rides** and **Show rides from before I joined** (also asked when joining) set what
   shows; a ride's page has **Visible in** to show or hide that one ride, whatever those say.
 - **Climbs**: any member adds one of their saved climbs; each member's app finds their efforts on it and publishes
-  their best time from the rides they share there.
+  their best time from the rides they share there. **Race** replays any two times on the climb's route, from the
+  pacing (time and distance, no positions) published with each time.
 
 ---
 
@@ -265,7 +310,7 @@ To develop without touching the real project, run `firebase emulators:start` and
 
 ```
 src/
-  routes/       pages (file-based routing: Home, Tree, Garden, Rides, Calendar, Analysis, Segments, Body, Settings)
+  routes/       pages (file-based routing: Tree, Garden, Rides, Calendar, Analysis, Segments, Settings)
   components/   UI pieces (maps, profiles, charts, check-in, …)
   hooks/        React hooks (segments, names, online state)
   lib/          logic: intervals.icu client, Firebase (firebase, cloud, account), readiness, climbs, segment engine …

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { atTime, effortSeries, gapSeries, timeAtDist, type EffortSeries } from "./ghost";
+import {
+  atTime,
+  effortSeries,
+  gapSeries,
+  splitsOnTrace,
+  timeAtDist,
+  toSplits,
+  type EffortSeries,
+} from "./ghost";
 import type { TrackLike } from "./segments";
 
 /** A 1 km straight effort at constant speed (m/s), sampled every `every` metres. */
@@ -56,5 +64,25 @@ describe("ghost race", () => {
     const s = effort(5, 37);
     expect(timeAtDist(s, 500)).toBeCloseTo(100);
     expect(atTime(s, 150).d).toBeCloseTo(750);
+  });
+});
+
+describe("splits", () => {
+  it("keep the ends, stay within the limit and carry no positions", () => {
+    const s = toSplits(effort(5, 1), 50);
+    expect(s.t).toHaveLength(50);
+    expect(s.d[0]).toBe(0);
+    expect(s.d.at(-1)).toBe(1000);
+    expect(s.t.at(-1)).toBe(200);
+    expect(Object.keys(s).sort()).toEqual(["d", "t"]);
+  });
+
+  it("place an effort on the climb's route, finishing at its end even if GPS measured it longer", () => {
+    const trace = { lat: [45, 45.01, 45.02], lng: [11, 11, 11], dist: [0, 500, 1000] };
+    const s = splitsOnTrace({ t: [0, 50, 100], d: [0, 550, 1100] }, trace);
+    expect(s.lat[0]).toBeCloseTo(45);
+    expect(s.lat[1]).toBeCloseTo(45.01);
+    expect(s.lat.at(-1)).toBeCloseTo(45.02);
+    expect(atTime(s, 100).d).toBe(1100);
   });
 });

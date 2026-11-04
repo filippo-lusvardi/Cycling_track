@@ -4,17 +4,23 @@ import { parseISO } from "date-fns";
 import type { DurabilityProfile } from "./durability";
 import { t } from "./i18n";
 import type { Activity, PowerCurve, RideZones, Wellness } from "./intervals";
+import { formatPace } from "./pace";
+import type { FadeProfile } from "./run-metrics";
 import {
   COMPLETE,
+  COMPLETE_RUN,
   FOCUS_LABEL,
   FOCUSES,
+  focusesFor,
   formatMinutes,
   KINDS,
   profileFor,
+  raceSport,
   type Focus,
   type Profile,
   type Race,
 } from "./races";
+import { isSport, type MainSport } from "./sport";
 import { addDays } from "./training";
 
 /** Weight of a race by priority, and of the complete-cyclist profile that is always there. */
@@ -75,14 +81,18 @@ export const raceWeight = (r: Race, today: string) =>
 
 /** Profile of a race without a kind yet: a general road race. */
 const FALLBACK = profileFor({ discipline: "road", kind: "road", minutes: null, sprint: false });
+/** The same on foot: a half marathon. */
+const RUN_FALLBACK = profileFor({ discipline: "run", kind: "runHalf", minutes: null, sprint: false });
 
-/** Season demand as shares (0–1) per focus: the complete cyclist plus every upcoming race. */
-export function seasonDemand(races: Race[], today: string): Profile {
-  const sum = Object.fromEntries(FOCUSES.map((f) => [f, COMPLETE[f] * COMPLETE_WEIGHT])) as Profile;
+/** Season demand as shares (0–1) per focus: the complete athlete plus every upcoming race in this sport. */
+export function seasonDemand(races: Race[], today: string, sport: MainSport = "ride"): Profile {
+  const complete = sport === "run" ? COMPLETE_RUN : COMPLETE;
+  const sum = Object.fromEntries(FOCUSES.map((f) => [f, complete[f] * COMPLETE_WEIGHT])) as Profile;
   for (const r of races) {
+    if (raceSport(r) !== sport) continue;
     const w = raceWeight(r, today);
     if (!w) continue;
-    const prof = r.info ? profileFor(r.info) : FALLBACK;
+    const prof = r.info ? profileFor(r.info) : sport === "run" ? RUN_FALLBACK : FALLBACK;
     for (const f of FOCUSES) sum[f] += prof[f] * w;
   }
   const total = FOCUSES.reduce((s, f) => s + sum[f], 0);
@@ -105,17 +115,15 @@ export function powerGaps(
   return { ratio, gap: Object.fromEntries(FOCUSES.map((f) => [f, 1 - ratio[f]])) as Profile };
 }
 
-const isRide = (a: Activity) => (a.type ?? "").includes("Ride");
-
-/** Zones with almost no time over the last 8 weeks of riding. */
-export function neglected(acts: Activity[], today: string): Focus[] {
+/** Zones with almost no time over the last 8 weeks in this sport. */
+export function neglected(acts: Activity[], today: string, sport: MainSport = "ride"): Focus[] {
   const from = addDays(today, -56);
   const rides = acts.filter(
-    (a) => isRide(a) && a.start_date_local.slice(0, 10) > from && a.zoneTimes.length,
+    (a) => isSport(a, sport) && a.start_date_local.slice(0, 10) > from && a.zoneTimes.length,
   );
   const total = rides.reduce((s, a) => s + a.zoneTimes.reduce((x, y) => x + y, 0), 0);
   if (!total) return [];
-  return FOCUSES.filter((f) => {
+  return focusesFor(sport).filter((f) => {
     const [zones, min] = ZONES[f];
     const secs = rides.reduce(
       (s, a) => s + zones.reduce((x, z) => x + (a.zoneTimes[z - 1] ?? 0), 0),
@@ -137,12 +145,15 @@ export function baseGate(
   wellness: Wellness[],
   today: string,
   durability?: DurabilityProfile | null,
+  sport: MainSport = "ride",
+  fadeP?: FadeProfile | null,
 ): string[] {
+  const isRun = sport === "run";
   const reasons: string[] = [];
   const steady = acts
     .filter(
       (a) =>
-        isRide(a) &&
+        isSport(a, sport) &&
         a.start_date_local.slice(0, 10) > addDays(today, -90) &&
         (a.moving_time ?? 0) >= 3600 &&
         a.icu_intensity != null &&
@@ -155,10 +166,15 @@ export function baseGate(
     const avg = steady.reduce((s, a) => s + a.decoupling!, 0) / steady.length;
     if (avg > 5)
       reasons.push(
-        t(
-          `Aerobic decoupling on steady rides is ${avg.toFixed(1)}% (over 5%).`,
-          `Il disaccoppiamento aerobico nelle uscite regolari è ${avg.toFixed(1)}% (oltre il 5%).`,
-        ),
+        isRun
+          ? t(
+              `Aerobic drift on easy runs is ${avg.toFixed(1)}% (over 5%).`,
+              `La deriva aerobica nelle corse facili è ${avg.toFixed(1)}% (oltre il 5%).`,
+            )
+          : t(
+              `Aerobic decoupling on steady rides is ${avg.toFixed(1)}% (over 5%).`,
+              `Il disaccoppiamento aerobico nelle uscite regolari è ${avg.toFixed(1)}% (oltre il 5%).`,
+            ),
       );
   }
 
@@ -166,7 +182,7 @@ export function baseGate(
     acts
       .filter(
         (a) =>
-          isRide(a) &&
+          isSport(a, sport) &&
           a.start_date_local.slice(0, 10) > from &&
           a.start_date_local.slice(0, 10) <= to,
       )
@@ -196,6 +212,18 @@ export function baseGate(
     );
 
   // Durability: 20 min power after 30 kJ/kg, from at least 3 long rides. Amateurs commonly lose 10–15% there.
+  // On foot: 5 min pace after 25 km of flat-equivalent running, from at least 3 long runs.
+  if (isRun) {
+    const late = (fadeP?.reached?.[25] ?? 0) >= 3 ? fadeP!.drop[25][0] : null;
+    if (late != null && late > DURABILITY_FADE)
+      reasons.push(
+        t(
+          `Your 5 min pace drops ${late.toFixed(0)}% after 25 km of running (over ${DURABILITY_FADE}%).`,
+          `Il tuo ritmo sui 5 min cala del ${late.toFixed(0)}% dopo 25 km di corsa (oltre il ${DURABILITY_FADE}%).`,
+        ),
+      );
+    return reasons;
+  }
   const fade = (durability?.reached?.[30] ?? 0) >= 3 ? durability!.drop[30][2] : null;
   if (fade != null && fade > DURABILITY_FADE)
     reasons.push(
@@ -227,18 +255,24 @@ export function computeFocus(input: {
   c42: PowerCurve | undefined;
   c1y: PowerCurve | undefined;
   durability?: DurabilityProfile | null;
+  /** Curves hold speeds (m/s) for a run: only ratios are taken, so the units don't matter. */
+  sport?: MainSport;
+  fade?: FadeProfile | null;
 }): FocusResult {
-  const demand = seasonDemand(input.races, input.today);
+  const sport = input.sport ?? "ride";
+  const demand = seasonDemand(input.races, input.today, sport);
   const { gap, ratio } = powerGaps(input.c42, input.c1y);
-  const lazy = neglected(input.acts, input.today);
+  const lazy = neglected(input.acts, input.today, sport);
   const score = Object.fromEntries(
     FOCUSES.map((f) => [
       f,
       demand[f] * (gap[f] + GAP_FLOOR + (lazy.includes(f) ? NEGLECT_BONUS : 0)),
     ]),
   ) as Profile;
-  const base = baseGate(input.acts, input.wellness, input.today, input.durability);
-  const focus = base.length ? "base" : FOCUSES.reduce((a, b) => (score[b] > score[a] ? b : a));
+  const base = baseGate(input.acts, input.wellness, input.today, input.durability, sport, input.fade);
+  const focus = base.length
+    ? "base"
+    : focusesFor(sport).reduce((a, b) => (score[b] > score[a] ? b : a));
   return { focus, demand, ratio, score, base, neglected: lazy };
 }
 
@@ -309,6 +343,80 @@ const range = (ftp: number | null, lo: number, hi: number) =>
     ? `${Math.round(ftp * lo)}–${Math.round(ftp * hi)} W`
     : `${Math.round(lo * 100)}–${Math.round(hi * 100)}% FTP`;
 
+/** A pace range from shares of threshold: `lo` and `hi` are speeds, so the faster pace reads second. */
+const paceRange = (threshold: number | null, lo: number, hi: number) =>
+  threshold
+    ? `${formatPace(threshold * lo)}–${formatPace(threshold * hi)}/km`
+    : t(
+        `${Math.round(lo * 100)}–${Math.round(hi * 100)}% of threshold pace`,
+        `${Math.round(lo * 100)}–${Math.round(hi * 100)}% del ritmo di soglia`,
+      );
+
+/** The quality session for a runner: running can't take a cyclist's volume, so it's shorter, with strides. */
+function runSession(input: {
+  focus: Focus;
+  races: Race[];
+  today: string;
+  threshold: number | null;
+  c1y: PowerCurve | undefined;
+}): string {
+  const { threshold } = input;
+  const races = input.races.filter((r) => raceSport(r) === "run");
+  const lead = leadRace(races, input.today);
+  let text: string;
+  const main = lead?.info
+    ? [...FOCUSES]
+        .sort((a, b) => profileFor(lead.info!)[b] - profileFor(lead.info!)[a])
+        .slice(0, 2)
+    : [];
+  if (lead?.info && input.focus !== "base" && main.includes(input.focus)) {
+    const m = lead.info.minutes ?? KINDS[lead.info.kind].minutes!;
+    const reps =
+      m <= 8
+        ? `5×${formatMinutes(m)}`
+        : m <= 25
+          ? `3×${formatMinutes(Math.round(m * 0.5))}`
+          : `2×${formatMinutes(Math.min(30, Math.round(m * 0.4)))}`;
+    const best = wattsAt(input.c1y, m * 60);
+    const at = best
+      ? `${formatPace(best * 0.95)}–${formatPace(best)}/km`
+      : t("race pace", "ritmo gara");
+    text = t(
+      `Race pace for ${lead.name} (${formatMinutes(m)}): ${reps} at ${at}, easy jog between.`,
+      `Ritmo gara per ${lead.name} (${formatMinutes(m)}): ${reps} a ${at}, corsa facile tra le ripetute.`,
+    );
+  } else {
+    const strides = t(" Finish with 4 strides.", " Chiudi con 4 allunghi.");
+    text = {
+      base:
+        t(
+          `Long run: 90–150 min easy (${paceRange(threshold, 0.78, 0.88)}), the last 20 min a little quicker.`,
+          `Corsa lunga: 90–150 min facile (${paceRange(threshold, 0.78, 0.88)}), gli ultimi 20 min un po' più veloce.`,
+        ) + strides,
+      aerobic:
+        t(
+          `3×10 min at ${paceRange(threshold, 0.97, 1)}, 3 min easy jog between.`,
+          `3×10 min a ${paceRange(threshold, 0.97, 1)}, 3 min di corsa facile tra le ripetute.`,
+        ) + strides,
+      vo2: t(
+        `5×3 min at ${paceRange(threshold, 1.05, 1.12)}, 3 min easy jog between.`,
+        `5×3 min a ${paceRange(threshold, 1.05, 1.12)}, 3 min di corsa facile tra le ripetute.`,
+      ),
+      anaerobic: t(
+        `8×45 s at ${paceRange(threshold, 1.15, 1.3)}, full recovery walking and jogging.`,
+        `8×45 s a ${paceRange(threshold, 1.15, 1.3)}, recupero completo camminando e corricchiando.`,
+      ),
+      sprint: t("6 strides inside an easy run.", "6 allunghi dentro una corsa facile."),
+    }[input.focus];
+  }
+  if (races.some((r) => raceWeight(r, input.today) > 0 && r.info?.discipline === "trail"))
+    text += t(
+      " Do it on a climb where you can: pace gives way to effort there.",
+      " Falla in salita dove puoi: lì conta lo sforzo più del ritmo.",
+    );
+  return text;
+}
+
 /** The quality session for a summer day in this block, with targets from your zones and curve. */
 export function focusSession(input: {
   focus: Focus;
@@ -316,7 +424,10 @@ export function focusSession(input: {
   today: string;
   zones: RideZones | undefined;
   c1y: PowerCurve | undefined;
+  sport?: MainSport;
+  threshold?: number | null;
 }): string {
+  if (input.sport === "run") return runSession({ ...input, threshold: input.threshold ?? null });
   const ftp = input.zones?.ftp ?? null;
   const weighted = input.races.filter((r) => raceWeight(r, input.today) > 0);
   const lead = leadRace(input.races, input.today);
@@ -381,8 +492,13 @@ export function focusSession(input: {
 }
 
 /** What race days, the day after and the taper ask for instead of the block's session. */
-export function roleText(role: DayRole): string {
+export function roleText(role: DayRole, sport: MainSport = "ride"): string {
   const name = role.race.name;
+  if (sport === "run" && role.role === "sharpen")
+    return t(
+      `Taper for ${name} (${role.days} days): short easy runs, with 4 strides and 3×1 min at race pace.`,
+      `Scarico per ${name} (${role.days} giorni): corse brevi e facili, con 4 allunghi e 3×1 min a ritmo gara.`,
+    );
   const sprint = role.race.info?.sprint;
   switch (role.role) {
     case "race":
@@ -414,29 +530,45 @@ export function roleText(role: DayRole): string {
 }
 
 /** Why this focus, in a few short lines. */
-export function focusWhy(r: FocusResult, races: Race[], today: string): string[] {
+export function focusWhy(
+  r: FocusResult,
+  races: Race[],
+  today: string,
+  sport: MainSport = "ride",
+): string[] {
   if (r.base.length) return r.base;
   const lines: string[] = [];
+  const isRun = sport === "run";
   // The races themselves are listed next to this; here, only how they weigh.
-  const n = races.filter((x) => raceWeight(x, today) > 0).length;
+  const n = races.filter((x) => raceSport(x) === sport && raceWeight(x, today) > 0).length;
   lines.push(
     n
       ? t(
           `What your ${n === 1 ? "next race needs" : `${n} races in the next 20 weeks need`}, the nearest and the A races counting most.`,
           `Ciò che ${n === 1 ? "serve alla prossima gara" : `serve alle ${n} gare delle prossime 20 settimane`}, con più peso alle più vicine e alle A.`,
         )
-      : t(
-          "No races ahead: training the complete cyclist.",
-          "Nessuna gara in arrivo: alleni il ciclista completo.",
-        ),
+      : isRun
+        ? t(
+            "No races ahead: training the complete runner.",
+            "Nessuna gara in arrivo: alleni il corridore completo.",
+          )
+        : t(
+            "No races ahead: training the complete cyclist.",
+            "Nessuna gara in arrivo: alleni il ciclista completo.",
+          ),
   );
   const pct = Math.round(r.ratio[r.focus] * 100);
   if (pct < 100)
     lines.push(
-      t(
-        `Your ${DURATION_WORD[r.focus]} power is at ${pct}% of your best this year.`,
-        `La tua potenza ${DURATION_WORD[r.focus]} è al ${pct}% del tuo migliore dell'anno.`,
-      ),
+      isRun
+        ? t(
+            `Your ${DURATION_WORD[r.focus]} pace is at ${pct}% of your best this year.`,
+            `Il tuo ritmo ${DURATION_WORD[r.focus]} è al ${pct}% del tuo migliore dell'anno.`,
+          )
+        : t(
+            `Your ${DURATION_WORD[r.focus]} power is at ${pct}% of your best this year.`,
+            `La tua potenza ${DURATION_WORD[r.focus]} è al ${pct}% del tuo migliore dell'anno.`,
+          ),
     );
   if (r.neglected.includes(r.focus))
     lines.push(

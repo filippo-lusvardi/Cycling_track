@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { TreeInput } from "@/lib/forest/publish";
 
 /**
- * Keep my forests' copy of my tree current from whichever page has the data (Home or Tree). The publisher needs
+ * Keep my forests' copy of my tree current from whichever page has the data (the Tree). The publisher needs
  * Firestore, so it's imported once the page is up, never before; it throttles itself.
  */
 export function usePublishTree({ acts, wellness, offEvents, crown, today }: TreeInput) {

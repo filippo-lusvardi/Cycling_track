@@ -1,24 +1,25 @@
-// The garden: where training off the bike grows. Every non-cycling activity of the last 8 weeks is a plant in its
+// The garden: where the sports you do grow. Every activity of those sports in the last 8 weeks is a plant in its
 // sport's bed, full size the day it's done, its fruit ripening over the week after, as the training is absorbed.
-// Which vegetable grows for which sport is the user's choice (a tomato for a run, a pumpkin for the gym, flowers for
-// yoga and stretching… by default); what a session bears (fruit per km, per minute, per metre climbed) belongs to its
+// It starts empty, and the first activity of a new sport gives that sport a bed with a vegetable picked at random
+// among those not in use (see growNewSports); the user can change it, or remove the sport. What a session bears (fruit per km, per minute, per metre climbed) belongs to its
 // sport. Older crops are harvested into the pantry: a jar per month. Like the tree, every mark means something. Pure.
 import { activityKind } from "./activity-kind";
 import { t } from "./i18n";
 import type { Activity } from "./intervals";
+import { isSport, sportOfActivity, type MainSport } from "./sport";
 import { addDays } from "./training";
-import { intensityLevel, RIDE_KINDS, seedOf, type Level } from "./tree";
+import { intensityLevel, seedOf, type Level } from "./tree";
 
 /** The sports the garden always knows. */
 export type BuiltinSport =
-  "run" | "strength" | "mobility" | "walk" | "swim" | "ski" | "paddle" | "climb" | "other";
+  "run" | "bike" | "strength" | "mobility" | "walk" | "swim" | "ski" | "paddle" | "climb" | "other";
 /** A sport the user added in Settings (see CustomSport). */
 export type CustomId = `custom:${string}`;
-/** The sports the garden grows: everything but cycling. */
+/** The sports the garden grows: everything but the main sport. */
 export type Sport = BuiltinSport | CustomId;
 
 /** Beds from the back of the garden to the front. */
-export const SPORTS: readonly BuiltinSport[] = [
+export const SPORTS: readonly Exclude<BuiltinSport, "bike">[] = [
   "climb",
   "other",
   "strength",
@@ -32,6 +33,7 @@ export const SPORTS: readonly BuiltinSport[] = [
 
 export const SPORT_NAME: Record<BuiltinSport, () => string> = {
   run: () => t("Running", "Corsa"),
+  bike: () => t("Cycling", "Ciclismo"),
   strength: () => t("Strength", "Forza"),
   mobility: () => t("Yoga & stretching", "Yoga e stretching"),
   walk: () => t("Walks & hikes", "Camminate ed escursioni"),
@@ -56,7 +58,15 @@ export type Crop =
   | "carrot"
   | "lettuce"
   | "strawberry"
-  | "aubergine";
+  | "aubergine"
+  | "corn"
+  | "artichoke"
+  | "onion"
+  | "radicchio"
+  | "pepper"
+  | "lavender"
+  | "poppy"
+  | "cornflower";
 
 export const CROPS: readonly Crop[] = [
   "tomato",
@@ -72,6 +82,14 @@ export const CROPS: readonly Crop[] = [
   "lettuce",
   "strawberry",
   "aubergine",
+  "corn",
+  "artichoke",
+  "onion",
+  "radicchio",
+  "pepper",
+  "lavender",
+  "poppy",
+  "cornflower",
 ];
 
 export const CROP_NAME: Record<Crop, () => string> = {
@@ -88,6 +106,14 @@ export const CROP_NAME: Record<Crop, () => string> = {
   lettuce: () => t("Lettuce", "Lattuga"),
   strawberry: () => t("Strawberries", "Fragole"),
   aubergine: () => t("Aubergines", "Melanzane"),
+  corn: () => t("Corn", "Mais"),
+  artichoke: () => t("Artichokes", "Carciofi"),
+  onion: () => t("Onions", "Cipolle"),
+  radicchio: () => "Radicchio",
+  pepper: () => t("Peppers", "Peperoni"),
+  lavender: () => t("Lavender", "Lavanda"),
+  poppy: () => t("Poppies", "Papaveri"),
+  cornflower: () => t("Cornflowers", "Fiordalisi"),
 };
 
 /** Each crop's colour in the pantry's jars and its legend: the colour of its fruit or flower. */
@@ -105,6 +131,14 @@ export const CROP_COLOR: Record<Crop, string> = {
   lettuce: "var(--spring)",
   strawberry: "color-mix(in oklab, var(--lingon) 80%, var(--blossom))",
   aubergine: "oklch(0.55 0.13 310)",
+  corn: "color-mix(in oklab, var(--birch) 80%, var(--spring))",
+  artichoke: "oklch(0.7 0.05 165)",
+  onion: "color-mix(in oklab, var(--autumn) 62%, var(--bark))",
+  radicchio: "oklch(0.45 0.13 12)",
+  pepper: "oklch(0.62 0.2 35)",
+  lavender: "oklch(0.68 0.12 295)",
+  poppy: "oklch(0.6 0.22 25)",
+  cornflower: "oklch(0.64 0.17 255)",
 };
 
 /**
@@ -113,10 +147,23 @@ export const CROP_COLOR: Record<Crop, string> = {
  */
 export type CustomSport = { id: CustomId; name: string; crop: Crop };
 
-/** Which crop grows for which sport, chosen in Settings (missing sports keep their default), and the user's sports. */
-export type CropMap = Record<BuiltinSport, Crop> & { custom?: CustomSport[] };
+/** The sports with a bed, each with the crop that grows for it (a usual sport that's missing has none). */
+export type CropMap = Partial<Record<Exclude<BuiltinSport, "bike">, Crop>> & {
+  custom?: CustomSport[];
+  /** Sports removed by hand: their activities grow nowhere and don't bring them back. */
+  skipped?: string[];
+  /** Set once the beds saved before they came from activities have been cleared of sports never done. */
+  v?: 2;
+};
 
-export const DEFAULT_CROPS: CropMap = {
+/**
+ * The bike's bed is the run's bed under another name: a garden only ever has one of them, since the other is the main
+ * sport. So they share one crop (and "bike" never appears in a stored map).
+ */
+const cropKey = (s: BuiltinSport) => (s === "bike" ? "run" : s);
+
+/** Every usual sport with a bed: how an activity is sorted when no choice is involved, and each sport's fallback crop. */
+export const DEFAULT_CROPS = {
   run: "tomato",
   strength: "pumpkin",
   mobility: "flowers",
@@ -126,13 +173,13 @@ export const DEFAULT_CROPS: CropMap = {
   paddle: "reeds",
   climb: "beans",
   other: "sunflower",
-};
+} satisfies CropMap;
 
-/** The full map from a saved choice (partial, or nothing yet). */
-export const cropMap = (chosen?: Partial<CropMap> | null): CropMap => ({
-  ...DEFAULT_CROPS,
-  ...chosen,
-});
+/** The map from a saved choice: nothing yet means an empty garden. */
+export const cropMap = (chosen?: CropMap | null): CropMap => ({ ...chosen });
+
+/** Has this usual sport been added? */
+const hasBed = (map: CropMap, s: BuiltinSport) => map[cropKey(s)] != null;
 
 export const isCustom = (s: Sport): s is CustomId => s.startsWith("custom:");
 
@@ -140,19 +187,51 @@ export const isCustom = (s: Sport): s is CustomId => s.startsWith("custom:");
 export const customSports = (map: CropMap): CustomSport[] =>
   Array.isArray(map.custom) ? map.custom.filter((c) => CROPS.includes(c.crop)) : [];
 
-/** Every sport with a bed to its name: the usual ones, then the user's. */
-export const allSports = (map: CropMap): Sport[] => [
-  ...SPORTS,
+/** The usual sports a garden can grow, in bed order: all but the main sport. */
+const usualSports = (main: MainSport): BuiltinSport[] =>
+  main === "run" ? SPORTS.map((s) => (s === "run" ? "bike" : s)) : [...SPORTS];
+
+/**
+ * Every sport with a bed to its name: the usual ones added, then the user's. The main sport is required: without it a
+ * runner's rides would have no bed, and whatever walks this list would silently leave them out.
+ */
+export const allSports = (map: CropMap, main: MainSport): Sport[] => [
+  ...usualSports(main).filter((s) => hasBed(map, s)),
   ...customSports(map).map((c) => c.id),
 ];
+
+/** The usual sports not added yet: what Settings offers. */
+export const sportsToAdd = (map: CropMap, main: MainSport): BuiltinSport[] =>
+  usualSports(main).filter((s) => !hasBed(map, s));
 
 /** What grows for a sport. */
 export const cropFor = (map: CropMap, sport: Sport): Crop =>
   isCustom(sport)
     ? (customSports(map).find((c) => c.id === sport)?.crop ?? DEFAULT_CROPS.other)
-    : map[sport];
+    : (map[cropKey(sport)] ?? DEFAULT_CROPS[cropKey(sport)]);
 
 /** A sport's name in this language; the user's own as they wrote it. */
+/** The few words on a bed's sign, where the full name would crowd out the plants. */
+const SPORT_SIGN: Record<BuiltinSport, () => string> = {
+  run: () => t("Running", "Corsa"),
+  bike: () => t("Cycling", "Ciclismo"),
+  strength: () => t("Strength", "Forza"),
+  mobility: () => t("Yoga", "Yoga"),
+  walk: () => t("Walks", "Camminate"),
+  swim: () => t("Swimming", "Nuoto"),
+  ski: () => t("Skiing", "Sci"),
+  paddle: () => t("Rowing", "Pagaia"),
+  climb: () => t("Climbing", "Arrampicata"),
+  other: () => t("Other", "Altri"),
+};
+
+/** What a bed's sign says: its sport, shortened to fit (a sport of the user's own can run to 30 letters). */
+export const sportSign = (map: CropMap, sport: Sport): string => {
+  if (!isCustom(sport)) return SPORT_SIGN[sport]();
+  const name = sportName(map, sport);
+  return name.length > 14 ? `${name.slice(0, 13).trimEnd()}…` : name;
+};
+
 export const sportName = (map: CropMap, sport: Sport): string =>
   isCustom(sport)
     ? (customSports(map).find((c) => c.id === sport)?.name ?? SPORT_NAME.other())
@@ -160,7 +239,8 @@ export const sportName = (map: CropMap, sport: Sport): string =>
 
 /** The crops no sport grows yet: what a new sport can take, so no two beds look alike. */
 export const freeCrops = (map: CropMap): Crop[] => {
-  const used = new Set(allSports(map).map((s) => cropFor(map, s)));
+  // Run and bike share a crop, so either sport lists the same crops as taken.
+  const used = new Set(allSports(map, "ride").map((s) => cropFor(map, s)));
   return CROPS.filter((c) => !used.has(c));
 };
 
@@ -170,14 +250,15 @@ const withCrop = (map: CropMap, sport: Sport, crop: Crop): CropMap =>
         ...map,
         custom: customSports(map).map((c) => (c.id === sport ? { ...c, crop } : c)),
       }
-    : { ...map, [sport]: crop };
+    : { ...map, [cropKey(sport)]: crop };
 
 /**
  * Give `sport` the crop `crop`; a sport already growing it takes the first one's old crop instead, so no two beds
  * look alike.
  */
 export function assignCrop(map: CropMap, sport: Sport, crop: Crop): CropMap {
-  const holder = allSports(map).find((s) => s !== sport && cropFor(map, s) === crop);
+  if (sport === "bike") sport = "run";
+  const holder = allSports(map, "ride").find((s) => s !== sport && cropFor(map, s) === crop);
   const old = cropFor(map, sport);
   return withCrop(holder ? withCrop(map, holder, old) : map, sport, crop);
 }
@@ -198,53 +279,132 @@ export const customSportId = (name: string): CustomId | null => {
   return key ? `custom:${key}` : null;
 };
 
+/** `map` no longer holding a sport's removal against it. */
+const unskip = (map: CropMap, key: string): CropMap =>
+  map.skipped?.includes(key) ? { ...map, skipped: map.skipped.filter((k) => k !== key) } : map;
+
+/** `map` with a usual sport growing `crop`; unchanged if it's already there or the crop isn't free. */
+export function addSport(map: CropMap, sport: BuiltinSport, crop: Crop): CropMap {
+  if (hasBed(map, sport) || !freeCrops(map).includes(crop)) return map;
+  return unskip({ ...map, [cropKey(sport)]: crop }, cropKey(sport));
+}
+
 /** `map` with a new sport growing `crop`; unchanged if the name is empty or already there, or the crop isn't free. */
 export function addCustomSport(map: CropMap, name: string, crop: Crop): CropMap {
   const id = customSportId(name);
   if (!id || customSports(map).some((c) => c.id === id) || !freeCrops(map).includes(crop)) {
     return map;
   }
-  return { ...map, custom: [...customSports(map), { id, name: name.trim(), crop }] };
+  return unskip({ ...map, custom: [...customSports(map), { id, name: name.trim(), crop }] }, id);
 }
-
-/** `map` without a sport of the user's: its activities go back to where they'd grow otherwise, its crop is free. */
-export const removeCustomSport = (map: CropMap, id: CustomId): CropMap => ({
-  ...map,
-  custom: customSports(map).filter((c) => c.id !== id),
-});
 
 /**
- * The usual crops for the usual sports. The user's sports stay, keeping their crop unless a usual sport takes it back,
- * then taking one that's free.
+ * `map` without a sport, and staying without it: its crop is free, and its activities grow nowhere (new ones don't
+ * bring it back) until it's added again.
  */
-export function resetCrops(map: CropMap): CropMap {
-  const taken = new Set<Crop>(SPORTS.map((s) => DEFAULT_CROPS[s]));
-  const custom = customSports(map).map((c) => {
-    const crop = taken.has(c.crop) ? CROPS.find((k) => !taken.has(k))! : c.crop;
-    taken.add(crop);
-    return { ...c, crop };
-  });
-  return { ...DEFAULT_CROPS, ...(custom.length && { custom }) };
+export function removeSport(map: CropMap, sport: Sport): CropMap {
+  const key = isCustom(sport) ? sport : cropKey(sport);
+  const skipped = [...(map.skipped ?? []).filter((k) => k !== key), key];
+  if (isCustom(sport))
+    return { ...map, skipped, custom: customSports(map).filter((c) => c.id !== sport) };
+  const { [cropKey(sport)]: _, ...rest } = map;
+  return { ...rest, skipped };
 }
 
-/** A bed's full name: its crop and its sport, e.g. "Tomatoes · running". */
-export const bedName = (name: string, crop: Crop) => `${CROP_NAME[crop]()} · ${name.toLowerCase()}`;
+/**
+ * The sports these activities call for, oldest first: a usual one, one named after an activity type no usual sport
+ * covers ("Tennis"), or "Other sports" for activities with no type to go by.
+ */
+function sportsDone(acts: Activity[], map: CropMap, main: MainSport) {
+  const every: CropMap = { ...DEFAULT_CROPS, custom: customSports(map) };
+  const usual = new Set<BuiltinSport>();
+  const named = new Map<CustomId, string>();
+  const sorted = [...acts].sort((a, b) => a.start_date_local.localeCompare(b.start_date_local));
+  for (const a of sorted) {
+    const sport = sportOf(a, every, main);
+    if (!sport || isCustom(sport)) continue;
+    const id = sport === "other" && a.type && a.type !== "Other" ? customSportId(a.type) : null;
+    if (id) named.set(id, typeName(a.type!));
+    else usual.add(sport);
+  }
+  return { usual, named };
+}
 
-/** The garden's sport for an activity, the user's own sports in `map` included; null for rides (they grow the tree). */
+/**
+ * `map` with a bed for every new sport in `acts`, each growing a crop picked at random among those no other bed grows.
+ * A sport removed by hand stays out; with every crop taken, a new sport waits for one to come free. The same `map` when
+ * nothing changes. The first time, beds saved earlier for sports never done are cleared.
+ */
+export function growNewSports(
+  map: CropMap,
+  acts: Activity[],
+  main: MainSport,
+  random: () => number = Math.random,
+): CropMap {
+  if (!acts.length) return map;
+  const { usual, named } = sportsDone(acts, map, main);
+  let next = map;
+  if (map.v !== 2) {
+    next = { ...map, v: 2 };
+    for (const s of usualSports(main))
+      if (hasBed(next, s) && !usual.has(s)) {
+        const { [cropKey(s)]: _gone, ...rest } = next;
+        next = rest;
+      }
+  }
+  const pick = () => {
+    const free = freeCrops(next);
+    return free.length ? free[Math.floor(random() * free.length)]! : null;
+  };
+  for (const s of usual) {
+    if (hasBed(next, s) || next.skipped?.includes(cropKey(s))) continue;
+    const crop = pick();
+    if (crop) next = addSport(next, s, crop);
+  }
+  for (const [id, name] of named) {
+    if (customSports(next).some((c) => c.id === id) || next.skipped?.includes(id)) continue;
+    const crop = pick();
+    if (crop) next = addCustomSport(next, name, crop);
+  }
+  return next;
+}
+
+/**
+ * The garden's sport for an activity, the user's own sports in `map` included. Null when it grows nowhere: the main
+ * sport (it grows the tree), or a sport with no bed.
+ */
 export function sportOf(
   a: { type: string | null; trainer?: boolean; name?: string | null },
   map: CropMap = DEFAULT_CROPS,
+  main: MainSport = "ride",
 ): Sport | null {
-  if (RIDE_KINDS.has(activityKind(a))) return null;
+  if (isSport(a, main)) return null;
   const custom = customSports(map);
   const type = a.type ?? "";
   const exact = custom.find((c) => c.id === `custom:${squeeze(type)}`);
   if (exact) return exact.id;
-  const usual = usualSport(type);
-  if (usual !== "other") return usual;
+  if (map.skipped?.includes(`custom:${squeeze(type)}`)) return null;
+  const usual = sportOfActivity(a) === "ride" ? "bike" : usualSport(type);
+  if (usual !== "other") return hasBed(map, usual) ? usual : null;
   // By title only among what's otherwise unsorted: a run "to tennis" stays a run.
   const title = words(a.name ?? "");
-  return custom.find((c) => title.includes(words(c.name)))?.id ?? "other";
+  const named = custom.find((c) => title.includes(words(c.name)));
+  return named?.id ?? (hasBed(map, "other") ? "other" : null);
+}
+
+/** How many of `acts` each usual sport would grow, were it added: what Settings shows beside each. */
+export function sportCounts(
+  acts: Activity[],
+  map: CropMap,
+  main: MainSport,
+): Partial<Record<Sport, number>> {
+  const every: CropMap = { ...DEFAULT_CROPS, custom: customSports(map) };
+  const counts: Partial<Record<Sport, number>> = {};
+  for (const a of acts) {
+    const sport = sportOf(a, every, main);
+    if (sport) counts[sport] = (counts[sport] ?? 0) + 1;
+  }
+  return counts;
 }
 
 /** The usual sport for an intervals.icu activity type. */
@@ -275,11 +435,12 @@ const typeName = (type: string) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
-/** The activity types the user has done that land in "Other sports": what they might want a bed for, most done first. */
+/** The activity types the user has done that no usual sport covers: what they might name a sport after, most done first. */
 export function suggestedSports(acts: Activity[], map: CropMap): { name: string; count: number }[] {
+  const every: CropMap = { ...DEFAULT_CROPS, custom: customSports(map) };
   const counts = new Map<string, number>();
   for (const a of acts) {
-    if (!a.type || a.type === "Other" || sportOf(a, map) !== "other") continue;
+    if (!a.type || a.type === "Other" || sportOf(a, every) !== "other") continue;
     counts.set(a.type, (counts.get(a.type) ?? 0) + 1);
   }
   return [...counts.entries()]
@@ -366,6 +527,7 @@ const FRUIT: Record<
   (p: { minutes: number; load: number; km: number; climb: number }) => number
 > = {
   run: (p) => Math.max(1, Math.round(p.km / 5)), // one per 5 km
+  bike: (p) => Math.max(1, Math.round(p.km / 20)), // one per 20 km
   strength: () => 1, // one fruit, its size is the load
   mobility: (p) => Math.max(1, Math.round(p.minutes / 10)), // one per 10 minutes
   walk: (p) => Math.round(p.climb / 100), // one per 100 m climbed, as the tree's leaves
@@ -384,13 +546,14 @@ export function gardenRecords(
   acts: Activity[],
   today: string,
   map: CropMap = DEFAULT_CROPS,
+  main: MainSport = "ride",
 ): Partial<Record<Sport, string>> {
   const best: Partial<Record<BuiltinSport, Activity>> = {};
   const score = (a: Activity) => (a.distance ?? 0) * 1e6 + (a.moving_time ?? 0);
   const sorted = [...acts].sort((a, b) => a.start_date_local.localeCompare(b.start_date_local));
   for (const a of sorted) {
     if (a.start_date_local.slice(0, 10) > today) continue;
-    const sport = sportOf(a, map);
+    const sport = sportOf(a, map, main);
     if (!sport || isCustom(sport) || !RECORD_SPORT[sport]) continue;
     const b = best[sport];
     if (score(a) > (b ? score(b) : 0)) best[sport] = a;
@@ -399,14 +562,19 @@ export function gardenRecords(
 }
 
 /** The garden as it stands today: the last GROWING_DAYS of training off the bike, each sport as `map` grows it. */
-export function buildGarden(acts: Activity[], today: string, map: CropMap = DEFAULT_CROPS): Garden {
+export function buildGarden(
+  acts: Activity[],
+  today: string,
+  map: CropMap = DEFAULT_CROPS,
+  main: MainSport = "ride",
+): Garden {
   const from = addDays(today, -(GROWING_DAYS - 1));
-  const records = gardenRecords(acts, today, map);
+  const records = gardenRecords(acts, today, map, main);
   const beds = new Map<Sport, Plant[]>();
   for (const a of acts) {
     const date = a.start_date_local.slice(0, 10);
     if (date < from || date > today) continue;
-    const sport = sportOf(a, map);
+    const sport = sportOf(a, map, main);
     if (!sport) continue;
     const minutes = (a.moving_time ?? 0) / 60;
     const load = a.icu_training_load ?? 0;
@@ -437,7 +605,7 @@ export function buildGarden(acts: Activity[], today: string, map: CropMap = DEFA
     };
     beds.set(sport, [...(beds.get(sport) ?? []), plant]);
   }
-  const ordered = allSports(map).flatMap((sport) => {
+  const ordered = allSports(map, main).flatMap((sport) => {
     const plants = beds.get(sport);
     if (!plants) return [];
     plants.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
@@ -445,17 +613,22 @@ export function buildGarden(acts: Activity[], today: string, map: CropMap = DEFA
   });
   return {
     beds: ordered,
-    soil: soilOf(acts, today),
+    soil: soilOf(acts, today, main, map),
     count: ordered.reduce((s, b) => s + b.plants.length, 0),
   };
 }
 
-/** 0 → 1: days trained off the bike in the last 4 weeks, 8 or more (about twice a week) being fully watered. */
-export function soilOf(acts: Activity[], today: string): number {
+/** 0 → 1: days trained at the garden's sports in the last 4 weeks, 8 or more (about twice a week) being fully watered. */
+export function soilOf(
+  acts: Activity[],
+  today: string,
+  main: MainSport = "ride",
+  map: CropMap = DEFAULT_CROPS,
+): number {
   const from = addDays(today, -27);
   const days = new Set(
     acts
-      .filter((a) => sportOf(a) && a.start_date_local.slice(0, 10) >= from)
+      .filter((a) => sportOf(a, map, main) && a.start_date_local.slice(0, 10) >= from)
       .map((a) => a.start_date_local.slice(0, 10))
       .filter((d) => d <= today),
   );
@@ -466,11 +639,50 @@ export function soilOf(acts: Activity[], today: string): number {
 export type Jar = { month: string; minutes: number; bySport: Partial<Record<Sport, number>> };
 export type Shelf = { year: number; jars: Jar[] };
 
+/** One session in a jar: what the pantry opens when a month is tapped. */
+export type JarSession = {
+  id: string;
+  sport: Sport;
+  date: string;
+  name: string;
+  minutes: number;
+  km: number;
+};
+
+/** The sessions of a month (YYYY-MM) that fill its jar, newest first. */
+export function jarSessions(
+  acts: Activity[],
+  month: string,
+  map: CropMap = DEFAULT_CROPS,
+  main: MainSport = "ride",
+): JarSession[] {
+  return acts
+    .flatMap((a) => {
+      const sport = a.start_date_local.startsWith(month) ? sportOf(a, map, main) : null;
+      if (!sport) return [];
+      return [
+        {
+          id: a.id,
+          sport,
+          date: a.start_date_local.slice(0, 10),
+          name: a.name ?? a.type ?? t("Activity", "Attività"),
+          minutes: (a.moving_time ?? 0) / 60,
+          km: (a.distance ?? 0) / 1000,
+        },
+      ];
+    })
+    .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+}
+
 /** Every month with training off the bike, as jars on yearly shelves (newest year first, months in order). */
-export function buildPantry(acts: Activity[], map: CropMap = DEFAULT_CROPS): Shelf[] {
+export function buildPantry(
+  acts: Activity[],
+  map: CropMap = DEFAULT_CROPS,
+  main: MainSport = "ride",
+): Shelf[] {
   const jars = new Map<string, Jar>();
   for (const a of acts) {
-    const sport = sportOf(a, map);
+    const sport = sportOf(a, map, main);
     if (!sport) continue;
     const month = a.start_date_local.slice(0, 7);
     const minutes = (a.moving_time ?? 0) / 60;

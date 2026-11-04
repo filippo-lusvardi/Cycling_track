@@ -16,6 +16,9 @@ export const GRADE_STOPS: [number, string][] = [
   [15, "var(--z7)"],
 ];
 
+/** Trails run far steeper than roads: there the same colours stretch to twice the grade. */
+export const STEEP_SCALE = 2;
+
 export function gradeColor(g: number): string {
   const hi = GRADE_STOPS.findIndex(([max]) => g < max);
   if (hi === 0) return GRADE_STOPS[0]![1];

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocalStore } from "@/hooks/use-local-store";
 import {
   EmailAuthProvider,
@@ -17,39 +18,79 @@ import {
   updatePassword,
 } from "firebase/auth";
 import { CropPicker } from "@/components/garden/CropPicker";
+import {
+  changedRow,
+  IntervalsThresholds,
+  ThresholdConfirm,
+  ZoneLimits,
+  type PendingWrite,
+} from "@/components/Thresholds";
 import { signOutAndWipe } from "@/lib/account";
 import { applyAccent } from "@/lib/accent";
 import { authError } from "@/lib/auth-errors";
 import { deleteUserData, saveProfile } from "@/lib/cloud";
 import { auth } from "@/lib/firebase";
 import { format, lang, setLang, t } from "@/lib/i18n";
-import { getAthlete } from "@/lib/source";
+import { getAthlete, hasSource, saveThresholds, sourceKind } from "@/lib/source";
 import { activitiesQuery, wellnessQuery } from "@/lib/queries";
-import { ACCURACY_MIN_RIDES, HRV_BAND_DAYS, readinessAccuracy } from "@/lib/readiness";
+import {
+  ACCURACY_MIN_RIDES,
+  HRV_BAND_DAYS,
+  readinessAccuracy,
+  readinessRows,
+} from "@/lib/readiness";
 import { addDays, isoDate } from "@/lib/training";
 import { historyYears, segmentEngine, startSegments } from "@/lib/segment-app";
 import {
   API_KEY,
   NO_PERF,
   QUIET_TREE,
+  CHECK_IN,
+  GARDEN,
+  ANALYSIS_BOTH,
   SEASON_ACCENT,
+  MAIN_SPORT,
+  RUN_THRESHOLD,
   SEGMENT_HISTORY,
   SOURCE,
   readSetting,
   writeSetting,
 } from "@/lib/settings";
 import type { SourceKind } from "@/lib/source";
-import { rideZonesQuery } from "@/lib/queries";
+import { rideZonesQuery, runDataQuery, thresholdsQuery } from "@/lib/queries";
+import { formatPace, parsePace } from "@/lib/pace";
 import { UploadRides } from "@/components/UploadRides";
 import { cn } from "@/lib/utils";
+import { byMain, mainSport, type MainSport } from "@/lib/sport";
+
+/** The page's categories. Language and main sport reload the page, so the open one lives in the URL. */
+const CATEGORIES = ["general", "garden", "data", "account"] as const;
+type Category = (typeof CATEGORIES)[number];
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: t("Settings — Cirmolo", "Impostazioni — Cirmolo") }] }),
+  validateSearch: (s: Record<string, unknown>): { tab?: Category } =>
+    CATEGORIES.includes(s["tab"] as Category) ? { tab: s["tab"] as Category } : {},
   component: SettingsPage,
 });
 
+const CATEGORY_LABEL: Record<Category, () => string> = {
+  general: () => t("General", "Generale"),
+  garden: () => t("Tree & garden", "Albero e orto"),
+  data: () => t("Data", "Dati"),
+  account: () => t("Account", "Account"),
+};
+
+/** Cards side by side on a desktop, each at its own height. */
+const GRID = "grid items-start gap-6 lg:grid-cols-2";
+
 function SettingsPage() {
   const [source] = useLocalStore<SourceKind | null>(SOURCE, null);
+  const [bothSports] = useLocalStore(ANALYSIS_BOTH, false);
+  const [garden] = useLocalStore(GARDEN, true);
+  const navigate = useNavigate({ from: Route.fullPath });
+  // Someone with no data yet is sent here to connect it: that's what they need to see first.
+  const active = Route.useSearch().tab ?? (hasSource() ? "general" : "data");
   return (
     <div className="space-y-6">
       <div>
@@ -58,20 +99,54 @@ function SettingsPage() {
           {t("Settings", "Impostazioni")}
         </h1>
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Language />
-        <QuietTree />
-        <TreeGuide />
-        <GardenGuide />
-        <CropPicker />
-        <Account />
-        {source === "native" && <Athlete />}
-        {source === "native" && <RideFiles />}
-        <IntervalsKey />
-        {source !== "native" && <WithoutIntervals />}
-        <SegmentAnalysis />
-        <Storage />
-      </div>
+      <Tabs
+        value={active}
+        onValueChange={(v) =>
+          void navigate({ search: { tab: v as Category }, replace: true, resetScroll: false })
+        }
+      >
+        <TabsList className="flex w-full">
+          {CATEGORIES.map((c) => (
+            <TabsTrigger key={c} value={c} className="flex-1 px-1.5 text-xs sm:text-sm">
+              {c === "garden" && !garden ? t("Tree", "Albero") : CATEGORY_LABEL[c]()}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="general" className={cn("mt-6", GRID)}>
+          <Language />
+          <MainSportPanel />
+          {(mainSport() === "run" || bothSports) && <RunningPanel />}
+          {source === "native" && <Athlete />}
+          {source !== "native" && hasSource() && <IntervalsThresholds />}
+          <ZoneLimits runs={mainSport() === "run" || bothSports} />
+        </TabsContent>
+        {/* Two stacks, not a grid: the guides open long, and the garden's stay above the plants they point to. */}
+        <TabsContent value="garden" className={cn("mt-6", GRID)}>
+          <div className="space-y-6">
+            <QuietTree />
+            <TreeGuide />
+          </div>
+          <div className="space-y-6">
+            <GardenSwitch />
+            {garden && (
+              <>
+                <GardenGuide />
+                <CropPicker />
+              </>
+            )}
+          </div>
+        </TabsContent>
+        <TabsContent value="data" className={cn("mt-6", GRID)}>
+          {source === "native" && <RideFiles />}
+          <IntervalsKey />
+          {source !== "native" && <WithoutIntervals />}
+          <SegmentAnalysis />
+          <Storage />
+        </TabsContent>
+        <TabsContent value="account" className={cn("mt-6", GRID)}>
+          <Account />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -195,7 +270,7 @@ function WithoutIntervals() {
             writeSetting(SOURCE, "native");
             await saveProfile({ source: "native", healthConsentAt: Date.now() }).catch(() => {});
             qc.clear();
-            navigate({ to: "/settings" });
+            navigate({ to: "/settings", search: { tab: "data" } });
           }}
         >
           {t("Use Cirmolo without intervals.icu", "Usa Cirmolo senza intervals.icu")}
@@ -478,12 +553,26 @@ function Language() {
 }
 
 /** Each part of the Tree page: what it shows, plus a bullet per detail where there are several. */
+const SPROUTS: GuideItem = {
+  term: t("Sprouts", "Germogli"),
+  text: t(
+    byMain(
+      "A day trained off the bike (run, gym, swim, hike…), in the sport's colour: that training grows in the garden. It still counts for the trunk and the crown.",
+      "A day of another sport (bike, gym, swim, hike…), in the sport's colour: that training grows in the garden. It still counts for the trunk and the crown.",
+    ),
+    byMain(
+      "Un giorno di allenamento senza bici (corsa, palestra, nuoto, escursione…), nel colore dello sport: quell'allenamento cresce nell'orto. Conta comunque per il tronco e la chioma.",
+      "Un giorno di un altro sport (bici, palestra, nuoto, escursione…), nel colore dello sport: quell'allenamento cresce nell'orto. Conta comunque per il tronco e la chioma.",
+    ),
+  ),
+};
+
 const TREE_GUIDE: GuideItem[] = [
   {
     term: t("Crown", "Chioma"),
     text: t(
-      "Today's readiness (HRV, sleep, form and check-in) as a season, each measured against your own normal: HRV against its 60-day range, sleep against your usual, answers against how you usually answer. Tap it for today's advice and the check-in.",
-      "La prontezza di oggi (HRV, sonno, forma e check-in) come stagione, ognuno misurato rispetto al tuo normale: HRV sul suo intervallo di 60 giorni, sonno sul tuo solito, risposte su come rispondi di solito. Toccala per il consiglio del giorno e il check-in.",
+      "Today's readiness (HRV, sleep, form and check-in, if you use it) as a season, each measured against your own normal: HRV against its 60-day range, sleep against your usual, answers against how you usually answer. Tap it for today's advice and the check-in.",
+      "La prontezza di oggi (HRV, sonno, forma e check-in, se lo usi) come stagione, ognuno misurato rispetto al tuo normale: HRV sul suo intervallo di 60 giorni, sonno sul tuo solito, risposte su come rispondi di solito. Toccala per il consiglio del giorno e il check-in.",
     ),
     points: [
       t("Summer (≥ 75): ready for intensity", "Estate (≥ 75): pronto per l'intensità"),
@@ -538,13 +627,25 @@ const TREE_GUIDE: GuideItem[] = [
         "With no races, the complete cyclist: everything counts the same",
         "Senza gare, il ciclista completo: tutto conta allo stesso modo",
       ),
-      t(
-        "Your last 42 days of power against your best of the year: the biggest gap that the races need",
-        "La tua potenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: la mancanza più grande che serve alle gare",
+      byMain(
+        t(
+          "Your last 42 days of power against your best of the year: the biggest gap that the races need",
+          "La tua potenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: la mancanza più grande che serve alle gare",
+        ),
+        t(
+          "Your last 42 days of grade-adjusted pace against your best of the year: the biggest gap that the races need",
+          "Il tuo ritmo corretto per pendenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: la mancanza più grande che serve alle gare",
+        ),
       ),
-      t(
-        "Base first when steady rides decouple, Z2 time drops, fitness is well below your usual, or your 20 min power fades over 15% after 30 kJ/kg (Analysis → Durability)",
-        "Prima la base se le uscite regolari si disaccoppiano, il tempo in Z2 cala, la forma fisica è molto sotto il solito o la potenza sui 20 min cala oltre il 15% dopo 30 kJ/kg (Analisi → Resistenza alla fatica)",
+      byMain(
+        t(
+          "Base first when steady rides decouple, Z2 time drops, fitness is well below your usual, or your 20 min power fades over 15% after 30 kJ/kg (Analysis → Durability)",
+          "Prima la base se le uscite regolari si disaccoppiano, il tempo in Z2 cala, la forma fisica è molto sotto il solito o la potenza sui 20 min cala oltre il 15% dopo 30 kJ/kg (Analisi → Resistenza alla fatica)",
+        ),
+        t(
+          "Base first when easy runs drift, Z2 time drops, fitness is well below your usual, or your 5 min pace fades over 15% after 25 km (Analysis → Late-run fade)",
+          "Prima la base se le corse facili vanno in deriva, il tempo in Z2 cala, la forma fisica è molto sotto il solito o il ritmo sui 5 min cala oltre il 15% dopo 25 km (Analisi → Calo nel finale)",
+        ),
       ),
       t(
         "A block lasts at least two weeks; around races: taper 10 days before an A, easy 3 days before a B, recovery the day after",
@@ -569,16 +670,28 @@ const TREE_GUIDE: GuideItem[] = [
   {
     term: t("Branches", "Rami"),
     text: t(
-      "One per ride in the last 5 days (only cycling grows branches):",
-      "Uno per uscita in bici negli ultimi 5 giorni (solo la bici fa crescere i rami):",
+      byMain(
+        "One per ride in the last 5 days (only cycling grows branches):",
+        "One per run in the last 5 days (only running grows branches):",
+      ),
+      byMain(
+        "Uno per uscita in bici negli ultimi 5 giorni (solo la bici fa crescere i rami):",
+        "Uno per corsa negli ultimi 5 giorni (solo la corsa fa crescere i rami):",
+      ),
     ),
     points: [t("Length: duration", "Lunghezza: durata"), t("Thickness: load", "Spessore: carico")],
   },
   {
     term: t("Leaves", "Foglie"),
-    text: t(
-      "One per 100 m climbed, coloured by intensity against FTP:",
-      "Una ogni 100 m di dislivello, colorata per intensità rispetto all'FTP:",
+    text: byMain(
+      t(
+        "One per 100 m climbed, coloured by intensity against FTP:",
+        "Una ogni 100 m di dislivello, colorata per intensità rispetto all'FTP:",
+      ),
+      t(
+        "One per 30 m climbed, coloured by intensity against threshold pace:",
+        "Una ogni 30 m di dislivello, colorata per intensità rispetto al ritmo di soglia:",
+      ),
     ),
     points: [
       t("Green: easy", "Verde: facile"),
@@ -612,13 +725,7 @@ const TREE_GUIDE: GuideItem[] = [
     term: t("Small green dots", "Puntini verdi"),
     text: t("Rest days on the bark.", "Giorni di riposo sulla corteccia."),
   },
-  {
-    term: t("Sprouts", "Germogli"),
-    text: t(
-      "A day trained off the bike (run, gym, swim, hike…), in the sport's colour: that training grows in the garden. It still counts for the trunk and the crown.",
-      "Un giorno di allenamento senza bici (corsa, palestra, nuoto, escursione…), nel colore dello sport: quell'allenamento cresce nell'orto. Conta comunque per il tronco e la chioma.",
-    ),
-  },
+  SPROUTS,
   {
     term: t("Knots", "Nodi"),
     text: t(
@@ -691,11 +798,253 @@ function SpeedMeasurements() {
   );
 }
 
+/** Which sport the app is built around. Wording and pages are fixed for the page's lifetime, so changing it reloads. */
+function MainSportPanel() {
+  const current = mainSport();
+  const [both, setBoth] = useLocalStore(ANALYSIS_BOTH, false);
+  const [garden] = useLocalStore(GARDEN, true);
+  const choose = async (sport: MainSport) => {
+    if (sport === current) return;
+    writeSetting(MAIN_SPORT, sport);
+    // Firestore waits for the network to confirm a write, so offline it's queued and the page goes on without it.
+    await Promise.race([
+      saveProfile({ mainSport: sport }).catch((e) => console.warn("Sport not saved", e)),
+      new Promise((r) => setTimeout(r, 1500)),
+    ]);
+    window.location.reload();
+  };
+  return (
+    <Panel title={t("Main sport", "Sport principale")}>
+      <p className="text-sm text-muted-foreground">
+        {t(
+          `Your main sport grows the tree and shapes Analysis, Segments and your training focus.${garden ? " Other sports can grow in the garden." : ""} You can switch at any time: nothing is lost.`,
+          `Lo sport principale fa crescere l'albero e dà forma ad Analisi, Segmenti e obiettivo di allenamento.${garden ? " Gli altri sport possono crescere nell'orto." : ""} Puoi cambiarlo quando vuoi: non si perde nulla.`,
+        )}
+      </p>
+      <div className="mt-3 flex gap-1 rounded-lg bg-secondary p-1">
+        {(
+          [
+            ["ride", t("Cycling", "Ciclismo")],
+            ["run", t("Running", "Corsa")],
+          ] as const
+        ).map(([sport, label]) => (
+          <button
+            key={sport}
+            type="button"
+            aria-pressed={current === sport}
+            onClick={() => void choose(sport)}
+            className={`flex-1 rounded-md px-3 py-1.5 text-xs ${current === sport ? "bg-background text-foreground" : "text-muted-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 flex items-start justify-between gap-4">
+        <Label htmlFor="analysis-both" className="block space-y-1">
+          <span className="block">
+            {t("Analysis for both sports", "Analisi per entrambi gli sport")}
+          </span>
+          <span className="block text-sm font-normal text-muted-foreground">
+            {t(
+              "Adds a toggle to the Analysis page to switch between cycling and running. It always opens on your main sport.",
+              "Aggiunge alla pagina Analisi un selettore per passare da ciclismo a corsa e viceversa. Si apre sempre sullo sport principale.",
+            )}
+          </span>
+        </Label>
+        <Switch
+          id="analysis-both"
+          checked={both}
+          onCheckedChange={(v) => {
+            setBoth(() => v);
+            saveProfile({ analysisBoth: v }).catch((e) => console.warn("Setting not saved", e));
+          }}
+        />
+      </div>
+    </Panel>
+  );
+}
+
+/**
+ * Threshold pace and heart rate on foot. Empty means estimated from your runs, or the same heart rate as on the bike.
+ * With intervals.icu they're the ones it holds, and saving writes them there after asking; pace stays Cirmolo's own for
+ * as long as `paceSynced` says it can't be read from there.
+ */
+function RunningPanel() {
+  const qc = useQueryClient();
+  const { data } = useQuery(runDataQuery());
+  const { data: th } = useQuery({ ...thresholdsQuery("run"), enabled: hasSource() });
+  const native = sourceKind() === "native";
+  const [form, setForm] = useState({ pace: "", lthr: "", maxHr: "" });
+  const [loaded, setLoaded] = useState(false);
+  const [pending, setPending] = useState<PendingWrite | null>(null);
+  useEffect(() => {
+    if (!th) return;
+    void (async () => {
+      const pace = th.paceSynced
+        ? th.pace
+        : (await import("@/lib/cloud").then((m) => m.readProfile())).runThreshold;
+      setForm({
+        pace: pace ? formatPace(pace) : "",
+        lthr: th.lthr ? String(th.lthr) : "",
+        maxHr: th.maxHr ? String(th.maxHr) : "",
+      });
+      setLoaded(true);
+    })();
+  }, [th]);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    const speed = form.pace.trim() ? parsePace(form.pace) : null;
+    if (form.pace.trim() && !speed) {
+      toast.error(
+        t("Write the pace as min:sec, e.g. 4:30", "Scrivi il ritmo come min:sec, es. 4:30"),
+      );
+      return;
+    }
+    if (native) {
+      writeSetting(RUN_THRESHOLD, speed);
+      await saveThresholds("run", {
+        pace: speed,
+        lthr: numOrNull(form.lthr),
+        maxHr: numOrNull(form.maxHr),
+      });
+      await qc.invalidateQueries();
+      toast.success(t("Saved", "Salvato"));
+      return;
+    }
+    // What stays in Cirmolo needs no asking.
+    if (!th?.paceSynced) {
+      writeSetting(RUN_THRESHOLD, speed);
+      await saveProfile({ runThreshold: speed });
+    }
+    const lthr = changedRow(t("Threshold HR", "FC di soglia"), th?.lthr, form.lthr, "bpm");
+    const maxHr = changedRow(t("Max HR", "FC massima"), th?.maxHr, form.maxHr, "bpm");
+    const pace =
+      th?.paceSynced && speed && formatPace(speed) !== formatPace(th.pace)
+        ? {
+            label: t("Threshold pace", "Ritmo di soglia"),
+            from: th.pace ? `${formatPace(th.pace)}/km` : "–",
+            to: `${formatPace(speed)}/km`,
+            value: speed,
+          }
+        : null;
+    const rows = [pace, lthr, maxHr].filter((r) => r != null);
+    if (rows.length && th?.exists) {
+      setPending({
+        sport: "run",
+        rows,
+        patch: {
+          ...(pace ? { pace: pace.value } : {}),
+          ...(lthr ? { lthr: lthr.value } : {}),
+          ...(maxHr ? { maxHr: maxHr.value } : {}),
+        },
+      });
+      return;
+    }
+    await qc.invalidateQueries();
+    toast.success(t("Saved", "Salvato"));
+  }
+
+  const hrOff = !native && th != null && !th.exists;
+  return (
+    <Panel title={t("Running", "Corsa")}>
+      <form onSubmit={save} className="space-y-3 text-sm">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="run-pace">
+              {t("Threshold", "Soglia")} <span className="text-muted-foreground">(min/km)</span>
+            </Label>
+            <Input
+              id="run-pace"
+              value={form.pace}
+              placeholder={
+                data?.fit
+                  ? t(`estimated ${formatPace(data.fit.speed)}`, `stimata ${formatPace(data.fit.speed)}`)
+                  : "4:30"
+              }
+              onChange={(e) => setForm({ ...form, pace: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="run-lthr">
+              {t("Threshold HR", "FC di soglia")} <span className="text-muted-foreground">(bpm)</span>
+            </Label>
+            <Input
+              id="run-lthr"
+              inputMode="numeric"
+              disabled={hrOff}
+              value={form.lthr}
+              onChange={(e) => setForm({ ...form, lthr: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="run-max">
+              {t("Max HR", "FC massima")} <span className="text-muted-foreground">(bpm)</span>
+            </Label>
+            <Input
+              id="run-max"
+              inputMode="numeric"
+              disabled={hrOff}
+              value={form.maxHr}
+              onChange={(e) => setForm({ ...form, maxHr: e.target.value })}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "Threshold pace sets pace zones and training load: about what you could hold for an hour. Leave it empty to estimate it from your best efforts of the last 90 days.",
+            "Il ritmo di soglia definisce zone di ritmo e carico: circa quello che reggeresti per un'ora. Lascialo vuoto per stimarlo dai migliori sforzi degli ultimi 90 giorni.",
+          )}
+          {!native &&
+            (hrOff
+              ? t(
+                  " intervals.icu has no running settings for you yet: add them there to set heart rate.",
+                  " intervals.icu non ha ancora impostazioni di corsa per te: aggiungile lì per impostare la frequenza cardiaca.",
+                )
+              : th?.paceSynced
+                ? t(
+                    " These are the values on intervals.icu: saving changes them there too, after asking.",
+                    " Questi sono i valori su intervals.icu: salvando cambiano anche lì, dopo avertelo chiesto.",
+                  )
+                : t(
+                    " Heart rate is the value on intervals.icu: saving changes it there too, after asking. Pace stays in Cirmolo.",
+                    " La frequenza cardiaca è il valore su intervals.icu: salvando cambia anche lì, dopo avertelo chiesto. Il ritmo resta in Cirmolo.",
+                  ))}
+        </p>
+        <Button type="submit" disabled={!loaded}>
+          {t("Save", "Salva")}
+        </Button>
+      </form>
+      <ThresholdConfirm pending={pending} onClose={() => setPending(null)} />
+    </Panel>
+  );
+}
+
 function QuietTree() {
   const [quiet, setQuiet] = useLocalStore(QUIET_TREE, false);
   const [seasonal, setSeasonal] = useLocalStore(SEASON_ACCENT, true);
+  const [checkIn, setCheckIn] = useLocalStore(CHECK_IN, true);
   return (
     <Panel title={t("Tree", "Albero")}>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <Label htmlFor="check-in" className="block space-y-1">
+          <span className="block">{t("Morning check-in", "Check-in mattutino")}</span>
+          <span className="block text-sm font-normal text-muted-foreground">
+            {t(
+              "Asks how you slept and how you feel each morning. Off: it's no longer asked, and the crown comes only from your HRV, sleep and form. Your past answers stay saved, but don't count.",
+              "Chiede ogni mattina come hai dormito e come ti senti. Spento: non viene più chiesto, e la chioma dipende solo da HRV, sonno e forma. Le risposte passate restano salvate, ma non contano.",
+            )}
+          </span>
+        </Label>
+        <Switch
+          id="check-in"
+          checked={checkIn}
+          onCheckedChange={(v) => {
+            setCheckIn(() => v);
+            saveProfile({ checkIn: v }).catch((e) => console.warn("Setting not saved", e));
+          }}
+        />
+      </div>
       <div className="flex items-start justify-between gap-4">
         <Label htmlFor="quiet-tree" className="block space-y-1">
           <span className="block">{t("Quiet tree", "Albero silenzioso")}</span>
@@ -785,15 +1134,44 @@ function Guide({
   );
 }
 
+/** Off, for someone tracking one sport only: the Garden leaves the app, and other sports leave the tree. */
+function GardenSwitch() {
+  const [garden, setGarden] = useLocalStore(GARDEN, true);
+  return (
+    <Panel title={t("Garden", "Orto")}>
+      <div className="flex items-start justify-between gap-4">
+        <Label htmlFor="garden" className="block space-y-1">
+          <span className="block">{t("Show the Garden", "Mostra l'orto")}</span>
+          <span className="block text-sm font-normal text-muted-foreground">
+            {t(
+              "Other sports grow in the Garden, with a sprout on the tree. Off, for tracking one sport only: the Garden and the sprouts disappear. Nothing is deleted, and your other activities stay in Activities and the Calendar.",
+              "Gli altri sport crescono nell'orto, con un germoglio sull'albero. Spento, per seguire un solo sport: l'orto e i germogli spariscono. Non si cancella nulla, e le altre attività restano in Attività e nel Calendario.",
+            )}
+          </span>
+        </Label>
+        <Switch
+          id="garden"
+          checked={garden}
+          onCheckedChange={(v) => {
+            setGarden(() => v);
+            saveProfile({ garden: v }).catch((e) => console.warn("Setting not saved", e));
+          }}
+        />
+      </div>
+    </Panel>
+  );
+}
+
 function TreeGuide() {
+  const [garden] = useLocalStore(GARDEN, true);
   return (
     <Guide
       title={t("How to read the tree", "Come leggere l'albero")}
       intro={t(
-        "The Tree page grows from your rides: the top is today, going down is going back in time. Tap any part to see its details.",
-        "La pagina Albero cresce con le tue uscite in bici: in alto c'è oggi, scendendo si torna indietro nel tempo. Tocca qualsiasi parte per vederne i dettagli.",
+        `The Tree page grows from your ${byMain("rides", "runs")}: the top is today, going down is going back in time. Tap any part to see its details.`,
+        `La pagina Albero cresce con ${byMain("le tue uscite in bici", "le tue corse")}: in alto c'è oggi, scendendo si torna indietro nel tempo. Tocca qualsiasi parte per vederne i dettagli.`,
       )}
-      items={TREE_GUIDE}
+      items={garden ? TREE_GUIDE : TREE_GUIDE.filter((i) => i !== SPROUTS)}
     >
       <ReadinessCheck />
     </Guide>
@@ -805,8 +1183,8 @@ function GardenGuide() {
     <Guide
       title={t("How to read the garden", "Come leggere l'orto")}
       intro={t(
-        "Everything you train off the bike grows in the garden for 8 weeks, then goes into the pantry. Tap a plant for its activity, a sign for its bed, a jar for its month.",
-        "Tutto ciò che alleni senza bici cresce nell'orto per 8 settimane, poi finisce in dispensa. Tocca una pianta per la sua attività, un cartello per la sua aiuola, un barattolo per il suo mese.",
+        `The sports you do grow in the garden for 8 weeks, then go into the pantry. Tap a plant for its activity, a sign for its bed, a jar for its month.`,
+        `Gli sport che fai crescono nell'orto per 8 settimane, poi finiscono in dispensa. Tocca una pianta per la sua attività, un cartello per la sua aiuola, un barattolo per il suo mese.`,
       )}
       items={GARDEN_GUIDE}
     />
@@ -817,25 +1195,32 @@ const GARDEN_GUIDE: GuideItem[] = [
   {
     term: t("Plants", "Piante"),
     text: t(
-      "One per session, in its sport's bed, older to the left. Taller for a longer session, lusher for a harder one. What grows for each sport is yours to choose (below); by default:",
-      "Una per sessione, nell'aiuola del suo sport, le più vecchie a sinistra. Più alta per una sessione più lunga, più rigogliosa per una più dura. Cosa cresce per ogni sport lo scegli tu (qui sotto); di base:",
+      "One per session, in its sport's bed, older to the left. Taller for a longer session, lusher for a harder one. A new sport gets a vegetable at random, and you can change it (below); what a session bears depends on the sport:",
+      "Una per sessione, nell'aiuola del suo sport, le più vecchie a sinistra. Più alta per una sessione più lunga, più rigogliosa per una più dura. Un nuovo sport riceve un ortaggio a caso, e puoi cambiarlo (qui sotto); quanto frutta una sessione dipende dallo sport:",
     ),
     points: [
-      t("Tomatoes: running, one per 5 km", "Pomodori: corsa, uno ogni 5 km"),
-      t("Pumpkins: strength, as big as the session", "Zucche: forza, grandi quanto la sessione"),
+      byMain(
+        t("Running: one per 5 km", "Corsa: uno ogni 5 km"),
+        t("Cycling: one per 20 km", "Ciclismo: uno ogni 20 km"),
+      ),
+      t("Strength: one, as big as the session", "Forza: uno, grande quanto la sessione"),
       t(
-        "Flowers: yoga, pilates and stretching, one per 10 minutes",
-        "Fiori: yoga, pilates e stretching, uno ogni 10 minuti",
+        "Yoga, pilates and stretching: one per 10 minutes",
+        "Yoga, pilates e stretching: uno ogni 10 minuti",
       ),
       t(
-        "Herbs: walks and hikes, a flower per 100 m climbed",
-        "Erbe: camminate ed escursioni, un fiore ogni 100 m di dislivello",
+        "Walks and hikes: one per 100 m climbed",
+        "Camminate ed escursioni: uno ogni 100 m di dislivello",
       ),
-      t("Water lilies: swimming, a flower per 500 m", "Ninfee: nuoto, un fiore ogni 500 m"),
-      t("Winter kale: skiing", "Cavolo nero: sci"),
-      t("Reeds: rowing and paddling", "Canne: canottaggio e pagaia"),
-      t("Beans: climbing", "Fagioli: arrampicata"),
-      t("Sunflowers: any other sport", "Girasoli: qualsiasi altro sport"),
+      t("Swimming: one per 500 m", "Nuoto: uno ogni 500 m"),
+      t("Skiing: the plant itself is the crop", "Sci: il raccolto è la pianta stessa"),
+      t("Rowing and paddling: one per 3 km", "Canottaggio e pagaia: uno ogni 3 km"),
+      t("Climbing: by the session's load", "Arrampicata: secondo il carico della sessione"),
+      t(
+        "A sport you named: one per quarter of an hour",
+        "Uno sport con il tuo nome: uno ogni quarto d'ora",
+      ),
+      t("Other sports: one", "Altri sport: uno"),
     ],
   },
   {
@@ -848,8 +1233,8 @@ const GARDEN_GUIDE: GuideItem[] = [
   {
     term: t("Soil", "Terra"),
     text: t(
-      "Dark and moist when you've trained off the bike regularly in the last 4 weeks, pale and resting when not.",
-      "Scura e umida se nelle ultime 4 settimane ti sei allenato regolarmente senza bici, chiara e a riposo se no.",
+      `Dark and moist when you've trained at your garden's sports regularly in the last 4 weeks, pale and resting when not.`,
+      `Scura e umida se nelle ultime 4 settimane ti sei allenato regolarmente negli sport del tuo orto, chiara e a riposo se no.`,
     ),
   },
   {
@@ -869,8 +1254,8 @@ const GARDEN_GUIDE: GuideItem[] = [
   {
     term: t("Pantry", "Dispensa"),
     text: t(
-      "A jar per month, as full as its hours off the bike, in layers coloured by sport.",
-      "Un barattolo per mese, pieno quanto le sue ore senza bici, a strati colorati per sport.",
+      `A jar per month, as full as its hours ${byMain("off the bike", "at other sports")}, in layers coloured by sport. Tap one for that month's activities.`,
+      `Un barattolo per mese, pieno quanto le sue ore ${byMain("senza bici", "di altri sport")}, a strati colorati per sport. Toccane uno per le attività di quel mese.`,
     ),
   },
 ];
@@ -886,7 +1271,11 @@ function ReadinessCheck() {
   const acc = useMemo(
     () =>
       wellness && acts
-        ? readinessAccuracy(wellness, acts, addDays(isoDate(new Date()), -CHECK_DAYS))
+        ? readinessAccuracy(
+            readinessRows(wellness),
+            acts,
+            addDays(isoDate(new Date()), -CHECK_DAYS),
+          )
         : null,
     [wellness, acts],
   );
@@ -949,8 +1338,8 @@ function SegmentAnalysis() {
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           {t(
-            "Each outdoor ride is downloaded once and analysed on this device; after that only new rides are. More history finds more recurring climbs but takes longer the first time (and uses mobile data on the phone).",
-            "Ogni pedalata viene scaricata una volta e analizzata su questo dispositivo; poi solo le nuove. Più storico trova più salite ricorrenti ma la prima volta richiede più tempo (e usa dati mobili sul telefono).",
+            "Each outdoor ride and run is downloaded once and analysed on this device; after that only new ones are. More history finds more recurring climbs but takes longer the first time (and uses mobile data on the phone).",
+            "Ogni pedalata e corsa all'aperto viene scaricata una volta e analizzata su questo dispositivo; poi solo le nuove. Più storico trova più salite ricorrenti ma la prima volta richiede più tempo (e usa dati mobili sul telefono).",
           )}
         </p>
         <div className="space-y-1">
@@ -973,7 +1362,7 @@ function SegmentAnalysis() {
         </div>
         <p className="stat-num text-xs text-muted-foreground">
           {t(
-            `${snap.rides} rides analysed · ${snap.groups.length} climbs found`,
+            `${snap.rides} activities analysed · ${snap.groups.length} climbs found`,
             `${snap.rides} attività analizzate · ${snap.groups.length} salite trovate`,
           )}
           {usage != null &&

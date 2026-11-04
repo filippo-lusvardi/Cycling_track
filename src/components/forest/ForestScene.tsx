@@ -6,6 +6,9 @@ import type { TreeHeader } from "@/lib/forest/types";
 
 export type SceneTree = { uid: string; name: string; header: TreeHeader | undefined };
 
+/** Screen px OpenScene's `fit` stops short of the window's foot. */
+const OPEN_MARGIN = 24;
+
 /**
  * A night scene across the whole window, drawn as wide as the window allows (see worldWidth). `fit` is the height,
  * in the same units, from the scene's top to the bottom of the window: how tall it can be and still end on screen.
@@ -18,7 +21,7 @@ export function OpenScene({ children }: { children: (w: number, fit: number) => 
       const el = ref.current;
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
-      setRoom(Math.max(0, window.innerHeight - top - 24));
+      setRoom(Math.max(0, window.innerHeight - top - OPEN_MARGIN));
     };
     measure();
     window.addEventListener("resize", measure);
@@ -32,9 +35,36 @@ export function OpenScene({ children }: { children: (w: number, fit: number) => 
   );
 }
 
+/** Screen px the phone's bottom bar covers. */
+const PHONE_BAR = 66;
+
+/**
+ * A phone's scene runs down to the window's foot, behind the bottom bar, so no sky shows under its land: `fit` is then
+ * that whole height and `clear` the room to keep free at the bottom, for the bar and `below` px of anything floating
+ * over the land. A wide scene keeps OpenScene's `fit`.
+ */
+export function phoneFit(w: number, fit: number, below = 0) {
+  if (w > 360) return { fit, clear: 0 };
+  const k = w / Math.max(1, window.innerWidth);
+  return { fit: fit + OPEN_MARGIN * k, clear: (PHONE_BAR + below) * k };
+}
+
+/** On a phone or tablet the bottom bar and the Tree · Years · Forest switch float over the scene's end; on a desktop, only the switch. */
+const barred = () => window.innerWidth < 1024;
+
+/**
+ * For a scene under the floating switch: `fit` runs to the window's foot behind a bottom bar (the page must drop its
+ * bottom padding), and `clear` is the room to keep free at the bottom for what floats over the land.
+ */
+export function switchFit(w: number, fit: number) {
+  const k = w / Math.max(1, window.innerWidth);
+  return { fit: fit + (barred() ? OPEN_MARGIN * k : 0), clear: (barred() ? 144 : 80) * k };
+}
+
 /**
  * Wild conifers nobody owns, filling the land a wide scene adds: `at` gives each one's foot, or null to leave a
- * spot empty (where a member's tree or a wood stands). None at the phone's width, where there's no spare land.
+ * spot empty (where a member's tree or a wood stands). None at the phone's width, where there's rarely spare land,
+ * unless `phone` says there is.
  */
 export function WildPines({
   seed,
@@ -43,6 +73,7 @@ export function WildPines({
   at,
   size = 1,
   tone = "color-mix(in oklab, var(--pine) 22%, var(--scene-background))",
+  phone = false,
 }: {
   seed: string;
   w: number;
@@ -51,8 +82,9 @@ export function WildPines({
   size?: number;
   /** Their colour (lighter by day where the sky follows the hour). */
   tone?: string;
+  phone?: boolean;
 }) {
-  if (w <= 360) return null;
+  if (w <= 360 && !phone) return null;
   const r = rng(seedOf(`${seed}pines`));
   const pines = Array.from({ length: count }, () => {
     const p = at(r);

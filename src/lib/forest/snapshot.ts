@@ -136,7 +136,7 @@ export function fromSnapshot(header: TreeHeader, years: Record<string, TreeYearD
         load: { level: 0, ratio: null, ramp: null, returning: false, reasons: [] },
       }
     : null;
-  return { acts, wellness, off, crown };
+  return { acts, wellness, off, crown, sport: header.sport ?? ("ride" as const) };
 }
 
 /** A short stable fingerprint, to skip writing what a forest already has. */

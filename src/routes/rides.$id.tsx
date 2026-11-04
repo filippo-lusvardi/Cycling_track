@@ -19,9 +19,9 @@ import { useSegmentLibrary } from "@/hooks/use-segments";
 import { curveFit, decoupling } from "@/lib/analysis";
 import { detectClimbs } from "@/lib/climbs";
 import { briochesIn, withBrioches, withoutBrioches } from "@/lib/brioches";
-import { BRIOCHE_G, rideFuel } from "@/lib/fuel";
+import { BRIOCHE_G, rideFuel, runKcal } from "@/lib/fuel";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
-import { setActivityDescription, sourceKind } from "@/lib/source";
+import { getRunSummary, setActivityDescription, sourceKind } from "@/lib/source";
 import {
   activityQuery,
   athleteQuery,
@@ -30,7 +30,11 @@ import {
   wellnessRangeQuery,
 } from "@/lib/queries";
 import { segmentEngine } from "@/lib/segment-app";
-import { cellOf, mayPass } from "@/lib/segment-index";
+import { attemptsIn, cellOf, mayPass } from "@/lib/segment-index";
+import { formatPace, paceLabel, stepsPerMinute } from "@/lib/pace";
+import { paceZones, RUN_ZONE_NAMES, runSummary } from "@/lib/run-metrics";
+import { zoneTops } from "@/lib/settings";
+import { isOutdoorActivity, isSport, knownRunThreshold, sportOfActivity } from "@/lib/sport";
 import {
   findAttempts,
   isClimbOnTrack,
@@ -83,7 +87,14 @@ function RideDetail() {
     if (from === "list")
       document.getElementById("ride-map")?.scrollIntoView({ behavior: "smooth" });
   };
-  const decouple = a.decoupling ?? (streams ? decoupling(streams.watts, streams.heartrate) : null);
+  const isRun = isSport(a, "run");
+  // A run's own numbers: pace zones, grade-adjusted pace.
+  const run = useMemo(() => (isRun && streams ? runSummary(streams) : null), [isRun, streams]);
+  const runThreshold = isRun ? knownRunThreshold() : null;
+  const runZones = run && runThreshold ? paceZones(run, runThreshold, zoneTops().pace) : null;
+  const decouple = isRun
+    ? (a.decoupling ?? run?.drift ?? null)
+    : (a.decoupling ?? (streams ? decoupling(streams.watts, streams.heartrate) : null));
   const np = a.icu_weighted_avg_watts;
 
   return (
@@ -119,17 +130,42 @@ function RideDetail() {
         />
         <StatCard label={t("Elevation", "Dislivello")} value={r(a.total_elevation_gain)} unit="m" />
         <StatCard label={t("Load", "Carico")} value={r(a.icu_training_load)} tone="fitness" />
-        <StatCard label={t("Avg power", "Potenza media")} value={r(a.icu_average_watts)} unit="W" />
-        <StatCard
-          label={t("Norm. power", "Potenza norm.")}
-          value={r(np)}
-          unit="W"
-          hint={
-            [a.icu_ftp && `FTP ${a.icu_ftp}W`, np && weight && `${(np / weight).toFixed(2)} W/kg`]
-              .filter(Boolean)
-              .join(" · ") || undefined
-          }
-        />
+        {isRun ? (
+          <>
+            <StatCard
+              label={t("Avg pace", "Ritmo medio")}
+              value={formatPace(a.average_speed)}
+              unit="/km"
+            />
+            <StatCard
+              label={t("GAP", "GAP")}
+              value={formatPace(run?.gap)}
+              unit="/km"
+              hint={t("grade-adjusted pace", "ritmo corretto per pendenza")}
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label={t("Avg power", "Potenza media")}
+              value={r(a.icu_average_watts)}
+              unit="W"
+            />
+            <StatCard
+              label={t("Norm. power", "Potenza norm.")}
+              value={r(np)}
+              unit="W"
+              hint={
+                [
+                  a.icu_ftp && `FTP ${a.icu_ftp}W`,
+                  np && weight && `${(np / weight).toFixed(2)} W/kg`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || undefined
+              }
+            />
+          </>
+        )}
         <StatCard
           label={t("Intensity", "Intensità")}
           value={a.icu_intensity != null ? `${Math.round(a.icu_intensity)}%` : "–"}
@@ -141,12 +177,33 @@ function RideDetail() {
           unit="bpm"
           tone="fatigue"
         />
-        <StatCard
-          label={t("Avg speed", "Velocità media")}
-          value={a.average_speed ? (a.average_speed * 3.6).toFixed(1) : "–"}
-          unit="km/h"
-        />
-        <StatCard label={t("Cadence", "Cadenza")} value={r(a.average_cadence)} unit="rpm" />
+        {isRun ? (
+          <StatCard
+            label={t("Normalized GAP", "GAP normalizzato")}
+            value={formatPace(run?.ngp)}
+            unit="/km"
+            hint={
+              run?.ngp && runThreshold
+                ? t(`threshold ${formatPace(runThreshold)}`, `soglia ${formatPace(runThreshold)}`)
+                : undefined
+            }
+          />
+        ) : (
+          <StatCard
+            label={t("Avg speed", "Velocità media")}
+            value={a.average_speed ? (a.average_speed * 3.6).toFixed(1) : "–"}
+            unit="km/h"
+          />
+        )}
+        {isRun ? (
+          <StatCard
+            label={t("Cadence", "Cadenza")}
+            value={r(stepsPerMinute(a.average_cadence))}
+            unit={t("steps/min", "passi/min")}
+          />
+        ) : (
+          <StatCard label={t("Cadence", "Cadenza")} value={r(a.average_cadence)} unit="rpm" />
+        )}
         <StatCard
           label={t("Decoupling", "Disaccoppiamento")}
           value={decouple != null ? decouple.toFixed(1) : "–"}
@@ -154,21 +211,29 @@ function RideDetail() {
           hint={
             decouple != null
               ? decouple < 5
-                ? t("Pw:HR steady (< 5%)", "Pw:FC stabile (< 5%)")
-                : t("HR drifted vs power", "FC in deriva rispetto alla potenza")
+                ? isRun
+                  ? t("Pa:HR steady (< 5%)", "Ri:FC stabile (< 5%)")
+                  : t("Pw:HR steady (< 5%)", "Pw:FC stabile (< 5%)")
+                : isRun
+                  ? t("HR drifted vs pace", "FC in deriva rispetto al ritmo")
+                  : t("HR drifted vs power", "FC in deriva rispetto alla potenza")
               : undefined
           }
         />
         <StatCard label={t("Calories", "Calorie")} value={r(a.calories)} unit="kcal" />
       </div>
 
-      {a.zoneTimes.some((s) => s > 0) && (
+      {isRun && runZones?.some((s) => s > 0) ? (
+        <Panel title={t("Time in pace zones (GAP)", "Tempo nelle zone di ritmo (GAP)")}>
+          <ZoneBar secs={runZones} names={RUN_ZONE_NAMES} />
+        </Panel>
+      ) : isRun ? null : a.zoneTimes.some((s) => s > 0) && (
         <Panel title={t("Time in power zones", "Tempo nelle zone di potenza")}>
           <ZoneBar secs={a.zoneTimes} />
         </Panel>
       )}
 
-      {a.icu_ftp && (a.icu_intervals?.length ?? 0) > 0 && (
+      {!isRun && a.icu_ftp && (a.icu_intervals?.length ?? 0) > 0 && (
         <Panel title={t("Workout blocks", "Blocchi di allenamento")}>
           <WorkoutBlocks
             intervals={a.icu_intervals ?? []}
@@ -204,13 +269,17 @@ function RideDetail() {
       )}
 
       <Panel
-        title={t("Speed, power & heart rate", "Velocità, potenza e frequenza cardiaca")}
+        title={
+          isRun
+            ? t("Pace, GAP & heart rate", "Ritmo, GAP e frequenza cardiaca")
+            : t("Speed, power & heart rate", "Velocità, potenza e frequenza cardiaca")
+        }
         action={<ShowHide open={showCharts} onToggle={() => setShowCharts((v) => !v)} />}
       >
         {showCharts && work && <WorkBar work={work} onClear={() => setWorkId(null)} />}
         {showCharts &&
           (streams ? (
-            <RideCharts a={a} streams={streams} work={work} cp={cp} />
+            <RideCharts a={a} streams={streams} work={work} cp={isRun ? null : cp} />
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {t("Loading ride streams…", "Caricamento dati attività…")}
@@ -239,7 +308,7 @@ function RideDetail() {
                   <span className="font-sans">{i.label ?? i.type}</span>
                   <span className="flex gap-4">
                     <span>{formatDuration(i.moving_time)}</span>
-                    <span className="w-14 text-right">{r(i.average_watts, "W")}</span>
+                    {!isRun && <span className="w-14 text-right">{r(i.average_watts, "W")}</span>}
                     <span className="w-16 text-right text-fatigue">
                       {r(i.average_heartrate, " bpm")}
                     </span>
@@ -251,7 +320,11 @@ function RideDetail() {
         </Panel>
       )}
       <Brioches a={a} />
-      <RideVisibility rideId={a.id} day={a.start_date_local.slice(0, 10)} />
+      <RideVisibility
+        rideId={a.id}
+        day={a.start_date_local.slice(0, 10)}
+        sport={sportOfActivity(a)}
+      />
       {sourceKind() === "native" && <DeleteRide id={a.id} />}
     </div>
   );
@@ -366,7 +439,21 @@ function Brioches({ a }: { a: ActivityDetail }) {
 
 /** Carbs burned, eaten and suggested for this ride, with how many brioches to change next time. */
 function FuelLine({ a, brioches }: { a: ActivityDetail; brioches: number }) {
-  const f = rideFuel(a, brioches);
+  const isRun = isSport(a, "run");
+  const { data: athlete } = useQuery(athleteQuery());
+  const { data: summary } = useQuery({
+    queryKey: ["run-summary", a.id],
+    queryFn: () => getRunSummary(a.id),
+    enabled: isRun,
+    staleTime: Infinity,
+  });
+  const f = rideFuel(
+    a,
+    brioches,
+    isRun
+      ? { kcal: summary && athlete?.weight ? runKcal(summary.gapDistance, athlete.weight) : null }
+      : undefined,
+  );
   if (f.burned == null && !f.target.high) return null;
   const tone =
     f.verdict === "under" ? "text-birch" : f.verdict === "over" ? "text-fitness" : "text-pine";
@@ -403,16 +490,25 @@ function FuelLine({ a, brioches }: { a: ActivityDetail; brioches: number }) {
       ) : (
         <p className="text-muted-foreground">
           {t(
-            "Under 75 minutes: breakfast is enough, nothing needed on the bike.",
-            "Sotto i 75 minuti: basta la colazione, niente da mangiare in bici.",
+            isRun
+              ? "Under 75 minutes: breakfast is enough, nothing needed on the run."
+              : "Under 75 minutes: breakfast is enough, nothing needed on the bike.",
+            isRun
+              ? "Sotto i 75 minuti: basta la colazione, niente da mangiare in corsa."
+              : "Sotto i 75 minuti: basta la colazione, niente da mangiare in bici.",
           )}
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        {t(
-          `Estimate: work and intensity give the carbs burned; targets follow the ACSM guidelines (30–60 g/h up to 2.5 h, 60–90 g/h beyond). 1 brioche ≈ ${BRIOCHE_G} g.`,
-          `Stima: lavoro e intensità danno i carboidrati bruciati; gli obiettivi seguono le linee guida ACSM (30–60 g/h fino a 2,5 h, 60–90 g/h oltre). 1 brioche ≈ ${BRIOCHE_G} g.`,
-        )}
+        {isRun
+          ? t(
+              `Estimate: distance, climbing and weight give the carbs burned; targets are the ACSM guidelines, lowered for running (30–50 g/h up to 2.5 h, 45–75 g/h beyond). 1 brioche ≈ ${BRIOCHE_G} g.`,
+              `Stima: distanza, dislivello e peso danno i carboidrati bruciati; gli obiettivi sono le linee guida ACSM, ridotte per la corsa (30–50 g/h fino a 2,5 h, 45–75 g/h oltre). 1 brioche ≈ ${BRIOCHE_G} g.`,
+            )
+          : t(
+              `Estimate: work and intensity give the carbs burned; targets follow the ACSM guidelines (30–60 g/h up to 2.5 h, 60–90 g/h beyond). 1 brioche ≈ ${BRIOCHE_G} g.`,
+              `Stima: lavoro e intensità danno i carboidrati bruciati; gli obiettivi seguono le linee guida ACSM (30–60 g/h fino a 2,5 h, 60–90 g/h oltre). 1 brioche ≈ ${BRIOCHE_G} g.`,
+            )}
       </p>
     </div>
   );
@@ -495,7 +591,10 @@ function Climbs({
   const [range, setRange] = useState<[number, number] | null>(null);
   const [name, setName] = useState("");
   // Saved segments as the library sees them (old stars follow their climb's shared stretch); no history sync here.
-  const store = useSegmentLibrary({ sync: false });
+  // Rank this activity only among its own sport's efforts.
+  const sport = sportOfActivity(a) ?? "ride";
+  const isRun = sport === "run";
+  const store = useSegmentLibrary({ sync: false, sport });
   const savedList = useMemo(() => store.list.filter((s) => s.saved), [store.list]);
   const nameOf = useSegmentNames(store.list);
   const [segHover, setSegHover] = useState<number | null>(null);
@@ -525,7 +624,7 @@ function Climbs({
       .filter((s) => mayPass(cells, s))
       .flatMap((seg) =>
         findAttempts(track, seg).map((at) => {
-          const others = (store.efforts[seg.effortsKey]?.attempts ?? []).filter(
+          const others = attemptsIn(store.efforts[seg.effortsKey], sport).filter(
             (o) => o.trackId !== track.id,
           );
           return {
@@ -537,20 +636,21 @@ function Climbs({
         }),
       )
       .sort((x, y) => x.at.i0 - y.at.i0);
-  }, [track, store.list, store.efforts]);
+  }, [track, store.list, store.efforts, sport]);
   // An outdoor ride missing from the segment index (e.g. uploaded late) is analysed now, so its efforts also
   // count in each segment's standings and the rank shown here is against every effort.
-  const outdoor =
-    !!track &&
-    (a.type ?? "").includes("Ride") &&
-    !(a.type ?? "").startsWith("Virtual") &&
-    !a.trainer;
+  const outdoor = !!track && isOutdoorActivity(a);
   useEffect(() => {
     if (outdoor)
       void segmentEngine
-        .ensureRide({ id: a.id, name: a.name, date: a.start_date_local })
+        .ensureRide({
+          id: a.id,
+          name: a.name,
+          date: a.start_date_local,
+          ...(isRun ? { sport } : {}),
+        })
         .catch((e) => console.warn("Couldn't add the ride to the segment index", e));
-  }, [outdoor, a.id, a.name, a.start_date_local]);
+  }, [outdoor, a.id, a.name, a.start_date_local, isRun, sport]);
   const totalKm = (streams.distance.at(-1) ?? 0) / 1000;
 
   // Map: the ride, its climbs by category, and the segment being marked with the slider.
@@ -715,8 +815,9 @@ function Climbs({
                 // Two short lines that fit a phone: shape (length, grades), then effort (VAM, power).
                 const effort = [
                   c.vam != null && `VAM ${Math.round(c.vam)}`,
-                  c.avgWatts != null && `${Math.round(c.avgWatts)} W`,
-                  c.avgWatts && weight && `${(c.avgWatts / weight).toFixed(2)} W/kg`,
+                  isRun && c.duration > 0 && paceLabel(c.length / c.duration),
+                  !isRun && c.avgWatts != null && `${Math.round(c.avgWatts)} W`,
+                  !isRun && c.avgWatts && weight && `${(c.avgWatts / weight).toFixed(2)} W/kg`,
                 ].filter(Boolean);
                 return (
                   <div
@@ -740,11 +841,13 @@ function Climbs({
                             className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
                             style={{ background: CAT_COLOR[c.category] }}
                           >
-                            {c.category === "Uncat"
-                              ? "–"
-                              : c.category === "HC"
-                                ? "HC"
-                                : `Cat ${c.category}`}
+                            {isRun
+                              ? `${Math.round(c.gain)} m`
+                              : c.category === "Uncat"
+                                ? "–"
+                                : c.category === "HC"
+                                  ? "HC"
+                                  : `Cat ${c.category}`}
                           </span>
                           {(c.length / 1000).toFixed(1)} km · {c.avgGrade.toFixed(1)}%
                         </span>
@@ -790,14 +893,16 @@ function Climbs({
                 <thead>
                   <tr className="eyebrow text-left">
                     <th className="py-2 font-normal">#</th>
-                    <th className="font-normal">Cat</th>
+                    <th className="font-normal">{isRun ? t("Up", "D+") : "Cat"}</th>
                     <th className="text-right font-normal">Km</th>
                     <th className="text-right font-normal">{t("Avg", "Media")}</th>
                     <th className="text-right font-normal">Max</th>
                     <th className="text-right font-normal">{t("Time", "Tempo")}</th>
                     <th className="text-right font-normal">VAM</th>
-                    <th className="text-right font-normal">{t("Power", "Potenza")}</th>
-                    <th className="text-right font-normal">W/kg</th>
+                    <th className="text-right font-normal">
+                      {isRun ? t("Pace", "Ritmo") : t("Power", "Potenza")}
+                    </th>
+                    {!isRun && <th className="text-right font-normal">W/kg</th>}
                     {track && <th />}
                   </tr>
                 </thead>
@@ -818,11 +923,13 @@ function Climbs({
                             className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
                             style={{ background: CAT_COLOR[c.category] }}
                           >
-                            {c.category === "Uncat"
-                              ? "–"
-                              : c.category === "HC"
-                                ? "HC"
-                                : `Cat ${c.category}`}
+                            {isRun
+                              ? `${Math.round(c.gain)} m`
+                              : c.category === "Uncat"
+                                ? "–"
+                                : c.category === "HC"
+                                  ? "HC"
+                                  : `Cat ${c.category}`}
                           </span>
                         </td>
                         <td className="text-right">{(c.length / 1000).toFixed(1)}</td>
@@ -830,10 +937,18 @@ function Climbs({
                         <td className="text-right">{c.maxGrade.toFixed(1)}%</td>
                         <td className="text-right">{formatClock(c.duration)}</td>
                         <td className="text-right">{r(c.vam)}</td>
-                        <td className="text-right">{r(c.avgWatts, "W")}</td>
                         <td className="text-right">
-                          {c.avgWatts && weight ? (c.avgWatts / weight).toFixed(2) : "–"}
+                          {isRun
+                            ? c.duration > 0
+                              ? formatPace(c.length / c.duration)
+                              : "–"
+                            : r(c.avgWatts, "W")}
                         </td>
+                        {!isRun && (
+                          <td className="text-right">
+                            {c.avgWatts && weight ? (c.avgWatts / weight).toFixed(2) : "–"}
+                          </td>
+                        )}
                         {track && (
                           <td className="text-right">
                             <button
@@ -894,8 +1009,9 @@ function Climbs({
             <div className="-mx-4 divide-y divide-border md:hidden">
               {onRide.map(({ seg, at, rank, of }) => {
                 const effort = [
-                  at.avgWatts != null && `${Math.round(at.avgWatts)} W`,
-                  at.avgWatts && weight && `${(at.avgWatts / weight).toFixed(2)} W/kg`,
+                  isRun && paceLabel(at.speed / 3.6),
+                  !isRun && at.avgWatts != null && `${Math.round(at.avgWatts)} W`,
+                  !isRun && at.avgWatts && weight && `${(at.avgWatts / weight).toFixed(2)} W/kg`,
                   at.vam != null && `VAM ${Math.round(at.vam)}`,
                   at.avgHr != null && `${Math.round(at.avgHr)} bpm`,
                 ].filter(Boolean);
@@ -904,6 +1020,7 @@ function Climbs({
                     key={`${seg.id}-${at.i0}`}
                     to="/segments/$id"
                     params={{ id: seg.id }}
+                    search={{ sport }}
                     className="flex items-center gap-3 px-4 py-3 active:bg-secondary/40"
                   >
                     <span className="min-w-0 flex-1">
@@ -914,7 +1031,7 @@ function Climbs({
                         {nameOf(seg)}
                       </span>
                       <span className="stat-num block truncate text-xs text-muted-foreground">
-                        {segmentSummary(seg)}
+                        {segmentSummary(seg, sport)}
                       </span>
                       {effort.length > 0 && (
                         <span className="stat-num block truncate text-xs text-muted-foreground">
@@ -947,8 +1064,10 @@ function Climbs({
                     <th className="py-2 font-normal">{t("Segment", "Segmento")}</th>
                     <th className="text-right font-normal">{t("Time", "Tempo")}</th>
                     <th className="text-right font-normal">{t("Rank", "Pos.")}</th>
-                    <th className="text-right font-normal">{t("Power", "Potenza")}</th>
-                    <th className="text-right font-normal">W/kg</th>
+                    <th className="text-right font-normal">
+                      {isRun ? t("Pace", "Ritmo") : t("Power", "Potenza")}
+                    </th>
+                    {!isRun && <th className="text-right font-normal">W/kg</th>}
                     <th className="text-right font-normal">VAM</th>
                     <th className="text-right font-normal">{t("HR", "FC")}</th>
                   </tr>
@@ -965,6 +1084,7 @@ function Climbs({
                         <Link
                           to="/segments/$id"
                           params={{ id: seg.id }}
+                          search={{ sport }}
                           className="block truncate font-medium hover:text-primary"
                         >
                           {seg.starred && (
@@ -973,7 +1093,7 @@ function Climbs({
                           {nameOf(seg)}
                         </Link>
                         <div className="stat-num truncate text-xs text-muted-foreground">
-                          {segmentSummary(seg)}
+                          {segmentSummary(seg, sport)}
                         </div>
                       </td>
                       <td className="text-right">{formatClock(at.duration)}</td>
@@ -989,10 +1109,14 @@ function Climbs({
                           </span>
                         )}
                       </td>
-                      <td className="text-right">{r(at.avgWatts, "W")}</td>
                       <td className="text-right">
-                        {at.avgWatts && weight ? (at.avgWatts / weight).toFixed(2) : "–"}
+                        {isRun ? formatPace(at.speed / 3.6) : r(at.avgWatts, "W")}
                       </td>
+                      {!isRun && (
+                        <td className="text-right">
+                          {at.avgWatts && weight ? (at.avgWatts / weight).toFixed(2) : "–"}
+                        </td>
+                      )}
                       <td className="text-right">{r(at.vam)}</td>
                       <td className="text-right text-fatigue">{r(at.avgHr)}</td>
                     </tr>

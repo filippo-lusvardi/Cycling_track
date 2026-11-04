@@ -10,15 +10,16 @@ import {
 } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
 import {
-  Bike,
+  Activity,
   CalendarDays,
   ChartSpline,
   CloudOff,
+  Dumbbell,
   Ellipsis,
-  House,
   Mountain,
-  Scale,
+  Sprout,
   Settings,
+  TreeDeciduous,
 } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -36,6 +37,9 @@ import { recordSinceLoad } from "@/lib/perf";
 import { hasSource } from "@/lib/source";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { useLocalStore } from "@/hooks/use-local-store";
+import { GARDEN, gardenOn } from "@/lib/settings";
+import { byMain } from "@/lib/sport";
 
 // Background forest sync needs Firestore: loaded after the first screen, not before it.
 const ForestSync = lazy(() =>
@@ -131,7 +135,14 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
-    meta: [{ title: t("Cirmolo — Cycling Training", "Cirmolo — Allenamento ciclismo") }],
+    meta: [
+      {
+        title: byMain(
+          t("Cirmolo — Cycling Training", "Cirmolo — Allenamento ciclismo"),
+          t("Cirmolo — Running Training", "Cirmolo — Allenamento corsa"),
+        ),
+      },
+    ],
   }),
   beforeLoad: async ({ location }) => {
     // The privacy notice must be readable before anyone signs up.
@@ -157,12 +168,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 /** `bar: true` items sit in the Android bottom bar; the rest go under "More". */
 const NAV = [
-  { to: "/", label: t("Home", "Casa"), icon: House, bar: true },
+  { to: "/", label: t("Tree", "Albero"), icon: TreeDeciduous, bar: true },
+  { to: "/garden", label: t("Garden", "Orto"), icon: Sprout, bar: true },
   { to: "/segments", label: t("Segments", "Segmenti"), icon: Mountain, bar: true },
   { to: "/calendar", label: t("Calendar", "Calendario"), icon: CalendarDays, bar: true },
   { to: "/analysis", label: t("Analysis", "Analisi"), icon: ChartSpline, bar: true },
-  { to: "/body", label: t("Body", "Corpo"), icon: Scale, bar: false },
-  { to: "/rides", label: t("Activities", "Attività"), icon: Bike, bar: false },
+  { to: "/rides", label: t("Activities", "Attività"), icon: Activity, bar: false },
+  { to: "/workouts", label: t("Workouts", "Allenamenti"), icon: Dumbbell, bar: false },
   { to: "/settings", label: t("Settings", "Impostazioni"), icon: Settings, bar: false },
 ] as const;
 
@@ -172,24 +184,27 @@ function RootComponent() {
   const [more, setMore] = useState(false);
   const online = useOnline();
   const synced = useLastSynced();
-  const bar = NAV.filter((n) => n.bar);
-  const rest = NAV.filter((n) => !n.bar);
+  const [garden] = useLocalStore(GARDEN, gardenOn());
+  const nav = NAV.filter((n) => garden || n.to !== "/garden");
+  const bar = nav.filter((n) => n.bar);
+  const rest = nav.filter((n) => !n.bar);
   const bare = useRouterState({
     select: (s) => s.location.pathname === "/login" || s.location.pathname === "/privacy",
   });
   // The Segments list fills the screen exactly: a footer after it would sit on top of the list.
   const fullScreen = useRouterState({ select: (s) => /^\/segments\/?$/.test(s.location.pathname) });
   // On the phone the landscapes end in themselves, not in a line of credits (desktop keeps it).
-  // Home and the places reached from it (tree, garden, forests): landscapes, and Home stays lit in the nav.
   const scenic = useRouterState({
-    select: (s) => /^\/((tree|garden|forest)(\/|$)|$)/.test(s.location.pathname),
+    select: (s) => /^\/((garden|forest)(\/|$)|$)/.test(s.location.pathname),
   });
-  const navClass = (to: string, on: string) => (to === "/" && scenic ? on : undefined);
-  // Home, the Garden and the forests live under the sky of the moment: the page takes its colour, the bar is glass.
+  // The forests are reached from the tree: the Tree stays lit in the nav there.
+  const inForest = useRouterState({ select: (s) => /^\/forest(\/|$)/.test(s.location.pathname) });
+  const navClass = (to: string, on: string) => (to === "/" && inForest ? on : undefined);
+  // The Tree, the Garden and the forests live under the sky of the moment: the page takes its colour, the bar is glass.
   const skyPage = useRouterState({ select: (s) => SKY_PAGE.test(s.location.pathname) });
   useSkyPage(skyPage);
-  // The sun and moon cross the sky only on Home, the Garden and the forests; the other pages get the plain sky over
-  // low hills (the forests draw their own land).
+  // The sun and moon cross the sky only on the Garden and the forests; the other pages, the Tree among them, get the
+  // plain sky over hills (the forests draw their own land).
   // A member's tree (/forest/<forest>/<member>) and their rides are plain pages too: plain sky, high hills.
   const memberTree = useRouterState({
     select: (s) =>
@@ -200,7 +215,7 @@ function RootComponent() {
   });
   const sunPage =
     useRouterState({
-      select: (s) => /^\/(garden(\/|$)|$)/.test(s.location.pathname),
+      select: (s) => /^\/garden(\/|$)/.test(s.location.pathname),
     }) || forestPage;
 
   if (bare)
@@ -216,7 +231,7 @@ function RootComponent() {
 
   return (
     <>
-      {/* Home, the Garden and the forests: one sky behind the whole window, from its very top. */}
+      {/* One sky behind the whole window, from its very top. */}
       {skyPage && <PageSky bodies={sunPage} own={!sunPage && !forestPage && !memberTree} />}
       {skyPage && !sunPage && !forestPage && <SkyLand high />}
       {/* Desktop only: on the phone each page's own title is the top, and the bottom bar navigates. */}
@@ -241,7 +256,7 @@ function RootComponent() {
             </span>
           )}
           <nav className="flex gap-1">
-            {NAV.map((n) => (
+            {nav.map((n) => (
               <Link
                 key={n.to}
                 to={n.to}

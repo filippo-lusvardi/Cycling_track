@@ -21,7 +21,9 @@ service cloud.firestore {
 
       allow read: if signedIn() && me() in resource.data.members;
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(["name", "createdBy", "createdAt", "members"])
+        && request.resource.data.keys().hasOnly(["name", "createdBy", "createdAt", "members", "sport"])
+        // Missing means cycling. It can't change afterwards: `update` below doesn't allow it.
+        && (!("sport" in request.resource.data) || request.resource.data.sport == "run")
         && request.resource.data.createdBy == me()
         && request.resource.data.members == [me()]
         && request.resource.data.name is string && request.resource.data.name.size() <= 40;

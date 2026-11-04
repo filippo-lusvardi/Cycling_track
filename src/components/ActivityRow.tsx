@@ -2,6 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { activityKind, KINDS } from "@/lib/activity-kind";
 import type { Activity } from "@/lib/intervals";
+import { formatPace } from "@/lib/pace";
+import { isSport } from "@/lib/sport";
 import { formatDuration, formatKm } from "@/lib/training";
 import { format, t } from "@/lib/i18n";
 
@@ -37,7 +39,13 @@ export function ActivityRow({ a }: { a: Activity }) {
       <div className="stat-num flex shrink-0 gap-4 text-right text-sm">
         <span className="hidden sm:inline">{formatKm(a.distance)}</span>
         <span>{formatDuration(a.moving_time)}</span>
-        <span className="hidden w-14 sm:inline">{power ? `${Math.round(power)}W` : "–"}</span>
+        <span className="hidden w-14 sm:inline">
+          {isSport(a, "run")
+            ? formatPace(a.average_speed)
+            : power
+              ? `${Math.round(power)}W`
+              : "–"}
+        </span>
         <span className="w-12 text-primary">{a.icu_training_load ?? "–"}</span>
       </div>
     </Link>

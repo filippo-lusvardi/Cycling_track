@@ -17,6 +17,7 @@ import { format, t } from "@/lib/i18n";
 import { formatDuration } from "@/lib/training";
 import { rng, seedOf } from "@/lib/tree";
 import { PantryNotes, pantryNotes } from "./PantryNotes";
+import { mainSport } from "@/lib/sport";
 
 const mix = (a: string, pa: number, b: string) =>
   `color-mix(in oklab, ${a} ${Math.round(Math.min(100, Math.max(0, pa)))}%, ${b})`;
@@ -56,7 +57,7 @@ function JarShape({
   // Layers from the bottom up, in the garden's order, each as thick as its share of the month.
   let level = y - 2;
   const layers = jar
-    ? allSports(map).flatMap((c) => {
+    ? allSports(map, mainSport()).flatMap((c) => {
         const m = jar.bySport[c];
         if (!m) return [];
         const th = (m / jar.minutes) * room * fill;

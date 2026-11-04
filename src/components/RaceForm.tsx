@@ -8,6 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { createRace, deleteEvent, updateRace } from "@/lib/source";
 import {
   DISCIPLINE_LABEL,
+  DISCIPLINES,
+  disciplineSport,
   formatMinutes,
   KINDS,
   parseMinutes,
@@ -19,6 +21,7 @@ import {
 } from "@/lib/races";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { mainSport } from "@/lib/sport";
 
 const PRIORITY_HINT: Record<Priority, string> = {
   A: t("main goal", "obiettivo principale"),
@@ -57,6 +60,19 @@ function Choice<T extends string>({
 }
 
 /** Add or edit a race on the intervals.icu calendar: its kind sets what the training focus prepares for. */
+const FIRST_KIND: Record<Discipline, RaceKind> = {
+  road: "road",
+  mtb: "xco",
+  run: "run10k",
+  trail: "trailShort",
+};
+const EVENT_TYPE = {
+  road: "Ride",
+  mtb: "MountainBikeRide",
+  run: "Run",
+  trail: "TrailRun",
+} as const;
+
 export function RaceForm({
   date,
   race,
@@ -67,10 +83,16 @@ export function RaceForm({
   onSaved?: () => void;
 }) {
   const qc = useQueryClient();
+  // A race keeps its own sport when it's edited; a new one is in the main sport.
+  const sport = race?.info ? disciplineSport(race.info.discipline) : mainSport();
   const [name, setName] = useState(race?.name ?? "");
   const [day, setDay] = useState(race?.date ?? date);
-  const [discipline, setDiscipline] = useState<Discipline>(race?.info?.discipline ?? "road");
-  const [kind, setKind] = useState<RaceKind>(race?.info?.kind ?? "road");
+  const [discipline, setDiscipline] = useState<Discipline>(
+    race?.info?.discipline ?? DISCIPLINES[sport][0]!,
+  );
+  const [kind, setKind] = useState<RaceKind>(
+    race?.info?.kind ?? (sport === "run" ? "run10k" : "road"),
+  );
   const [time, setTime] = useState(race?.info?.minutes ? formatMinutes(race.info.minutes) : "");
   const [sprint, setSprint] = useState(race?.info?.sprint ?? false);
   const [priority, setPriority] = useState<Priority>(race?.priority ?? "B");
@@ -82,7 +104,7 @@ export function RaceForm({
 
   const pickDiscipline = (d: Discipline) => {
     setDiscipline(d);
-    if (KINDS[kind].discipline !== d) setKind(d === "mtb" ? "xco" : "road");
+    if (KINDS[kind].discipline !== d) setKind(FIRST_KIND[d]);
   };
 
   async function save(e: React.FormEvent) {
@@ -96,7 +118,7 @@ export function RaceForm({
       date: day,
       name: name.trim() || KINDS[kind].label,
       priority,
-      type: discipline === "mtb" ? ("MountainBikeRide" as const) : ("Ride" as const),
+      type: EVENT_TYPE[discipline],
       description: raceDescription(
         { discipline, kind, minutes, sprint: !timed && sprint },
         race?.notes ?? "",
@@ -158,7 +180,7 @@ export function RaceForm({
         <Label>{t("Discipline", "Disciplina")}</Label>
         <Choice
           value={discipline}
-          options={(["road", "mtb"] as const).map((d) => ({ key: d, label: DISCIPLINE_LABEL[d] }))}
+          options={DISCIPLINES[sport].map((d) => ({ key: d, label: DISCIPLINE_LABEL[d] }))}
           onChange={pickDiscipline}
         />
       </div>

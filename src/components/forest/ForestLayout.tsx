@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
-import type { Forest } from "@/lib/forest/forests";
+import { forestSport, type Forest } from "@/lib/forest/forests";
 import { t } from "@/lib/i18n";
+import { sportWords } from "@/lib/sport";
 import { cn } from "@/lib/utils";
 import { SkyLand } from "@/components/sky/SkyPage";
 
@@ -45,7 +46,9 @@ export function ForestLayout({
       {tab === "members" && <SkyLand />}
       <Back />
       <div className="on-sky">
-        <div className="eyebrow text-foreground/75">{t("Forest", "Bosco")}</div>
+        <div className="eyebrow text-foreground/75">
+          {t("Forest", "Bosco")} · {sportWords(forestSport(forest)).name}
+        </div>
         <h1 className="text-3xl font-bold tracking-tight">{forest.name}</h1>
       </div>
       <div className="glass flex gap-1 rounded-lg p-1">

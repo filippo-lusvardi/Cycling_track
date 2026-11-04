@@ -1,6 +1,7 @@
 // GPS segment detection & matching across rides. Pure and browser-safe.
 import { climbCategory } from "./climbs";
 import { t as tr } from "./i18n";
+import type { MainSport } from "./sport";
 
 export type Segment = {
   id: string;
@@ -21,6 +22,8 @@ export type TrackLike = {
 
 export type Attempt = {
   trackId: string; trackName: string | null; date: string;
+  /** Set on runs; missing means a ride. */
+  sport?: MainSport;
   duration: number; avgWatts: number | null; avgHr: number | null; avgCad: number | null; speed: number;
   gain: number; vam: number | null;
   /** Start and finish indices of the effort in the track, to draw its path and profile. */
@@ -176,11 +179,15 @@ export function isClimbOnTrack(t: TrackLike, s: Segment, startKm: number, endKm:
 export type Trace = { lat: number[]; lng: number[]; dist: number[]; alt: number[] };
 
 /** "3.7 km · 5.0% · 188 m · Cat 3": the stats line shown under a segment's name. */
-export function segmentSummary(s: Pick<Segment, "length" | "grade" | "gain">): string {
+export function segmentSummary(
+  s: Pick<Segment, "length" | "grade" | "gain">,
+  sport: MainSport = "ride",
+): string {
   const parts = [`${(s.length / 1000).toFixed(1)} km`];
   if (s.grade != null) parts.push(`${s.grade.toFixed(1)}%`);
   if (s.gain != null) parts.push(`${Math.round(s.gain)} m`);
-  const cat = s.grade != null ? climbCategory(s.length, s.grade) : "Uncat";
+  // Categories are a cycling scale: on it, a kilometre at 20% is only a Cat 3.
+  const cat = s.grade != null && sport === "ride" ? climbCategory(s.length, s.grade) : "Uncat";
   if (cat !== "Uncat") parts.push(cat === "HC" ? "HC" : `Cat ${cat}`);
   return parts.join(" · ");
 }

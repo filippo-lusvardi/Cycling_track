@@ -23,6 +23,7 @@ import {
   trunkWidth,
   weatherPhase,
   weekRange,
+  onlySprouts,
 } from "./tree";
 
 const act = (
@@ -253,6 +254,42 @@ describe("tree", () => {
     expect(weather(70)).toBe("rain");
     expect(weather(60)).toBe("clouds");
     expect(weather(52)).toBe("partly");
+  });
+  it("what doesn't grow in the garden leaves no sprout and no trace in weeks or rings", () => {
+    const day = "2026-10-28";
+    const days = buildDays(
+      [act("r", day, 60, 50), act("g", addDaysT(day, 1), 40, 30, { type: "WeightTraining" })],
+      [],
+      day,
+      addDaysT(day, 1),
+    );
+    expect(buildWeeks(days)[0]).toMatchObject({ crossMinutes: 40, totalLoad: 80 });
+    const alone = onlySprouts(days, new Set());
+    expect(alone.flatMap((d) => d.sprouts)).toEqual([]);
+    expect(alone.flatMap((d) => d.branches).map((b) => b.id)).toEqual(["r"]);
+    expect(buildWeeks(alone)[0]).toMatchObject({ crossMinutes: 0, totalLoad: 50, count: 1 });
+    expect(buildYears(alone)[0]).toMatchObject({ crossMinutes: 0, load: 50 });
+    expect(
+      onlySprouts(days, new Set(["g"]))
+        .flatMap((d) => d.sprouts)
+        .map((x) => x.id),
+    ).toEqual(["g"]);
+  });
+  it("no check-in leaves the crown to the other data; turned off, answers on record don't count", () => {
+    const day = "2026-10-31";
+    const others = { atl: 55, hrv: 60, sleepSecs: 7 * 3600 };
+    const bad = { sleepQuality: 4, fatigue: 4, stress: 4, mood: 4 };
+    const history = (extra: Partial<Wellness>) =>
+      Array.from({ length: 4 }, (_, i) => well(addDaysT(day, i - 3), 50, { ...others, ...extra }));
+    const none = crownFor(history({}), [], day);
+    // Answers on record really do move it, so the rest of this test means something.
+    expect(crownFor(history(bad), [], day).score).toBeLessThan(none.score!);
+    const off = crownFor(history(bad), [], day, [], false);
+    expect(off.score).toBe(none.score);
+    expect(off.signals).toEqual(none.signals);
+    // Nothing is awaited with the check-in off, so a score with enough behind it isn't "estimated".
+    expect(none.estimated).toBe(true);
+    expect(off.estimated).toBe(false);
   });
   it("uses yesterday's fitness and fatigue until today has an activity", () => {
     const rows = [

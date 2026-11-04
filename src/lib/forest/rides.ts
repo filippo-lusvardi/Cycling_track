@@ -1,7 +1,7 @@
 // A shared ride's page for the forest: its summary, and (when the member shares maps) its route and altitude
 // profile with the first and last kilometre cut off, so nobody learns where rides start and end; heart rate and
 // power only when the member shares them. Pure.
-//   forests/{fid}/trees/{uid}/rides/{rideId}   RidePage
+//   forests/{fid}/trees/{uid}/rides/{rideId}   StoredRidePage
 import type { Activity } from "../intervals";
 import { haversine, type Segment, type Trace, type TrackLike } from "../segments";
 import { thin } from "./leaderboard";
@@ -78,6 +78,68 @@ export function ridePage(
       ? trimEnds({ lat: track.lat, lng: track.lng!, dist: track.dist, alt: track.alt })
       : null;
   return { ...ride, route: route ? thin(route, 400) : null, effort };
+}
+
+/** A route as text, about a quarter of the size of its number lists: each point's change from the one before, in
+ * metres and 1e-5 degrees, written like Google's encoded polylines. */
+export function packRoute(t: Trace): string {
+  let out = "";
+  const last = [0, 0, 0, 0];
+  for (let i = 0; i < t.lat.length; i++) {
+    const now = [
+      Math.round(t.lat[i]! * 1e5),
+      Math.round(t.lng[i]! * 1e5),
+      Math.round(t.dist[i]!),
+      Math.round(t.alt[i]!),
+    ];
+    now.forEach((n, k) => {
+      const d = n - last[k]!;
+      last[k] = n;
+      let v = d < 0 ? ~(d * 2) : d * 2;
+      for (; v >= 32; v = Math.floor(v / 32)) out += String.fromCharCode((32 | (v % 32)) + 63);
+      out += String.fromCharCode(v + 63);
+    });
+  }
+  return out;
+}
+
+export function unpackRoute(s: string): Trace {
+  const last = [0, 0, 0, 0];
+  const t: Trace = { lat: [], lng: [], dist: [], alt: [] };
+  let at = 0;
+  const next = () => {
+    let v = 0;
+    let bit = 1;
+    let c: number;
+    do {
+      c = s.charCodeAt(at++) - 63;
+      v += (c & 31) * bit;
+      bit *= 32;
+    } while (c >= 32);
+    return v % 2 ? -(v + 1) / 2 : v / 2;
+  };
+  while (at < s.length) {
+    for (let k = 0; k < 4; k++) last[k] = last[k]! + next();
+    t.lat.push(last[0]! / 1e5);
+    t.lng.push(last[1]! / 1e5);
+    t.dist.push(last[2]!);
+    t.alt.push(last[3]!);
+  }
+  return t;
+}
+
+/** A ride page as Firestore holds it. App versions from before `path` read `route: null` as "no map". */
+export type StoredRidePage = Omit<RidePage, "route"> & { route: null; path?: string };
+
+export const toStoredPage = (p: RidePage): StoredRidePage =>
+  p.route ? { ...p, route: null, path: packRoute(p.route) } : { ...p, route: null };
+
+/** Back to a page with its route; those published before `path` still hold `route` as number lists. */
+export function fromStoredPage(
+  d: Omit<RidePage, "route"> & { route?: Trace | null; path?: string },
+): RidePage {
+  const { path, route, ...page } = d;
+  return { ...page, route: path ? unpackRoute(path) : (route ?? null) };
 }
 
 /** Where a climb lies on a shared route: start and finish indices and distances along the route. */

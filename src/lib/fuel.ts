@@ -2,6 +2,8 @@
 // Burn is physiology (work → energy → the carbohydrate share at each intensity); the intake targets are the
 // ACSM / GSSI guidelines by duration. Both are estimates: gut tolerance and the day's breakfast matter too.
 
+import { FLAT_COST } from "./gap";
+
 /** Carbohydrate in one brioche (an Italian cornetto is about 40–50 g). */
 export const BRIOCHE_G = 45;
 
@@ -28,6 +30,13 @@ type RideLike = {
   zoneTimes: number[];
 };
 
+/**
+ * Energy burned on a run (kcal): its flat-equivalent distance at the energy cost of running (3.6 J/kg/m, already
+ * counting the climbs through that distance), with the runner's weight.
+ */
+export const runKcal = (gapDistance: number, kg: number) =>
+  (gapDistance * FLAT_COST * kg) / 4184;
+
 /** Share of a ride's energy that came from carbohydrate, from its time in each power zone. */
 export function choShare(zoneTimes: number[]): number {
   let energy = 0;
@@ -44,7 +53,8 @@ export function choShare(zoneTimes: number[]): number {
  * Energy burned (kcal). With power: work in kJ is very nearly kcal burned, since a cyclist turns about 24% of the
  * energy into work and 1 kcal is 4.184 kJ. Without power, intervals.icu's calorie estimate.
  */
-export function kcalOf(a: RideLike): number | null {
+export function kcalOf(a: RideLike, run = false): number | null {
+  if (run) return a.calories ?? null;
   const kj =
     a.joules != null
       ? a.joules / 1000
@@ -55,8 +65,8 @@ export function kcalOf(a: RideLike): number | null {
 }
 
 /** Grams of carbohydrate burned on a ride (4 kcal per gram). */
-export function carbsBurned(a: RideLike): number | null {
-  const kcal = kcalOf(a);
+export function carbsBurned(a: RideLike, run?: { kcal: number | null }): number | null {
+  const kcal = run ? (run.kcal ?? kcalOf(a, true)) : kcalOf(a);
   return kcal != null ? (kcal * choShare(a.zoneTimes)) / 4 : null;
 }
 
@@ -67,10 +77,11 @@ export type Target = { low: number; high: number; grams: number };
  * under 75 min nothing is needed; up to 2.5 h 30–60 g an hour; longer 60–90 g an hour. Harder rides sit higher in
  * the band.
  */
-export function intakeTarget(secs: number, intensity: number | null): Target {
+export function intakeTarget(secs: number, intensity: number | null, run = false): Target {
   const h = secs / 3600;
   if (h < 1.25) return { low: 0, high: 0, grams: 0 };
-  const [lo, hi] = h <= 2.5 ? [30, 60] : [60, 90];
+  // The gut takes less while running than on a bike: the same guidelines, a lower top.
+  const [lo, hi] = run ? (h <= 2.5 ? [30, 50] : [45, 75]) : h <= 2.5 ? [30, 60] : [60, 90];
   const k = intensity == null ? 0.5 : Math.min(1, Math.max(0, (intensity - 0.6) / 0.25));
   return { low: lo * h, high: hi * h, grams: (lo + (hi - lo) * k) * h };
 }
@@ -89,10 +100,11 @@ export type RideFuel = {
 };
 
 /** A ride's fuelling: burned, eaten (brioches logged) and what the guidelines suggest. */
-export function rideFuel(a: RideLike, brioches: number): RideFuel {
+export function rideFuel(a: RideLike, brioches: number, run?: { kcal: number | null }): RideFuel {
   const target = intakeTarget(
     a.moving_time ?? 0,
     a.icu_intensity != null ? a.icu_intensity / 100 : null,
+    !!run,
   );
   const eaten = brioches * BRIOCHE_G;
   const verdict: FuelVerdict | null = !target.high
@@ -103,7 +115,7 @@ export function rideFuel(a: RideLike, brioches: number): RideFuel {
         ? "over"
         : "ok";
   return {
-    burned: carbsBurned(a),
+    burned: carbsBurned(a, run),
     eaten,
     target,
     verdict,

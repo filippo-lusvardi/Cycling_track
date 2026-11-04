@@ -27,6 +27,7 @@ export function ForestGrove({
   me = auth.currentUser?.uid,
   w: W = 360,
   fit = 0,
+  clear = 0,
   now,
 }: {
   seed: string;
@@ -34,8 +35,10 @@ export function ForestGrove({
   onTree: (uid: string) => void;
   me?: string;
   w?: number;
-  /** The height that fits on screen (see OpenScene): a wide grove grows wild hills behind up to it. */
+  /** The height that fits on screen (see OpenScene): the grove grows wild hills behind up to it. */
   fit?: number;
+  /** Room to keep free under the last row (see phoneFit). */
+  clear?: number;
   /** The moment the sky shows (now by default). */
   now?: Date;
 }) {
@@ -53,17 +56,17 @@ export function ForestGrove({
     (a, b) => Number(b.uid === me) - Number(a.uid === me) || a.name.localeCompare(b.name),
   );
   const rows = Math.max(1, Math.ceil(sorted.length / perRow));
-  // A wide scene fills the window down to its bottom edge: wild hills behind, the members in front.
+  // The scene fills the window down to its bottom edge: wild hills behind, the members in front.
   // Whole hills first; what's left over (less than a hill) spreads out between the wild hills (or, with none, between
   // the mountains and the first row).
-  const spare = W <= 360 ? 0 : Math.max(0, Math.min(fit, W * 0.5) - (TOP + rows * mrow + 10));
+  const spare = Math.max(0, (W <= 360 ? fit : Math.min(fit, W * 0.5)) - (TOP + rows * mrow + 10 + clear));
   // The land between the mountains and the members is always wild hills (never a bare stretch): as many as fit,
   // each sized to share the room exactly; only a sliver too thin for one stays plain.
   const back = spare >= 50 ? Math.max(1, Math.round(spare / ROW)) : 0;
   const backRow = back ? spare / back : ROW;
   const pad = back ? 0 : spare;
   const all = back + rows;
-  const H = TOP + pad + back * backRow + rows * mrow + 10;
+  const H = TOP + pad + back * backRow + rows * mrow + 10 + clear;
   // The mountains' flat foot hides behind the first hill (on the phone, where it always has, just above it).
   const ridgeFoot = W <= 360 ? TOP + 50 : back ? TOP + 96 : TOP + pad + mrow - 30;
   const clock = useNow();
@@ -136,7 +139,9 @@ export function ForestGrove({
           <WildPines
             seed={`${seed}${row}`}
             w={W}
-            count={Math.round((W - 360) / (row < back ? 9 : 30))}
+            // At the phone's width, only the wild hills have room for them.
+            count={W <= 360 ? (row < back ? 14 : 0) : Math.round((W - 360) / (row < back ? 9 : 30))}
+            phone
             at={(r) => {
               const x = r() * W;
               if (spots.some((p) => p.row === row && Math.abs(p.x - x) < 52 * big)) return null;

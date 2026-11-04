@@ -1,4 +1,4 @@
-// The sky behind the pages that live under it (Home, the Garden, the forests): one sky filling the window from its
+// The sky behind the pages that live under it (the Tree, the Garden, the forests): one sky filling the window from its
 // very top, behind the bars and the page's header, staying put while the page scrolls (the scenes draw only their
 // land over it). The layers sit at the bottom of the page's stack (z 0 and 1) with the page's content raised above
 // them (the root's main is z-10): never behind the body, whose own background would hide them. `PageSky` is that sky, drawn by the root; `SkyLand` adds mountains and hills low down for the forest
@@ -51,7 +51,7 @@ export function PageSky({ bodies = true, own = false }: { bodies?: boolean; own?
   const { weather, phase } = own && !sky.weather ? lastWeather() : sky;
   const units = SW / Math.max(1, window.innerWidth);
   const horizon = horizonPx != null ? horizonPx * units : horizonOf(H);
-  // Below Home's recap; otherwise below the page's own header (title, tabs).
+  // Below the page's own header (title, tabs).
   const peak = peakPx != null ? peakPx * units : H * 0.32;
   const meadow = lit(
     mix("var(--summer)", 16, mix("var(--scene-secondary)", 80, "var(--scene-background)")),

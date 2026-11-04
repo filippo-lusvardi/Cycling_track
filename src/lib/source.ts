@@ -15,6 +15,8 @@ type Source = Pick<
   | "saveWellnessEntry"
   | "getStreams"
   | "getRideWatts"
+  | "getRunSummary"
+  | "fillRunLoads"
   | "listOutdoorRides"
   | "downloadRideTrack"
   | "getPowerCurves"
@@ -27,6 +29,13 @@ type Source = Pick<
   | "createRace"
   | "updateRace"
   | "setActivityDescription"
+  | "getThresholds"
+  | "saveThresholds"
+  | "getWorkouts"
+  | "createWorkout"
+  | "updateWorkout"
+  | "deleteWorkout"
+  | "scheduleWorkout"
 >;
 
 export const sourceKind = (): SourceKind =>
@@ -50,6 +59,8 @@ export const getActivity = via("getActivity");
 export const saveWellnessEntry = via("saveWellnessEntry");
 export const getStreams = via("getStreams");
 export const getRideWatts = via("getRideWatts");
+export const getRunSummary = via("getRunSummary");
+export const fillRunLoads = via("fillRunLoads");
 export const listOutdoorRides = via("listOutdoorRides");
 export const downloadRideTrack = via("downloadRideTrack");
 export const getPowerCurves = via("getPowerCurves");
@@ -62,6 +73,13 @@ export const deleteEvent = via("deleteEvent");
 export const createRace = via("createRace");
 export const updateRace = via("updateRace");
 export const setActivityDescription = via("setActivityDescription");
+export const getThresholds = via("getThresholds");
+export const saveThresholds = via("saveThresholds");
+export const getWorkouts = via("getWorkouts");
+export const createWorkout = via("createWorkout");
+export const updateWorkout = via("updateWorkout");
+export const deleteWorkout = via("deleteWorkout");
+export const scheduleWorkout = via("scheduleWorkout");
 
 /** Signed in and either holding an intervals.icu key or using Cirmolo's own store. */
 export const hasSource = () => sourceKind() === "native" || !!readSetting<string>(API_KEY);

@@ -73,64 +73,118 @@ function Tomato({ l }: { l: Look }) {
   const r = rng(l.seed);
   const h = height(l, 14, 36);
   const leaf = leafColor(l);
-  // The stem zigzags up beside the cane; leaves alternate; trusses of tomatoes hang from the nodes.
-  const nodes = Array.from({ length: 5 }, (_, i) => {
-    const y = -h * (0.18 + i * 0.18);
-    return { x: (i % 2 ? 1.6 : -1.6) + (r() - 0.5), y };
+  const under = darker(leaf, 24);
+  // The stem climbs the cane; a compound leaf at every node, reaching further and fuller on a heavier session; trusses
+  // of tomatoes hang from the nodes.
+  const count = 5 + Math.round(l.size * 2);
+  const nodes = Array.from({ length: count }, (_, i) => {
+    const y = -h * (0.13 + (i * 0.84) / count);
+    return { x: (i % 2 ? 1.1 : -1.1) + (r() - 0.5) * 0.6, y, side: i % 2 ? 1 : -1 };
   });
+  const reach = 6 + l.vigor * 3.5;
   const fruit = Array.from({ length: l.fruit }, (_, i) => {
-    const n =
-      nodes[Math.min(nodes.length - 1, Math.floor((i * nodes.length) / Math.max(1, l.fruit)))]!;
-    return { x: n.x + (i % 2 ? 2.6 : -2.6) + (r() - 0.5) * 1.5, y: n.y + 3 + r() * 2.5 };
+    const n = nodes[Math.min(count - 2, Math.floor((i * (count - 1)) / Math.max(1, l.fruit)))]!;
+    const dx = (i % 2 ? 2.8 : -2.8) + (r() - 0.5) * 1.2;
+    return { nx: n.x, ny: n.y, x: n.x + dx, y: n.y + 3.6 + r() * 2 };
   });
+  /** A compound leaf: a stalk with pairs of soft leaflets and one at its tip. */
+  const compound = (n: (typeof nodes)[number], i: number, k: number, fill: string) => {
+    const len = reach * k * (1 - (i / count) * 0.32);
+    const lift = 3.4 * k;
+    const dir = n.side;
+    const tips = [0.42, 0.72].flatMap((u) => [
+      { u, a: -38, off: -1 },
+      { u, a: 38, off: 1 },
+    ]);
+    return (
+      <g
+        key={`${i}-${k}`}
+        transform={`translate(${n.x} ${n.y}) scale(${dir} 1) rotate(-${lift * 4})`}
+      >
+        <path
+          d={`M0,0 Q${len * 0.5},-0.7 ${len},0`}
+          stroke={under}
+          strokeWidth={0.55}
+          fill="none"
+        />
+        {tips.map((p, j) => (
+          <ellipse
+            key={j}
+            cx={len * p.u + 0.5}
+            cy={p.off * 1.25}
+            rx={1.95 * k}
+            ry={0.98 * k}
+            fill={fill}
+            transform={`rotate(${p.a} ${len * p.u + 0.5} ${p.off * 1.25})`}
+          />
+        ))}
+        <ellipse cx={len + 0.5} cy={0} rx={2.25 * k} ry={1.15 * k} fill={fill} />
+      </g>
+    );
+  };
   return (
     <g>
       <line
-        x1={2.2}
+        x1={2.1}
         y1={0.5}
-        x2={2.2}
+        x2={2.1}
         y2={-h - 3}
         stroke={mix(BARK, 70, BIRCH)}
-        strokeWidth={1.1}
+        strokeWidth={1.15}
         strokeLinecap="round"
       />
-      <polyline
-        points={`0,0 ${nodes.map((n) => `${n.x},${n.y}`).join(" ")}`}
+      {nodes.map((n, i) => compound({ ...n, side: -n.side }, i, 0.82, under))}
+      <path
+        d={`M0,0 ${nodes.map((n) => `L${n.x},${n.y}`).join(" ")}`}
         fill="none"
-        stroke={darker(leaf, 15)}
-        strokeWidth={1.1 + l.vigor * 0.5}
+        stroke={darker(leaf, 12)}
+        strokeWidth={1.25 + l.vigor * 0.6}
         strokeLinejoin="round"
+        strokeLinecap="round"
       />
-      {nodes.map((n, i) => {
-        // Leaves reach further on a heavier session.
-        const d = (i % 2 ? 1 : -1) * (5.5 + l.vigor * 2.5);
-        return (
-          <path
+      {/* Tied to the cane with a bit of twine. */}
+      {nodes
+        .filter((_, i) => i % 2)
+        .map((n, i) => (
+          <line
             key={i}
-            d={`M${n.x},${n.y} q${d * 0.6},-1 ${d},-4.5 q${-d * 0.45},0.5 ${-d},4.5 Z`}
-            fill={leaf}
+            x1={n.x}
+            y1={n.y + 1}
+            x2={2.5}
+            y2={n.y + 0.5}
+            stroke={mix(BIRCH, 70, BARK)}
+            strokeWidth={0.45}
           />
-        );
-      })}
+        ))}
+      {nodes.map((n, i) => compound(n, i, 1, leaf))}
       {fruit.map((f, i) => (
         <g key={i}>
+          <path
+            d={`M${f.nx},${f.ny} Q${(f.nx + f.x) / 2},${f.ny - 0.4} ${f.x},${f.y - 2.3}`}
+            stroke={under}
+            strokeWidth={0.5}
+            fill="none"
+          />
           <circle
             cx={f.x}
             cy={f.y}
-            r={2.3}
+            r={2.6}
             fill={ripen(mix(SPRING, 70, SUMMER), mix(LINGON, 85, AUTUMN), l.ripeness)}
           />
-          <circle cx={f.x - 0.7} cy={f.y - 0.8} r={0.6} fill={FG} opacity={0.35} />
+          <circle cx={f.x - 0.8} cy={f.y - 0.9} r={0.65} fill={FG} opacity={0.35} />
           <path
-            d={`M${f.x - 1},${f.y - 2.1} l1,-0.8 l1,0.8`}
+            d={`M${f.x - 1.2},${f.y - 2} L${f.x},${f.y - 2.8} L${f.x + 1.2},${f.y - 2} M${f.x},${f.y - 2.8} V${f.y - 1.7}`}
             stroke={PINE}
             strokeWidth={0.5}
             fill="none"
+            strokeLinecap="round"
           />
         </g>
       ))}
       {l.season === "winter" && (
-        <SnowCaps pts={nodes.map((n) => [n.x, n.y - 2] as [number, number])} />
+        <SnowCaps
+          pts={nodes.map((n) => [n.x + n.side * reach * 0.7, n.y - 1.5] as [number, number])}
+        />
       )}
     </g>
   );
@@ -254,53 +308,78 @@ function Flowers({ l }: { l: Look }) {
 /** Walks and hikes: a rosemary bush, blue flowers for every 100 m climbed. */
 function Herbs({ l }: { l: Look }) {
   const r = rng(l.seed);
-  const leaf = leafColor(l, mix(PINE, 55, mix(FG, 45, SUMMER)));
-  const h = height(l, 10, 26);
+  const leaf = leafColor(l, mix(PINE, 55, mix(FG, 35, SUMMER)));
+  const back = darker(leaf, 24);
+  const h = height(l, 11, 26);
+  // A low rounded bush of soft stems, the outer ones arching, thick with small leaves; fuller on a heavier session.
   const count = 7 + Math.round(l.vigor * 5);
   const stems = Array.from({ length: count }, (_, i) => {
-    const a = -Math.PI / 2 + (i / (count - 1) - 0.5) * 1.6 + (r() - 0.5) * 0.2;
-    const len = h * (0.65 + r() * 0.35) * (1 - Math.abs(a + Math.PI / 2) * 0.25);
-    return { a, len };
+    const f = count > 1 ? i / (count - 1) - 0.5 : 0;
+    const a = f * 1.45 + (r() - 0.5) * 0.14;
+    const len = h * (0.72 + r() * 0.28) * (1 - Math.abs(f) * 0.28);
+    return { ex: Math.sin(a) * len, ey: -Math.cos(a) * len, a, depth: i % 2 };
   });
-  const flowers = Array.from({ length: l.fruit }, (_, i) => stems[(i * 3) % stems.length]!);
+  // In a stem's own order, back ones first, so the bush has depth.
+  const ordered = [...stems].sort((p, q) => p.depth - q.depth);
+  const flowers = Array.from({ length: l.fruit }, (_, i) => stems[(i * 3 + 1) % stems.length]!);
   return (
     <g>
-      {stems.map(({ a, len }, i) => {
-        const [ex, ey] = [Math.cos(a) * len, Math.sin(a) * len];
+      {ordered.map(({ ex, ey, a, depth }, i) => {
+        const color = depth ? leaf : back;
+        const deg = (a * 180) / Math.PI;
         return (
           <g key={i}>
-            <line x1={0} y1={0} x2={ex} y2={ey} stroke={darker(leaf, 25)} strokeWidth={0.7} />
-            {Array.from({ length: 5 }, (_, k) => {
-              const f = 0.25 + k * 0.17;
+            <path
+              d={`M0,0 Q${ex * 0.3},${ey * 0.62} ${ex},${ey}`}
+              stroke={back}
+              strokeWidth={0.65}
+              fill="none"
+            />
+            {Array.from({ length: 6 }, (_, k) => {
+              const u = 0.3 + k * 0.14;
+              // A point on the curve; leaves alternate, slanting up from the stem.
+              const px = 2 * (1 - u) * u * ex * 0.3 + u * u * ex;
+              const py = 2 * (1 - u) * u * ey * 0.62 + u * u * ey;
+              const side = k % 2 ? 1 : -1;
               return (
-                <path
+                <ellipse
                   key={k}
-                  d={`M${ex * f},${ey * f} l${k % 2 ? 2.2 : -2.2},-1.4`}
-                  stroke={leaf}
-                  strokeWidth={1}
-                  strokeLinecap="round"
+                  cx={px + side * 1.15}
+                  cy={py - 0.2}
+                  rx={1.75 - k * 0.12}
+                  ry={0.72}
+                  fill={color}
+                  transform={`rotate(${deg + side * 52 - 90} ${px + side * 1.15} ${py - 0.2})`}
                 />
               );
             })}
+            <ellipse
+              cx={ex}
+              cy={ey - 0.7}
+              rx={0.75}
+              ry={1.45}
+              fill={color}
+              transform={`rotate(${deg} ${ex} ${ey - 0.7})`}
+            />
           </g>
         );
       })}
-      {flowers.map(({ a, len }, i) => (
-        <circle
-          key={i}
-          cx={Math.cos(a) * len * 0.9}
-          cy={Math.sin(a) * len * 0.9}
-          r={1.1}
-          fill={mix(PRIMARY, 55, BLOSSOM)}
-        />
+      {/* Spikes of flowers, one per climb's worth. */}
+      {flowers.map(({ ex, ey, a }, i) => (
+        <g key={i} transform={`translate(${ex} ${ey}) rotate(${(a * 180) / Math.PI})`}>
+          {[0, 1, 2, 3].map((k) => (
+            <circle
+              key={k}
+              cx={k % 2 ? 0.5 : -0.5}
+              cy={-1 - k * 1.05}
+              r={0.82 - k * 0.09}
+              fill={mix(PRIMARY, 45, BLOSSOM)}
+            />
+          ))}
+        </g>
       ))}
       {l.season === "winter" && (
-        <SnowCaps
-          pts={stems
-            .filter((_, i) => i % 2)
-            .map(({ a, len }) => [Math.cos(a) * len, Math.sin(a) * len])}
-          s={0.8}
-        />
+        <SnowCaps pts={stems.filter((_, i) => i % 2).map(({ ex, ey }) => [ex, ey])} s={0.8} />
       )}
     </g>
   );
@@ -763,6 +842,573 @@ function Aubergine({ l }: { l: Look }) {
   );
 }
 
+/** Corn: the tallest plant in the bed, long arching blades and a tassel on top, a cob per fruit, pale green → gold. */
+function Corn({ l }: { l: Look }) {
+  const leaf = leafColor(l, mix(SUMMER, 80, SPRING));
+  const h = height(l, 18, 38);
+  const cob = ripen(
+    mix(SPRING, 75, SNOW),
+    mix(BIRCH, 80, AUTUMN),
+    l.ripeness,
+    mix(BIRCH, 70, SPRING),
+  );
+  const silk = mix(AUTUMN, l.ripeness * 70, BIRCH);
+  const n = Math.max(1, Math.min(3, l.fruit || 1));
+  const reach = 7 + l.vigor * 4;
+  const blades = [0.14, 0.28, 0.42, 0.56, 0.7, 0.84].map((f, i) => {
+    const side = i % 2 ? 1 : -1;
+    const y = -h * f;
+    const out = side * reach * (1.1 - f * 0.45);
+    return (
+      <path
+        key={f}
+        d={`M0,${y} Q${out * 0.55},${y - 7} ${out},${y + 1.5} Q${out * 0.5},${y - 3.6} 0,${y + 1.4} Z`}
+        fill={i % 2 ? leaf : darker(leaf, 12)}
+      />
+    );
+  });
+  return (
+    <g>
+      {blades}
+      <path d={`M0,0 L0,${-h}`} stroke={darker(leaf, 22)} strokeWidth={1.4} strokeLinecap="round" />
+      {/* The tassel. */}
+      {[-30, -12, 8, 28].map((a) => (
+        <path
+          key={a}
+          d={`M0,${-h} l${Math.sin((a * Math.PI) / 180) * 3.6},${-Math.cos((a * Math.PI) / 180) * 3.6}`}
+          stroke={mix(BIRCH, 70, BARK)}
+          strokeWidth={0.6}
+          strokeLinecap="round"
+        />
+      ))}
+      {Array.from({ length: n }, (_, i) => {
+        const side = i % 2 ? -1 : 1;
+        const y = -h * (0.34 + i * 0.17);
+        return (
+          <g key={i} transform={`translate(0 ${y}) rotate(${side * 24})`}>
+            <path
+              d={`M${-1.5},1 Q0,-3 0,-8.6 Q0,-3 1.5,1 Z`}
+              stroke={silk}
+              strokeWidth={0.4}
+              fill="none"
+            />
+            <ellipse cx={0} cy={-3} rx={1.5} ry={3.8} fill={cob} />
+            {/* The husk, opening over the grain. */}
+            <path d={`M-1.9,1.2 Q-2.4,-2.8 -0.6,-5 Q-1,-1.8 0,1.2 Z`} fill={leaf} />
+            <path d={`M1.9,1.2 Q2.4,-2.8 0.6,-5 Q1,-1.8 0,1.2 Z`} fill={darker(leaf, 12)} />
+          </g>
+        );
+      })}
+      {l.season === "winter" && (
+        <SnowCaps
+          pts={[
+            [0, -h],
+            [-reach * 0.7, -h * 0.5],
+            [reach * 0.7, -h * 0.4],
+          ]}
+          s={0.8}
+        />
+      )}
+    </g>
+  );
+}
+
+/** Artichokes: a wide clump of jagged silver leaves, a scaly globe per fruit on a thick stem, green → tipped with purple. */
+function Artichoke({ l }: { l: Look }) {
+  const leaf = leafColor(l, mix(SNOW, 34, mix(SUMMER, 45, PINE)));
+  const h = height(l, 14, 30);
+  const n = Math.max(1, Math.min(3, l.fruit || 1));
+  const w = 9 + l.vigor * 5;
+  const body = mix(SPRING, 45, mix(SUMMER, 60, PINE));
+  const tip = mix("oklch(0.5 0.15 320)", l.ripeness * 75, body);
+  const jagged = (side: number, reach: number, top: number, color: string, key: number) => (
+    <path
+      key={key}
+      d={`M0,0 Q${side * reach * 0.3},${-top * 0.6} ${side * reach * 0.5},${-top * 0.8} l${side * 0.2},1.8 L${side * reach * 0.72},${-top * 0.82} l${-side * 0.4},1.9 L${side * reach},${-top * 0.5} Q${side * reach * 0.6},${-top * 0.2} 0,0 Z`}
+      fill={color}
+    />
+  );
+  return (
+    <g>
+      {[
+        [-1, w, 11, 0],
+        [1, w, 11, 0],
+        [-1, w * 0.72, 15, 12],
+        [1, w * 0.72, 15, 12],
+        [-1, w * 0.42, 18, 0],
+        [1, w * 0.42, 18, 12],
+      ].map(([side, reach, top, shade], i) => jagged(side!, reach!, top!, darker(leaf, shade!), i))}
+      {Array.from({ length: n }, (_, i) => {
+        const x = i === 0 ? 0 : (i === 1 ? -1 : 1) * 5.5;
+        const y = -h * (i === 0 ? 1 : 0.8);
+        return (
+          <g key={i}>
+            <path
+              d={`M${x * 0.2},0 Q${x * 0.6},${y * 0.6} ${x},${y}`}
+              stroke={darker(leaf, 20)}
+              strokeWidth={1.3}
+              fill="none"
+            />
+            <g transform={`translate(${x} ${y})`}>
+              <ellipse cx={0} cy={-2.8} rx={3.2} ry={3.8} fill={body} />
+              {/* Rows of overlapping scales. */}
+              {[
+                [-1.8, -0.8],
+                [0, -0.3],
+                [1.8, -0.8],
+                [-2, -2.8],
+                [0, -2.4],
+                [2, -2.8],
+                [-1, -4.6],
+                [1, -4.6],
+              ].map(([sx, sy], k) => (
+                <path
+                  key={k}
+                  d={`M${sx! - 1.3},${sy} Q${sx},${sy! + 1.1} ${sx! + 1.3},${sy} L${sx},${sy! - 2.2} Z`}
+                  fill={k % 2 ? darker(body, 14) : body}
+                  stroke={tip}
+                  strokeWidth={0.25}
+                />
+              ))}
+            </g>
+          </g>
+        );
+      })}
+      {l.season === "winter" && (
+        <SnowCaps
+          pts={[
+            [0, -h - 6],
+            [-w * 0.72, -9],
+            [w * 0.72, -9],
+          ]}
+          s={0.9}
+        />
+      )}
+    </g>
+  );
+}
+
+/** Onions: upright hollow leaves over a bulb half out of the soil, one per fruit, green-white → copper. */
+function Onions({ l }: { l: Look }) {
+  const r = rng(l.seed);
+  const leaf = leafColor(l, mix(SUMMER, 55, mix(PINE, 70, SNOW)));
+  const h = height(l, 12, 28);
+  const n = Math.max(1, Math.min(4, l.fruit || 1));
+  const bulb = ripen(
+    mix(SNOW, 65, SPRING),
+    mix(AUTUMN, 62, BARK),
+    l.ripeness,
+    mix(BIRCH, 55, SNOW),
+  );
+  const R = 2.3 + l.vigor * 1.5;
+  const xs = Array.from(
+    { length: n },
+    (_, i) => (i - (n - 1) / 2) * (R * 2 + 1.6) + (r() - 0.5) * 0.6,
+  );
+  return (
+    <g>
+      {xs.map((x, i) => {
+        const top = h * (0.82 + r() * 0.18);
+        return (
+          <g key={i}>
+            {[-0.32, -0.1, 0.12, 0.34].map((a, k) => {
+              const len = top * (k === 1 ? 1 : 0.82 + r() * 0.14);
+              const ex = x + a * len * 0.42;
+              return (
+                <path
+                  key={k}
+                  d={`M${x},${-R} Q${x + a * 2},${-len * 0.6} ${ex},${-len}`}
+                  stroke={k % 2 ? leaf : darker(leaf, 14)}
+                  strokeWidth={1.1}
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              );
+            })}
+            {/* A round flower head on a strong session's first onion. */}
+            {i === 0 && l.vigor > 0.55 && (
+              <g transform={`translate(${x + 0.6} ${-top - 1})`}>
+                <path
+                  d={`M-0.6,${top * 0.5} Q-0.2,${top * 0.2} 0,0`}
+                  stroke={leaf}
+                  strokeWidth={0.7}
+                  fill="none"
+                />
+                <circle r={2.6} fill={mix(BLOSSOM, 70, SNOW)} />
+                {[0, 60, 120, 180, 240, 300].map((a) => (
+                  <circle
+                    key={a}
+                    cx={0}
+                    cy={-1.5}
+                    r={0.55}
+                    fill={mix(BLOSSOM, 85, "oklch(0.55 0.15 320)")}
+                    transform={`rotate(${a})`}
+                  />
+                ))}
+              </g>
+            )}
+            <path
+              d={`M${x - R},0.4 C${x - R * 1.15},${-R * 1.1} ${x - 0.7},${-R * 1.25} ${x - 0.5},${-R * 1.55} L${x + 0.5},${-R * 1.55} C${x + 0.7},${-R * 1.25} ${x + R * 1.15},${-R * 1.1} ${x + R},0.4 Z`}
+              fill={bulb}
+            />
+            <path
+              d={`M${x - R * 0.42},0.2 Q${x - R * 0.56},${-R * 0.7} ${x - 0.2},${-R * 1.3} M${x + R * 0.42},0.2 Q${x + R * 0.56},${-R * 0.7} ${x + 0.2},${-R * 1.3}`}
+              stroke={darker(bulb, 26)}
+              strokeWidth={0.35}
+              fill="none"
+            />
+          </g>
+        );
+      })}
+      {l.season === "winter" && (
+        <SnowCaps pts={xs.map((x) => [x, -h * 0.8] as [number, number])} s={0.7} />
+      )}
+    </g>
+  );
+}
+
+/** Radicchio: a tight upright head, white-ribbed, its own crop as big as the session was long, green → burgundy. */
+function Radicchio({ l }: { l: Look }) {
+  const s = 0.6 + l.size * 0.65;
+  const outer = leafColor(l, mix(SUMMER, 60, PINE));
+  const head = ripen(
+    mix(SUMMER, 60, SPRING),
+    "oklch(0.36 0.12 12)",
+    l.ripeness,
+    "oklch(0.46 0.1 45)",
+  );
+  const rib = mix(SNOW, 85, BLOSSOM);
+  const lobe = (
+    x: number,
+    y: number,
+    rx: number,
+    ry: number,
+    a: number,
+    color: string,
+    k: string,
+  ) => (
+    <g key={k} transform={`rotate(${a} ${x} ${y})`}>
+      <ellipse
+        cx={x}
+        cy={y}
+        rx={rx}
+        ry={ry}
+        fill={color}
+        stroke={darker(color, 24)}
+        strokeWidth={0.35}
+      />
+      <path
+        d={`M${x},${y + ry * 0.92} L${x},${y - ry * 0.6}`}
+        stroke={rib}
+        strokeWidth={0.75}
+        strokeLinecap="round"
+      />
+    </g>
+  );
+  return (
+    <g transform={`scale(${s})`}>
+      {lobe(-7.2, -3, 3, 4, -58, outer, "a")}
+      {lobe(7.2, -3, 3, 4, 58, outer, "b")}
+      {lobe(-4.6, -6.5, 3.1, 6, -24, head, "c")}
+      {lobe(4.6, -6.5, 3.1, 6, 24, head, "d")}
+      {lobe(-2.2, -8.8, 3, 7, -9, darker(head, 8), "e")}
+      {lobe(2.2, -8.8, 3, 7, 9, darker(head, 8), "f")}
+      {lobe(0, -9, 3.1, 7.6, 0, head, "g")}
+      {l.season === "winter" && (
+        <SnowCaps
+          pts={[
+            [0, -16.5],
+            [-4.6, -12],
+            [4.6, -12],
+          ]}
+        />
+      )}
+    </g>
+  );
+}
+
+/** Peppers: a compact bush with a shiny hanging pepper per fruit, green → red or yellow, each plant its own. */
+function Peppers({ l }: { l: Look }) {
+  const r = rng(l.seed);
+  const leaf = leafColor(l, mix(SUMMER, 85, PINE));
+  const h = height(l, 11, 23);
+  const pepper = ripen(
+    mix(SUMMER, 80, PINE),
+    l.seed > 0.5 ? mix(LINGON, 88, AUTUMN) : mix(BIRCH, 88, AUTUMN),
+    l.ripeness,
+  );
+  const n = Math.max(1, Math.min(4, l.fruit || 1));
+  const bush = 6 + l.vigor * 3;
+  const leaves = Array.from({ length: 9 }, (_, i) => ({
+    x: (i % 2 ? 1 : -1) * (1 + (i % 4) * (bush / 4)) * (i / 8 + 0.25),
+    y: -h * (0.34 + (i / 9) * 0.68),
+    a: (i % 2 ? 1 : -1) * (15 + r() * 30),
+  }));
+  return (
+    <g>
+      <path
+        d={`M0,0 L0,${-h} M0,${-h * 0.3} L${-bush * 0.8},${-h * 0.82} M0,${-h * 0.4} L${bush * 0.8},${-h * 0.95}`}
+        stroke={darker(leaf, 28)}
+        strokeWidth={1}
+        strokeLinecap="round"
+        fill="none"
+      />
+      {leaves.map((v, i) => (
+        <path
+          key={i}
+          d={`M${v.x - 3.2},${v.y} Q${v.x},${v.y - 2.5} ${v.x + 3.2},${v.y} Q${v.x},${v.y + 2.2} ${v.x - 3.2},${v.y} Z`}
+          fill={i % 3 ? leaf : darker(leaf, 12)}
+          transform={`rotate(${v.a} ${v.x} ${v.y})`}
+        />
+      ))}
+      {Array.from({ length: n }, (_, i) => {
+        const x = (i - (n - 1) / 2) * 4 + (r() - 0.5);
+        const y = -h * (0.32 + (i % 2) * 0.2);
+        return (
+          <g key={`p${i}`}>
+            <path
+              d={`M${x},${y - 1.5} q0.2,-1.3 1,-1.8`}
+              stroke={PINE}
+              strokeWidth={0.7}
+              fill="none"
+            />
+            {/* Square shoulders and three lobes at the foot. */}
+            <path
+              d={`M${x - 2},${y - 1.2} Q${x},${y - 2.2} ${x + 2},${y - 1.2} C${x + 2.6},${y + 1.2} ${x + 2},${y + 3.6} ${x + 1.1},${y + 4.2} Q${x + 0.5},${y + 3.7} ${x},${y + 4.4} Q${x - 0.5},${y + 3.7} ${x - 1.1},${y + 4.2} C${x - 2},${y + 3.6} ${x - 2.6},${y + 1.2} ${x - 2},${y - 1.2} Z`}
+              fill={pepper}
+            />
+            <path
+              d={`M${x - 1},${y - 0.7} Q${x - 1.5},${y + 1} ${x - 1},${y + 2.6}`}
+              stroke={SNOW}
+              strokeOpacity={0.45}
+              strokeWidth={0.5}
+              strokeLinecap="round"
+              fill="none"
+            />
+          </g>
+        );
+      })}
+      {l.season === "winter" && (
+        <SnowCaps pts={leaves.slice(6).map((v) => [v.x, v.y - 1.8] as [number, number])} s={0.8} />
+      )}
+    </g>
+  );
+}
+
+/** Lavender: a rounded grey-green clump, its thin spikes more with each fruit, grey-green → violet. */
+function Lavender({ l }: { l: Look }) {
+  const r = rng(l.seed);
+  const leaf = leafColor(l, mix(SNOW, 30, mix(SUMMER, 50, PINE)));
+  const h = height(l, 11, 26);
+  const flower = ripen(
+    mix(SNOW, 30, mix(SUMMER, 50, PINE)),
+    "oklch(0.6 0.15 300)",
+    l.ripeness,
+    "oklch(0.68 0.07 300)",
+  );
+  const spikes = 5 + Math.min(8, l.fruit || 1) + Math.round(l.vigor * 3);
+  const w = 6 + l.vigor * 3.5;
+  return (
+    <g>
+      {Array.from({ length: spikes }, (_, i) => {
+        const u = spikes > 1 ? i / (spikes - 1) - 0.5 : 0;
+        const ex = u * w * 2.3 + (r() - 0.5) * 0.8;
+        const ey = -h * (1 - Math.abs(u) * 0.45) * (0.92 + r() * 0.08);
+        return (
+          <g key={i}>
+            <path
+              d={`M${u * 2},0 Q${ex * 0.35},${ey * 0.6} ${ex},${ey}`}
+              stroke={darker(leaf, 8)}
+              strokeWidth={0.5}
+              fill="none"
+            />
+            {/* Winter leaves the spent spike, not its flowers. */}
+            {l.season !== "winter" &&
+              [0, 1, 2, 3, 4].map((k) => (
+                <ellipse
+                  key={k}
+                  cx={ex + (u * k * 0.5) / 2}
+                  cy={ey - k * 1.05}
+                  rx={k === 4 ? 0.5 : 0.85}
+                  ry={0.7}
+                  fill={k % 2 ? darker(flower, 12) : flower}
+                />
+              ))}
+          </g>
+        );
+      })}
+      {/* The clump: narrow leaves fanning out from the foot. */}
+      {Array.from({ length: 17 }, (_, i) => {
+        const u = i / 16 - 0.5;
+        const ex = u * w * 2.1;
+        const ey = -(w * 0.85) * (1 - u * u * 2.6) - r() * 0.8;
+        return (
+          <path
+            key={`c${i}`}
+            d={`M${u * 2.4},0.3 Q${ex * 0.45},${ey * 0.75} ${ex},${ey}`}
+            stroke={i % 2 ? leaf : darker(leaf, 14)}
+            strokeWidth={1}
+            strokeLinecap="round"
+            fill="none"
+          />
+        );
+      })}
+      {l.season === "winter" && (
+        <SnowCaps
+          pts={[
+            [-w * 0.5, -w * 0.62],
+            [w * 0.45, -w * 0.62],
+          ]}
+        />
+      )}
+    </g>
+  );
+}
+
+/** Poppies: thin bare stems over feathery leaves, a bloom per fruit, a nodding green bud opening red with a dark centre. */
+function Poppies({ l }: { l: Look }) {
+  const r = rng(l.seed);
+  const leaf = leafColor(l, mix(SUMMER, 70, SPRING));
+  const h = height(l, 13, 30);
+  const red = mix(LINGON, 85, AUTUMN);
+  const n = Math.max(1, Math.min(5, l.fruit || 1));
+  return (
+    <g>
+      {[-1, 1, -0.45, 0.45].map((d, i) => {
+        const ex = d * (5 + l.vigor * 3);
+        const ey = -6 - Math.abs(1 - Math.abs(d)) * 5;
+        return (
+          <path
+            key={i}
+            d={`M0,0 Q${ex * 0.4},${ey * 0.8} ${ex},${ey} M${ex * 0.45},${ey * 0.55} l${d * 2},-2.2 M${ex * 0.7},${ey * 0.8} l${d * 1.8},-1.4 M${ex * 0.45},${ey * 0.55} l${d * 2.4},0.6 M${ex * 0.7},${ey * 0.8} l${d * 2},0.8`}
+            stroke={i % 2 ? leaf : darker(leaf, 12)}
+            strokeWidth={0.9}
+            strokeLinecap="round"
+            fill="none"
+          />
+        );
+      })}
+      {Array.from({ length: n }, (_, i) => {
+        const u = n > 1 ? i / (n - 1) - 0.5 : 0;
+        const x = u * (6 + n * 2.4) + (r() - 0.5);
+        const y = -h * (0.72 + r() * 0.28);
+        // They open one by one as the week goes on; winter closes them all.
+        const open = l.season !== "winter" && l.ripeness >= (i + 0.5) / (n + 1);
+        const lean = x >= 0 ? 1 : -1;
+        return (
+          <g key={i}>
+            {open ? (
+              <>
+                <path
+                  d={`M${x * 0.15},0 Q${x * 0.6},${y * 0.6} ${x},${y}`}
+                  stroke={darker(leaf, 8)}
+                  strokeWidth={0.55}
+                  fill="none"
+                />
+                <g transform={`translate(${x} ${y})`}>
+                  <path
+                    d="M-3.8,-1.2 C-3.6,-4.2 -1.2,-4.8 0,-3.4 C1.2,-4.8 3.6,-4.2 3.8,-1.2 C3.4,0.8 -3.4,0.8 -3.8,-1.2 Z"
+                    fill={red}
+                  />
+                  <path
+                    d="M-2.4,0.2 C-1.2,-2 1.2,-2 2.4,0.2 C1,1 -1,1 -2.4,0.2 Z"
+                    fill={darker(red, 16)}
+                  />
+                  <ellipse cx={0} cy={-1.1} rx={1.2} ry={0.8} fill={mix(BG, 75, "black")} />
+                </g>
+              </>
+            ) : (
+              <>
+                {/* The crook of the stem, the bud hanging from it. */}
+                <path
+                  d={`M${x * 0.15},0 Q${x * 0.6},${y * 0.6} ${x},${y} q${lean * 0.5},-2 ${lean * 2},-1.2 q${lean * 0.7},0.5 ${lean * 0.6},1.4`}
+                  stroke={darker(leaf, 8)}
+                  strokeWidth={0.55}
+                  fill="none"
+                />
+                <ellipse cx={x + lean * 2.6} cy={y + 1.5} rx={1.1} ry={1.9} fill={leaf} />
+              </>
+            )}
+          </g>
+        );
+      })}
+      {l.season === "winter" && (
+        <SnowCaps
+          pts={[
+            [-4, -6],
+            [4, -6],
+          ]}
+          s={0.7}
+        />
+      )}
+    </g>
+  );
+}
+
+/** Cornflowers: an airy branching plant, a fringed bloom per fruit, a green bud opening bright blue. */
+function Cornflowers({ l }: { l: Look }) {
+  const r = rng(l.seed);
+  const leaf = leafColor(l, mix(SUMMER, 55, mix(SNOW, 30, PINE)));
+  const h = height(l, 14, 31);
+  const blue = "oklch(0.64 0.17 255)";
+  const n = Math.max(1, Math.min(5, l.fruit || 1));
+  const tips = Array.from({ length: n }, (_, i) => {
+    const u = n > 1 ? i / (n - 1) - 0.5 : 0;
+    return { x: u * (8 + n * 2.6) + (r() - 0.5), y: -h * (0.72 + r() * 0.28) };
+  });
+  return (
+    <g>
+      <path d={`M0,0 L0,${-h * 0.46}`} stroke={darker(leaf, 16)} strokeWidth={0.8} fill="none" />
+      {/* Narrow leaves along the stem. */}
+      {[0.08, 0.17, 0.26, 0.35, 0.43].map((f, i) => {
+        const d = i % 2 ? 1 : -1;
+        const len = 7 + l.vigor * 2 - i;
+        return (
+          <path
+            key={f}
+            d={`M0,${-h * f} q${d * len * 0.6},${-len * 0.75} ${d * len},${-len * 0.45}`}
+            stroke={i % 2 ? leaf : darker(leaf, 10)}
+            strokeWidth={0.8}
+            strokeLinecap="round"
+            fill="none"
+          />
+        );
+      })}
+      {tips.map((p, i) => {
+        const open = l.season !== "winter" && l.ripeness >= (i + 0.5) / (n + 1);
+        return (
+          <g key={i}>
+            <path
+              d={`M0,${-h * 0.42} Q${p.x * 0.4},${p.y * 0.72} ${p.x},${p.y}`}
+              stroke={darker(leaf, 8)}
+              strokeWidth={0.55}
+              fill="none"
+            />
+            {/* The scaly cup under the flower. */}
+            <ellipse cx={p.x} cy={p.y} rx={1} ry={1.4} fill={darker(leaf, 18)} />
+            {open && (
+              <g transform={`translate(${p.x} ${p.y - 2})`}>
+                {[0, 40, 80, 120, 160, 200, 240, 280, 320].map((a) => (
+                  <path
+                    key={a}
+                    d="M0,0 L-0.95,-2.5 L-0.25,-2.2 L0,-3 L0.25,-2.2 L0.95,-2.5 Z"
+                    fill={blue}
+                    transform={`rotate(${a})`}
+                  />
+                ))}
+                <circle r={0.8} fill={mix(blue, 55, "oklch(0.32 0.12 300)")} />
+              </g>
+            )}
+          </g>
+        );
+      })}
+      {l.season === "winter" && (
+        <SnowCaps pts={tips.map((p) => [p.x, p.y - 1] as [number, number])} s={0.6} />
+      )}
+    </g>
+  );
+}
+
 const DRAW: Record<Crop, (p: { l: Look }) => React.JSX.Element> = {
   tomato: Tomato,
   pumpkin: Pumpkin,
@@ -777,6 +1423,14 @@ const DRAW: Record<Crop, (p: { l: Look }) => React.JSX.Element> = {
   lettuce: Lettuce,
   strawberry: Strawberry,
   aubergine: Aubergine,
+  corn: Corn,
+  artichoke: Artichoke,
+  onion: Onions,
+  radicchio: Radicchio,
+  pepper: Peppers,
+  lavender: Lavender,
+  poppy: Poppies,
+  cornflower: Cornflowers,
 };
 
 /** One plant at (x, y), its feet on the soil, scaled by `s`. */

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { climbOnRoute, effortOf, ridePage, trimEnds } from "./rides";
+import {
+  climbOnRoute,
+  effortOf,
+  fromStoredPage,
+  packRoute,
+  ridePage,
+  toStoredPage,
+  trimEnds,
+  unpackRoute,
+  type RidePage,
+} from "./rides";
 import type { SharedRide } from "./types";
 
 const track = (km: number) => {
@@ -116,5 +126,35 @@ describe("lifetime riding, for the tree's height", () => {
         a("r2", "2024-06-01", "GravelRide", 80_400),
       ]),
     ).toEqual({ since: "2021-04-02", km: 130 });
+  });
+});
+
+describe("stored ride pages", () => {
+  const route = {
+    lat: [46.06013, 46.0601, 46.06123],
+    lng: [11.13157, 11.1312, 11.13],
+    dist: [0, 40, 180],
+    alt: [212, 210, 225],
+  };
+  const summary = { id: "r1", effort: null } as unknown as Omit<RidePage, "route">;
+
+  it("pack a route as text and read it back", () => {
+    expect(unpackRoute(packRoute(route))).toEqual(route);
+    expect(unpackRoute("")).toEqual({ lat: [], lng: [], dist: [], alt: [] });
+  });
+
+  it("carry the route in path, and read pages published before it", () => {
+    const stored = toStoredPage({ ...summary, route });
+    expect(stored.route).toBeNull();
+    expect(typeof stored.path).toBe("string");
+    expect(fromStoredPage(stored).route).toEqual(route);
+    expect(fromStoredPage(stored)).not.toHaveProperty("path");
+    expect(fromStoredPage({ ...summary, route }).route).toEqual(route);
+  });
+
+  it("add nothing to a page without a route", () => {
+    const page = { ...summary, route: null };
+    expect(toStoredPage(page)).toEqual(page);
+    expect(fromStoredPage(page).route).toBeNull();
   });
 });

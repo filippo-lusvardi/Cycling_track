@@ -1,5 +1,5 @@
-// What the page's sky shows beyond the hour: today's weather (Home and the Garden set it; the forests leave it clear)
-// how high the sun and moon may climb (below Home's recap) and where the land begins (the Garden's own horizon). Read
+// What the page's sky shows beyond the hour: today's weather (the Tree and the Garden set it; the forests leave it clear)
+// how high the sun and moon may climb (below the page's header) and where the land begins (the Garden's own horizon). Read
 // by the sky behind the page.
 import { useSyncExternalStore } from "react";
 import type { Weather } from "./tree";

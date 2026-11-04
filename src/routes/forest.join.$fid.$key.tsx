@@ -16,6 +16,7 @@ import {
   watchMyRequest,
 } from "@/lib/forest/forests";
 import { t } from "@/lib/i18n";
+import { sportWords, type MainSport } from "@/lib/sport";
 
 export const Route = createFileRoute("/forest/join/$fid/$key")({
   head: () => ({ meta: [{ title: t("Join a forest — Cirmolo", "Entra in un bosco — Cirmolo") }] }),
@@ -25,10 +26,13 @@ export const Route = createFileRoute("/forest/join/$fid/$key")({
 /** Where an invite link lands: the forest's name, consent to share one's tree, and the request to join. */
 function JoinForest() {
   const { fid, key } = Route.useParams();
-  const [name, setName] = useState<string | null | undefined>(undefined);
+  const [invite, setInvite] = useState<Awaited<ReturnType<typeof readInvite>> | undefined>(
+    undefined,
+  );
+  const name = invite === undefined ? undefined : (invite?.name ?? null);
   const [member, setMember] = useState(false);
   const [pending, setPending] = useState(false);
-  useEffect(() => void readInvite(fid, key).then(setName), [fid, key]);
+  useEffect(() => void readInvite(fid, key).then(setInvite), [fid, key]);
   useEffect(
     () => watchForest(fid, (f) => setMember(!!f?.members.includes(auth.currentUser?.uid ?? ""))),
     [fid],
@@ -38,7 +42,10 @@ function JoinForest() {
   return (
     <div className="mx-auto max-w-md space-y-5">
       <div>
-        <div className="eyebrow">{t("Forest invite", "Invito a un bosco")}</div>
+        <div className="eyebrow">
+          {t("Forest invite", "Invito a un bosco")}
+          {invite && ` · ${sportWords(invite.sport).name}`}
+        </div>
         <h1 className="text-3xl font-bold tracking-tight">
           {name ?? (name === null ? t("Invite expired", "Invito scaduto") : "…")}
         </h1>
@@ -72,14 +79,25 @@ function JoinForest() {
             )}
           </p>
         </Panel>
-      ) : name ? (
-        <JoinForm fid={fid} forestKey={key} forest={name} />
+      ) : invite ? (
+        <JoinForm fid={fid} forestKey={key} forest={invite.name} sport={invite.sport} />
       ) : null}
     </div>
   );
 }
 
-function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; forest: string }) {
+function JoinForm({
+  fid,
+  forestKey,
+  forest,
+  sport,
+}: {
+  fid: string;
+  forestKey: string;
+  forest: string;
+  sport: MainSport;
+}) {
+  const w = sportWords(sport);
   const [me, setMe] = useState(defaultName);
   const [consent, setConsent] = useState(false);
   const [past, setPast] = useState(true);
@@ -118,7 +136,7 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
         <label className="flex items-center justify-between gap-3">
           <span>
             <span className="block">
-              {t("Show my rides from before joining", "Mostra le mie uscite di prima")}
+              {t(`Show my ${w.rides} from before joining`, `Mostra le mie ${w.uscite} di prima`)}
             </span>
             <span className="block text-xs text-muted-foreground">
               {t(
@@ -132,12 +150,12 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
         <label className="flex items-center justify-between gap-3">
           <span>
             <span className="block">
-              {t("Show my ride maps", "Mostra le mappe delle mie uscite")}
+              {t(`Show my ${w.ride} maps`, `Mostra le mappe delle mie ${w.uscite}`)}
             </span>
             <span className="block text-xs text-muted-foreground">
               {t(
-                "Members can open your rides of the last year: the route without its first and last kilometre, and its altitude profile.",
-                "I membri possono aprire le tue uscite dell'ultimo anno: il percorso senza il primo e l'ultimo chilometro, e l'altimetria.",
+                `Members can open your ${w.rides} of the last year: the route without its first and last kilometre, and its altitude profile.`,
+                `I membri possono aprire le tue ${w.uscite} dell'ultimo anno: il percorso senza il primo e l'ultimo chilometro, e l'altimetria.`,
               )}
             </span>
           </span>
@@ -150,8 +168,8 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
             </span>
             <span className="block text-xs text-muted-foreground">
               {t(
-                "On those rides: average and max heart rate, average and max power, normalized power.",
-                "Su quelle uscite: frequenza cardiaca media e massima, potenza media e massima, potenza normalizzata.",
+                `On those ${w.rides}: average and max heart rate, average and max power, normalized power.`,
+                `Su quelle ${w.uscite}: frequenza cardiaca media e massima, potenza media e massima, potenza normalizzata.`,
               )}
             </span>
           </span>
@@ -166,8 +184,8 @@ function JoinForm({ fid, forestKey, forest }: { fid: string; forestKey: string; 
           />
           <span>
             {t(
-              `I agree to share my tree with the members of "${forest}": the rides I choose to show (with their maps, heart rate and power if I turn those on above), my fitness, and my crown each day, which reflects my readiness and form (from my check-in, HRV and sleep). I can hide rides, and leaving the forest removes my tree from it. See the`,
-              `Acconsento a condividere il mio albero con i membri di "${forest}": le uscite che scelgo di mostrare (con mappe, frequenza cardiaca e potenza se le attivo qui sopra), la mia forma fisica e la mia chioma di ogni giorno, che riflette prontezza e forma (da check-in, HRV e sonno). Posso nascondere le uscite, e lasciando il bosco il mio albero viene rimosso. Vedi l'`,
+              `I agree to share my tree with the members of "${forest}": the ${w.rides} I choose to show (with their maps, heart rate and power if I turn those on above), my fitness, and my crown each day, which reflects my readiness and form (from my check-in, HRV and sleep). I can hide ${w.rides}, and leaving the forest removes my tree from it. See the`,
+              `Acconsento a condividere il mio albero con i membri di "${forest}": le ${w.uscite} che scelgo di mostrare (con mappe, frequenza cardiaca e potenza se le attivo qui sopra), la mia forma fisica e la mia chioma di ogni giorno, che riflette prontezza e forma (da check-in, HRV e sonno). Posso nascondere le ${w.uscite}, e lasciando il bosco il mio albero viene rimosso. Vedi l'`,
             )}{" "}
             <Link to="/privacy" className="underline">
               {t("privacy notice", "informativa privacy")}

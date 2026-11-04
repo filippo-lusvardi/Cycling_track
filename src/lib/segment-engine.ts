@@ -4,6 +4,7 @@
 import { packTrack, unpackTrack, type PackedTrack } from "./compact";
 import {
   addRideToGroups,
+  attemptsIn,
   groupForSaved,
   groupSegment,
   mayPass,
@@ -14,13 +15,14 @@ import {
   type Group,
 } from "./segment-index";
 import { findAttempts, type Segment, type TrackLike } from "./segments";
+import type { MainSport } from "./sport";
 import { t } from "./i18n";
 
 /** How far back each sync re-lists rides, to catch late uploads (one request; known rides aren't re-downloaded). */
 const RELIST_DAYS = 60;
 
 /** Bump when the analysis changes: the index is rebuilt from stored tracks (no downloads). */
-export const ANALYSIS_VERSION = 2;
+export const ANALYSIS_VERSION = 3;
 
 export type KV = {
   get<T>(key: string): Promise<T | undefined>;
@@ -29,7 +31,13 @@ export type KV = {
   keys(): Promise<string[]>;
 };
 
-export type RideRef = { id: string; name: string | null; date: string };
+export type RideRef = {
+  id: string;
+  name: string | null;
+  date: string;
+  /** Which sport the efforts count for; older index entries, all rides, have none. */
+  sport?: MainSport;
+};
 
 export type EngineDeps = {
   meta: KV;
@@ -63,7 +71,9 @@ export type Snapshot = {
   efforts: Record<string, EffortRec>;
   /** Saved segment id → group it follows (climbs starred from auto-detection). */
   links: Record<string, string>;
+  /** Activities analysed, runs included, and how many of them are runs. */
   rides: number;
+  runs: number;
   lastSync: number | null;
 };
 
@@ -78,12 +88,14 @@ const fromStored = (g: StoredGroup): Group => ({
 
 const yieldToUi = () => new Promise((r) => setTimeout(r, 0));
 
-/** Add a track's efforts on a segment to its record; the map trace follows the fastest effort. */
-function addAttempts(rec: EffortRec, t: TrackLike, seg: Segment) {
+/** Add a track's efforts on a segment to its record; each sport's map trace follows its fastest effort. */
+function addAttempts(rec: EffortRec, t: TrackLike, seg: Segment, sport: MainSport = "ride") {
   for (const a of findAttempts(t, seg)) {
-    const best = rec.attempts.reduce((m, x) => Math.min(m, x.duration), Infinity);
-    rec.attempts.push(a);
-    if (a.duration < best) rec.trace = traceOf(t, a);
+    const best = attemptsIn(rec, sport).reduce((m, x) => Math.min(m, x.duration), Infinity);
+    rec.attempts.push(sport === "run" ? { ...a, sport } : a);
+    if (a.duration >= best) continue;
+    if (sport === "run") rec.runTrace = traceOf(t, a);
+    else rec.trace = traceOf(t, a);
   }
 }
 
@@ -147,8 +159,12 @@ export function createSegmentEngine(deps: EngineDeps) {
     lastSync = (await meta.get<number>("lastSync")) ?? null;
     if (version !== ANALYSIS_VERSION && (rides.length || s.groups.length)) {
       // Analysis changed: forget results, keep downloaded tracks, and re-process them locally.
-      for (const r of rides) if (r.cells) s.pending.set(r.id, { id: r.id, name: r.name, date: r.date });
+      for (const r of rides)
+        if (r.cells) s.pending.set(r.id, { id: r.id, name: r.name, date: r.date, ...(r.sport ? { sport: r.sport } : {}) });
       s.seq = 0;
+      // List everything again, not only the recent weeks: this version brought runs, which older lists left out.
+      // Activities whose tracks are stored aren't downloaded again.
+      if ((version ?? 0) < 3) s.listed = null;
       s.rides = new Map();
       s.groups = [];
       s.efforts = {};
@@ -191,7 +207,7 @@ export function createSegmentEngine(deps: EngineDeps) {
     for (const { key, seg } of trackedSegments(s)) {
       const rec = s.efforts[key];
       if (!rec || rec.sig !== segSig(seg) || rec.upTo >= seq) continue;
-      if (mayPass(cells, seg)) addAttempts(rec, t, seg);
+      if (mayPass(cells, seg)) addAttempts(rec, t, seg, ref.sport);
       rec.upTo = seq;
     }
   }
@@ -219,7 +235,8 @@ export function createSegmentEngine(deps: EngineDeps) {
     setStatus({ phase: "analysing", done, total: byRide.size });
     for (const [rideId, list] of byRide) {
       const t = await loadTrack(rideId);
-      if (t) for (const { key, seg } of list) addAttempts(fresh[key]!, t, seg);
+      const sport = s.rides.get(rideId)?.sport;
+      if (t) for (const { key, seg } of list) addAttempts(fresh[key]!, t, seg, sport);
       setStatus({ phase: "analysing", done: ++done, total: byRide.size }, false);
       await yieldToUi();
     }
@@ -341,6 +358,7 @@ export function createSegmentEngine(deps: EngineDeps) {
           efforts: s?.efforts ?? {},
           links,
           rides: s ? [...s.rides.values()].filter((r) => r.cells).length : 0,
+          runs: s ? [...s.rides.values()].filter((r) => r.cells && r.sport === "run").length : 0,
           lastSync,
         };
       }

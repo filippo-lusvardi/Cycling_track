@@ -3,9 +3,10 @@ import { MiniTree, WildPines, type SceneTree } from "@/components/forest/ForestS
 import { useNow } from "@/hooks/use-now";
 import { daylight, hazed, lit } from "@/lib/daylight";
 import { treeGrowth } from "@/lib/forest/age";
-import type { Forest } from "@/lib/forest/forests";
+import { forestSport, type Forest } from "@/lib/forest/forests";
 import { t } from "@/lib/i18n";
 import { ridgeAcross } from "@/lib/ridge";
+import { sportWords } from "@/lib/sport";
 import { isoDate } from "@/lib/training";
 import { rng, seedOf } from "@/lib/tree";
 
@@ -14,9 +15,15 @@ export type WorldWood = { forest: Forest; trees: SceneTree[]; waiting: number };
 /** The sky above the mountains: room for the sun and moon to ride over them. */
 const SKY = 30;
 const TOP = 96 + SKY;
-/** One wood per row on the phone; a wide scene's rows of woods are this far apart. */
-const STEP = 158;
+/** One wood per row on the phone, this far apart at the closest and the furthest; a wide scene's rows are this far apart. */
+const MIN_STEP = 112;
+const MAX_STEP = 200;
 const WIDE_STEP = 210;
+/** The first wood below the valley's top, on the phone. */
+const FIRST_WOOD = 56;
+/** A clearing's foot below its centre: its label, and a second line for the first forest. */
+const CLEARING_FOOT = 80;
+const FIRST_FOOT = 96;
 /** A wide scene's woods: the nearest stand this far either side of the trail, the next ones this much further. */
 const SIDE_IN = 190;
 const SIDE_STEP = 270;
@@ -24,19 +31,27 @@ const SIDE_STEP = 270;
 /**
  * My forests as one little world at night: a trail winds down the valley from the mountains, past a wood on its own
  * hill for each forest (its members' trees in their seasons), to a clearing where a new forest can be planted. On a
- * wide scene the trail runs straight down the middle with the woods in rows either side, wild pines between.
+ * wide scene the trail runs straight down the middle with the woods in rows either side, wild pines between. The
+ * woods close up or spread out to fill the height that fits, and the clearing always ends `clear` above the scene's end,
+ * so what floats over the land's foot never covers it once you're at the bottom of the page.
  */
 export function ForestWorld({
   woods,
   onOpen,
   onPlant,
   w: W = 360,
+  fit = 0,
+  clear = 0,
   now,
 }: {
   woods: WorldWood[];
   onOpen: (fid: string) => void;
   onPlant: () => void;
   w?: number;
+  /** The height that fits on screen (see OpenScene). */
+  fit?: number;
+  /** Room to keep free under the clearing (see switchFit). */
+  clear?: number;
   /** The moment the sky shows (now by default). */
   now?: Date;
 }) {
@@ -45,15 +60,23 @@ export function ForestWorld({
   // Wide: woods in rows either side of one straight trail down the middle, nearest it first.
   const perSide = Math.max(1, Math.floor((W / 2 - 90) / SIDE_STEP));
   const rows = wide ? Math.max(1, Math.ceil(woods.length / (2 * perSide))) : woods.length + 1;
-  // A wide scene is a landscape, at least half as tall as it is wide, with the clearing down in the foreground.
-  const H = wide
-    ? Math.max(TOP + rows * WIDE_STEP + 190, Math.round(W * 0.5))
-    : TOP + (woods.length + 1) * STEP;
+  const foot = (woods.length ? CLEARING_FOOT : FIRST_FOOT) + clear;
+  // Phone: as far apart as the height allows, so a page that would only just overflow fits instead.
+  const step = woods.length
+    ? Math.min(MAX_STEP, Math.max(MIN_STEP, (fit - TOP - FIRST_WOOD - foot) / woods.length))
+    : 0;
+  // A wide scene is a landscape filling the window (half as tall as wide until it's measured), with the clearing down
+  // in the foreground: it stands between the last row's woods, which are out to the sides of what floats over the foot.
+  const H = Math.ceil(
+    wide
+      ? Math.max(TOP + (rows - 1) * WIDE_STEP + 192, TOP + 60 + foot, fit || W * 0.5)
+      : Math.max(TOP + woods.length * step + FIRST_WOOD + foot, fit),
+  );
   // Phone: woods sit left and right of the trail in turn, each on its own row. The clearing comes last, at the
   // trail's end (on a wide scene, in the middle of the foreground).
   const spots = [
     ...woods.map((_, i) => {
-      if (!wide) return { x: i % 2 === 0 ? 112 : 248, y: TOP + i * STEP + 70 };
+      if (!wide) return { x: i % 2 === 0 ? 112 : 248, y: TOP + i * step + FIRST_WOOD };
       const row = Math.floor(i / (2 * perSide));
       const k = Math.floor((i % (2 * perSide)) / 2);
       const side = i % 2 ? 1 : -1;
@@ -62,9 +85,7 @@ export function ForestWorld({
         y: TOP + row * WIDE_STEP + 70 + (k % 2) * 22,
       };
     }),
-    wide
-      ? { x: W / 2, y: H - 120 }
-      : { x: woods.length % 2 === 0 ? 112 : 248, y: TOP + woods.length * STEP + 70 },
+    { x: wide ? W / 2 : woods.length % 2 === 0 ? 112 : 248, y: H - foot },
   ];
   // The trail: a smooth centre line (Catmull-Rom through points beside each wood, ending in the clearing), drawn
   // as a band that is a thread where it leaves the mountains and widens as it comes toward you.
@@ -122,10 +143,10 @@ export function ForestWorld({
       centre: line.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "),
       line,
     };
-    // spots, rows and H derive from the number of woods and the width.
+    // spots and rows derive from the number of woods, the width and the height.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [woods.length, W]);
-  // The sky of the moment, as at Home, without weather (the forests are shared: their sky is nobody's form).
+  }, [woods.length, W, H]);
+  // The sky of the moment, as in the Garden, without weather (the forests are shared: their sky is nobody's form).
   const clock = useNow();
   const d = daylight(now ?? clock);
   const L = (c: string) => lit(c, d);
@@ -328,6 +349,7 @@ function Wood({
           `${forest.members.length} ${forest.members.length === 1 ? "tree" : "trees"}`,
           `${forest.members.length} ${forest.members.length === 1 ? "albero" : "alberi"}`,
         )}
+        {` · ${sportWords(forestSport(forest)).name}`}
         {waiting > 0 && t(` · ${waiting} waiting`, ` · ${waiting} in attesa`)}
       </text>
       {waiting > 0 && (

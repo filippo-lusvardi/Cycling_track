@@ -17,7 +17,14 @@ import { GradientProfile } from "@/components/GradientProfile";
 import { RouteMap, type MapLine, type MapPin } from "@/components/RouteMap";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { atTime, duration, effortSeries, gapSeries, timeAtDist } from "@/lib/ghost";
+import {
+  atTime,
+  duration,
+  effortSeries,
+  gapSeries,
+  timeAtDist,
+  type EffortSeries,
+} from "@/lib/ghost";
 import { segmentEngine } from "@/lib/segment-app";
 import type { Attempt, Trace } from "@/lib/segments";
 import { formatClock } from "@/lib/training";
@@ -37,6 +44,9 @@ const useTrack = (id: string | undefined) =>
     enabled: !!id,
     staleTime: Infinity,
   });
+
+/** One entry of a rider's picker. */
+export type RaceOption = { key: string; label: string };
 
 const signed = (s: number) => `${s < 0 ? "−" : "+"}${formatClock(Math.abs(s))}`;
 
@@ -63,15 +73,62 @@ export function GhostRace({
 }) {
   const [aKey, setAKey] = useState(initialA);
   const [bKey, setBKey] = useState(initialB);
-  const [t, setT] = useState(0);
-  const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(30);
   const a = efforts.find((e) => effortKey(e) === aKey) ?? efforts[0]!;
   const b = efforts.find((e) => effortKey(e) === bKey) ?? efforts[1] ?? efforts[0]!;
   const { data: ta } = useTrack(a.trackId);
   const { data: tb } = useTrack(b.trackId);
   const sa = useMemo(() => (ta ? effortSeries(ta, a) : null), [ta, a]);
   const sb = useMemo(() => (tb ? effortSeries(tb, b) : null), [tb, b]);
+  const options = efforts.map((e) => ({
+    key: effortKey(e),
+    label: `${format(parseISO(e.date), "d MMM yyyy")} · ${formatClock(e.duration)}${e === efforts[0] ? " (PR)" : ""}`,
+  }));
+  return (
+    <RaceReplay
+      a={sa}
+      b={sb}
+      aKey={effortKey(a)}
+      bKey={effortKey(b)}
+      onPickA={setAKey}
+      onPickB={setBKey}
+      options={options}
+      trace={trace}
+      lines={lines}
+      pins={pins}
+      onClose={onClose}
+    />
+  );
+}
+
+/** The race itself: two efforts on one clock, whoever they belong to. A null effort is still loading. */
+export function RaceReplay({
+  a: sa,
+  b: sb,
+  aKey,
+  bKey,
+  onPickA,
+  onPickB,
+  options,
+  trace,
+  lines,
+  pins,
+  onClose,
+}: {
+  a: EffortSeries | null;
+  b: EffortSeries | null;
+  aKey: string;
+  bKey: string;
+  onPickA: (key: string) => void;
+  onPickB: (key: string) => void;
+  options: RaceOption[];
+  trace: Trace;
+  lines: MapLine[];
+  pins: MapPin[];
+  onClose: () => void;
+}) {
+  const [t, setT] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(30);
   const end = sa && sb ? Math.max(duration(sa), duration(sb)) : 0;
   const gaps = useMemo(() => (sa && sb ? gapSeries(sa, sb) : []), [sa, sb]);
 
@@ -98,7 +155,9 @@ export function GhostRace({
 
   if (!sa || !sb)
     return (
-      <p className="py-16 text-center text-sm text-muted-foreground">{tr("Loading the two rides…", "Caricamento delle due attività…")}</p>
+      <p className="py-16 text-center text-sm text-muted-foreground">
+        {tr("Loading the two rides…", "Caricamento delle due attività…")}
+      </p>
     );
 
   const pa = atTime(sa, t);
@@ -107,27 +166,13 @@ export function GhostRace({
   // Time gap at the point both riders have passed: negative = B ahead of A.
   const at = Math.min(pa.d, pb.d);
   const gap = timeAtDist(sb, at) - timeAtDist(sa, at);
-  const label = (e: Attempt) =>
-    `${format(parseISO(e.date), "d MMM yyyy")} · ${formatClock(e.duration)}${e === efforts[0] ? " (PR)" : ""}`;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <RiderSelect
-          color={A_COLOR}
-          value={effortKey(a)}
-          onChange={setAKey}
-          efforts={efforts}
-          label={label}
-        />
+        <RiderSelect color={A_COLOR} value={aKey} onChange={onPickA} options={options} />
         <span className="text-muted-foreground">vs</span>
-        <RiderSelect
-          color={B_COLOR}
-          value={effortKey(b)}
-          onChange={setBKey}
-          efforts={efforts}
-          label={label}
-        />
+        <RiderSelect color={B_COLOR} value={bKey} onChange={onPickB} options={options} />
         <Button size="sm" variant="ghost" className="ml-auto" onClick={onClose}>
           <X /> {tr("End race", "Termina sfida")}
         </Button>
@@ -194,7 +239,9 @@ export function GhostRace({
 
       <div className="stat-num rounded-lg bg-background/50 px-3 py-2 text-sm">
         {at < 1 ? (
-          <span className="text-muted-foreground">{tr("On the line…", "Sulla linea di partenza…")}</span>
+          <span className="text-muted-foreground">
+            {tr("On the line…", "Sulla linea di partenza…")}
+          </span>
         ) : (
           <>
             {tr("at", "a")} {(at / 1000).toFixed(2)} km: <span style={{ color: B_COLOR }}>B</span>{" "}
@@ -275,14 +322,12 @@ function RiderSelect({
   color,
   value,
   onChange,
-  efforts,
-  label,
+  options,
 }: {
   color: string;
   value: string;
   onChange: (key: string) => void;
-  efforts: Attempt[];
-  label: (e: Attempt) => string;
+  options: RaceOption[];
 }) {
   return (
     <label className="flex items-center gap-2">
@@ -292,9 +337,9 @@ function RiderSelect({
         onChange={(e) => onChange(e.target.value)}
         className="h-8 max-w-[14rem] rounded-md border border-input bg-transparent px-2 text-xs"
       >
-        {efforts.map((e) => (
-          <option key={effortKey(e)} value={effortKey(e)} className="bg-popover">
-            {label(e)}
+        {options.map((o) => (
+          <option key={o.key} value={o.key} className="bg-popover">
+            {o.label}
           </option>
         ))}
       </select>

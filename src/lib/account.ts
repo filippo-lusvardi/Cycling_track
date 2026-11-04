@@ -13,6 +13,13 @@ import {
   GITHUB_TOKEN,
   LANGUAGE,
   NO_PERF,
+  MAIN_SPORT,
+  ANALYSIS_BOTH,
+  CHECK_IN,
+  GARDEN,
+  GARDEN_CROPS,
+  ZONE_TOPS,
+  RUN_THRESHOLD,
   SEGMENT_HISTORY,
   SOURCE,
   readSetting,
@@ -59,14 +66,33 @@ async function pullProfile() {
   const p = await readProfile();
   const key = readSetting<string>(API_KEY);
   const years = readSetting<number>(SEGMENT_HISTORY);
+  const sport = readSetting<"ride" | "run">(MAIN_SPORT);
+  const both = readSetting<boolean>(ANALYSIS_BOTH);
+  const checkIn = readSetting<boolean>(CHECK_IN);
+  const garden = readSetting<boolean>(GARDEN);
+  const crops = readSetting<object>(GARDEN_CROPS);
   if (p.intervalsKey) writeSetting(API_KEY, p.intervalsKey);
   if (p.segmentHistory != null) writeSetting(SEGMENT_HISTORY, p.segmentHistory);
   if (p.source) writeSetting(SOURCE, p.source);
+  if (p.mainSport) writeSetting(MAIN_SPORT, p.mainSport);
+  if (p.analysisBoth != null) writeSetting(ANALYSIS_BOTH, p.analysisBoth);
+  if (p.checkIn != null) writeSetting(CHECK_IN, p.checkIn);
+  if (p.garden != null) writeSetting(GARDEN, p.garden);
+  if (p.gardenCrops) writeSetting(GARDEN_CROPS, JSON.parse(p.gardenCrops) as object);
+  writeSetting(RUN_THRESHOLD, p.runThreshold ?? null);
+  writeSetting(ZONE_TOPS, p.zoneTops ?? null);
   const up = {
     ...(!p.intervalsKey && key ? { intervalsKey: key } : {}),
     ...(p.segmentHistory == null && years != null ? { segmentHistory: years } : {}),
+    ...(!p.mainSport && sport ? { mainSport: sport } : {}),
+    ...(p.analysisBoth == null && both != null ? { analysisBoth: both } : {}),
+    ...(p.checkIn == null && checkIn != null ? { checkIn } : {}),
+    ...(p.garden == null && garden != null ? { garden } : {}),
+    ...(!p.gardenCrops && crops ? { gardenCrops: JSON.stringify(crops) } : {}),
   };
   if (Object.keys(up).length) await saveProfile(up);
+  // Wording and pages are fixed for the page's lifetime, so another sport from the account means starting over.
+  if (p.mainSport && (sport ?? "ride") !== p.mainSport) window.location.reload();
   return p;
 }
 

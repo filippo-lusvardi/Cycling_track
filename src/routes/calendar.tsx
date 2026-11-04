@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addMonths,
   eachDayOfInterval,
@@ -11,22 +11,25 @@ import {
 } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { ActivityRow } from "@/components/ActivityRow";
 import { CheckInForm } from "@/components/CheckIn";
 import { LogWorkoutForm } from "@/components/LogWorkout";
 import { RaceForm } from "@/components/RaceForm";
+import { WorkoutPicker } from "@/components/WorkoutLibrary";
+import { WorkoutPreview } from "@/components/WorkoutPreview";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { weeklyTotals, type WeekRow } from "@/lib/analysis";
 import type { Activity, PlannedEvent, Wellness } from "@/lib/intervals";
-import { sourceKind } from "@/lib/source";
+import { deleteEvent, sourceKind } from "@/lib/source";
 import { UploadRides } from "@/components/UploadRides";
 import { activitiesRangeQuery, eventsQuery, wellnessRangeQuery } from "@/lib/queries";
 import { activityKind, KINDS } from "@/lib/activity-kind";
 import { isRace, raceFrom, raceSummary, type Race } from "@/lib/races";
-import { advice, readinessFor } from "@/lib/readiness";
+import { advice, readinessFor, readinessRows } from "@/lib/readiness";
 import { addDays, formatDuration, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
@@ -140,7 +143,8 @@ function CalendarPage() {
             (e) => e.date === date && (e.category === "WORKOUT" || e.category.startsWith("RACE")),
           ),
           well: wellness?.find((w) => w.id === date),
-          score: wellness && date <= today ? readinessFor(wellness, date).score : null,
+          score:
+            wellness && date <= today ? readinessFor(readinessRows(wellness), date).score : null,
           load: (acts ?? [])
             .filter((a) => a.start_date_local.startsWith(date))
             .reduce((t, a) => t + (a.icu_training_load ?? 0), 0),
@@ -479,10 +483,44 @@ function ActChip({ a }: { a: Activity }) {
 
 function PlannedChip({ e }: { e: PlannedEvent }) {
   return (
-    <div className="truncate rounded border border-dashed border-birch/50 px-1.5 py-0.5 text-[11px] text-birch">
-      {e.name ?? t("Planned", "Pianificato")}
-      {e.icu_training_load ? ` · ${e.icu_training_load}` : ""}
+    <div className="rounded border border-dashed border-birch/50 px-1.5 py-0.5 text-[11px] text-birch">
+      <div className="truncate">
+        {e.name ?? t("Planned", "Pianificato")}
+        {e.icu_training_load ? ` · ${e.icu_training_load}` : ""}
+      </div>
+      {e.category === "WORKOUT" && (
+        <WorkoutPreview text={e.description} type={e.type} compact className="mb-0.5 mt-0.5" />
+      )}
     </div>
+  );
+}
+
+/** Taking a planned workout off the calendar, asking once. */
+function RemovePlanned({ id }: { id: string }) {
+  const qc = useQueryClient();
+  const [sure, setSure] = useState(false);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="-ml-3 mt-1 text-destructive"
+      disabled={busy}
+      onClick={async () => {
+        if (!sure) return setSure(true);
+        setBusy(true);
+        try {
+          await deleteEvent(id);
+          await qc.invalidateQueries({ queryKey: ["events"] });
+        } catch (err) {
+          console.warn("Workout not removed", err);
+          toast.error(t("Couldn't remove the workout", "Impossibile togliere l'allenamento"));
+          setBusy(false);
+        }
+      }}
+    >
+      {sure ? t("Remove for good?", "Togliere davvero?") : t("Remove", "Togli")}
+    </Button>
   );
 }
 
@@ -506,7 +544,7 @@ function WeekSummary({ totals }: { totals: WeekRow | undefined }) {
 }
 
 function DayDetail({ d }: { d: DayData }) {
-  const [tab, setTab] = useState<"day" | "wellness" | "log" | "race">("day");
+  const [tab, setTab] = useState<"day" | "wellness" | "log" | "race" | "plan">("day");
   const [editing, setEditing] = useState<Race | undefined>();
   return (
     <div className="space-y-4">
@@ -558,6 +596,9 @@ function DayDetail({ d }: { d: DayData }) {
                       ? raceSummary(race)
                       : `${formatDuration(e.moving_time)} · ${t("load", "carico")} ${e.icu_training_load ?? "–"}`}
                   </div>
+                  {!race && e.category === "WORKOUT" && (
+                    <WorkoutPreview text={e.description} type={e.type} className="mt-2" />
+                  )}
                   {(race ? race.notes : e.description) && (
                     <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">
                       {race ? race.notes : e.description}
@@ -578,6 +619,7 @@ function DayDetail({ d }: { d: DayData }) {
                         : t("Set the race kind", "Imposta il tipo di gara")}
                     </Button>
                   )}
+                  {!race && e.category === "WORKOUT" && <RemovePlanned id={e.id} />}
                 </div>
               );
             })}
@@ -587,8 +629,13 @@ function DayDetail({ d }: { d: DayData }) {
             {t("No activities on this day.", "Nessuna attività in questo giorno.")}
           </p>
         ))}
-      {tab === "wellness" && (
-        <CheckInForm key={d.date} date={d.date} row={d.well} onSaved={() => setTab("day")} />
+      {tab === "day" && (
+        <Button variant="secondary" className="w-full" onClick={() => setTab("plan")}>
+          {t("Plan a workout", "Pianifica un allenamento")}
+        </Button>
+      )}
+      {tab === "plan" && <WorkoutPicker date={d.date} onDone={() => setTab("day")} />}
+      {tab === "wellness" && (        <CheckInForm key={d.date} date={d.date} row={d.well} onSaved={() => setTab("day")} />
       )}
       {tab === "log" && <LogWorkoutForm date={d.date} onSaved={() => setTab("day")} />}
       {tab === "race" && (

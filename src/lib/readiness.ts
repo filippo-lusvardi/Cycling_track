@@ -1,4 +1,8 @@
 import { t } from "./i18n";
+import { formatPace } from "./pace";
+import { PACE_ZONE_PCT } from "./run-metrics";
+import { checkInOn } from "./settings";
+import { byMain } from "./sport";
 // Daily readiness score. Pure and browser-safe.
 // Owner's rule: resting heart rate is not used anywhere in Cirmolo.
 import { addDays } from "./training";
@@ -195,27 +199,45 @@ export function advice(score: number): {
   if (score >= 75)
     return {
       title: t("Ready for intensity", "Pronto per l'intensità"),
-      text: t(
-        "Good day for threshold, VO2max or a hard group ride.",
-        "Buona giornata per lavori a FTP, VO2max o un'attività di gruppo intensa.",
+      text: byMain(
+        t(
+          "Good day for threshold, VO2max or a hard group ride.",
+          "Buona giornata per lavori a FTP, VO2max o un'attività di gruppo intensa.",
+        ),
+        t(
+          "Good day for threshold, intervals or a hard hill session.",
+          "Buona giornata per lavori di soglia, ripetute o una seduta dura in salita.",
+        ),
       ),
       tone: "pine",
     };
   if (score >= 55)
     return {
       title: t("Endurance day", "Giornata di fondo"),
-      text: t(
-        "Steady Zone 2 riding; keep intensity controlled.",
-        "Pedalata regolare in Zona 2; tieni l'intensità sotto controllo.",
+      text: byMain(
+        t(
+          "Steady Zone 2 riding; keep intensity controlled.",
+          "Pedalata regolare in Zona 2; tieni l'intensità sotto controllo.",
+        ),
+        t(
+          "Steady Zone 2 running; keep intensity controlled.",
+          "Corsa regolare in Zona 2; tieni l'intensità sotto controllo.",
+        ),
       ),
       tone: "fitness",
     };
   if (score >= 40)
     return {
       title: t("Go easy", "Vai piano"),
-      text: t(
-        "Short recovery spin, under 60 minutes in Zone 1.",
-        "Breve attività di scarico, meno di 60 minuti in Zona 1.",
+      text: byMain(
+        t(
+          "Short recovery spin, under 60 minutes in Zone 1.",
+          "Breve attività di scarico, meno di 60 minuti in Zona 1.",
+        ),
+        t(
+          "Short recovery jog, under 40 minutes in Zone 1.",
+          "Breve corsa di scarico, meno di 40 minuti in Zona 1.",
+        ),
       ),
       tone: "birch",
     };
@@ -240,6 +262,14 @@ type WellnessLike = {
   fatigue: number | null;
   mood: number | null;
 };
+
+/** The rows without the check-in's answers: a part with no input drops out and the others share its weight. */
+export const withoutAnswers = <T extends WellnessLike>(rows: T[]): T[] =>
+  rows.map((r) => ({ ...r, sleepQuality: null, fatigue: null, stress: null, mood: null }));
+
+/** The rows readiness reads on this account: the answers count only while the check-in is on. */
+export const readinessRows = <T extends WellnessLike>(rows: T[]): T[] =>
+  checkInOn() ? rows : withoutAnswers(rows);
 
 const mean = (v: number[]) => v.reduce((a, b) => a + b, 0) / v.length;
 const sdOf = (v: number[]) => {
@@ -424,9 +454,15 @@ export function recommendation(
       duration: "≤ 60 min",
       minutes: 60,
       intensity: 0.55,
-      text: t(
-        "An easy spin at high cadence, or a day off the bike.",
-        "Una pedalata facile ad alta cadenza, oppure un giorno senza bici.",
+      text: byMain(
+        t(
+          "An easy spin at high cadence, or a day off the bike.",
+          "Una pedalata facile ad alta cadenza, oppure un giorno senza bici.",
+        ),
+        t(
+          "A short easy jog, a walk, or a day off.",
+          "Una breve corsa facile, una camminata, oppure un giorno di riposo.",
+        ),
       ),
     };
   return {
@@ -435,7 +471,10 @@ export function recommendation(
     minutes: 0,
     intensity: 0,
     text: t(
-      "Day off. A walk and an early night help more than any ride.",
+      byMain(
+        "Day off. A walk and an early night help more than any ride.",
+        "Day off. A walk and an early night help more than any run.",
+      ),
       "Giorno libero. Una camminata e andare a letto presto aiutano più di qualsiasi attività.",
     ),
   };
@@ -448,16 +487,27 @@ export function recommendation(
 export function ceiling(
   score: number,
   zones: { power: number[]; hr: number[] },
-): { watts: number | null; bpm: number | null } | null {
+  /** Threshold speed (m/s), for a runner: a pace limit instead of watts. */
+  threshold?: number | null,
+  /** Pace zone tops set by hand, as % of threshold; the standard ones otherwise. */
+  pacePct?: number[] | null,
+): Ceiling | null {
   const zone = score >= 75 ? null : score >= 55 ? 1 : score >= 40 ? 0 : null;
   if (zone == null) return null;
   const watts = zones.power[zone] ?? null;
   const bpm = zones.hr[zone] ?? null;
+  const pace = threshold ? (threshold * (pacePct ?? PACE_ZONE_PCT)[zone]!) / 100 : null;
+  if (pace != null) return { watts: null, bpm, pace };
   return watts == null && bpm == null ? null : { watts, bpm };
 }
 
-export const ceilingText = (c: { watts: number | null; bpm: number | null }) =>
-  `${t("Stay under", "Resta sotto")} ${[c.watts != null && `${c.watts} W`, c.bpm != null && `${c.bpm} bpm`].filter(Boolean).join(" · ")}`;
+export type Ceiling = { watts: number | null; bpm: number | null; pace?: number | null };
+
+export const ceilingText = (c: Ceiling) =>
+  c.pace != null
+    ? // A pace limit reads the other way round: faster is a smaller number, so "under" would mislead.
+      `${t("Stay slower than", "Resta più lento di")} ${formatPace(c.pace)}/km${c.bpm != null ? ` · ${t("under", "sotto")} ${c.bpm} bpm` : ""}`
+    : `${t("Stay under", "Resta sotto")} ${[c.watts != null && `${c.watts} W`, c.bpm != null && `${c.bpm} bpm`].filter(Boolean).join(" · ")}`;
 
 /** Ranks (1-based, ties averaged), for a Spearman correlation. */
 function ranks(v: number[]): number[] {

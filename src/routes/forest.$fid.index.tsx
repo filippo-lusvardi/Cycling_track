@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ForestClimbs } from "@/components/forest/ForestClimbs";
 import { ForestMembers } from "@/components/forest/ForestMembers";
 import { Back, ForestLayout, TABS, type Tab } from "@/components/forest/ForestLayout";
-import { OpenScene, type SceneTree } from "@/components/forest/ForestScene";
+import { OpenScene, phoneFit, type SceneTree } from "@/components/forest/ForestScene";
 import { ForestGrove } from "@/components/forest/ForestGrove";
 import {
   watchForest,
@@ -66,11 +66,20 @@ function ForestDetail() {
       onTab={(next) => navigate({ to: "/forest/$fid", params: { fid }, search: { tab: next } })}
     >
       {tab === "trees" && (
-        <OpenScene>
-          {(w, fit) => (
-            <ForestGrove seed={forest.id} trees={trees} onTree={openTree} w={w} fit={fit} />
-          )}
-        </OpenScene>
+        // On the phone the scene runs to the window's foot, with nothing below it: the page's padding isn't wanted.
+        <div className="max-sm:-mb-32">
+          <OpenScene>
+            {(w, fit) => (
+              <ForestGrove
+                seed={forest.id}
+                trees={trees}
+                onTree={openTree}
+                w={w}
+                {...phoneFit(w, fit)}
+              />
+            )}
+          </OpenScene>
+        </div>
       )}
       {tab === "climbs" && <ForestClimbs forest={forest} members={members} />}
       {tab === "members" && <ForestMembers forest={forest} members={members} requests={requests} />}

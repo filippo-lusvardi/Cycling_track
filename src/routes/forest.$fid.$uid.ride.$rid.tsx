@@ -13,6 +13,8 @@ import { readRidePage } from "@/lib/forest/trees";
 import { format, t } from "@/lib/i18n";
 import { useScreenTrace } from "@/lib/perf";
 import { formatDuration, formatKm } from "@/lib/training";
+import { formatPace } from "@/lib/pace";
+import { isSport } from "@/lib/sport";
 
 export const Route = createFileRoute("/forest/$fid/$uid/ride/$rid")({
   // Opened from a forest climb's leaderboard: that climb is highlighted on the route.
@@ -97,6 +99,7 @@ function FriendRide() {
         </p>
       </div>
     );
+  const isRun = isSport({ type: ride.type, trainer: ride.trainer }, "run");
   const speed = ride.distance && ride.moving_time ? (ride.distance / ride.moving_time) * 3.6 : null;
   // Pages published before heart rate and power could be shared have no effort field.
   const effort = ride.effort ?? null;
@@ -124,11 +127,19 @@ function FriendRide() {
           value={ride.total_elevation_gain != null ? Math.round(ride.total_elevation_gain) : "–"}
           unit="m"
         />
-        <StatCard
-          label={t("Avg speed", "Velocità media")}
-          value={speed != null ? speed.toFixed(1) : "–"}
-          unit="km/h"
-        />
+        {isRun ? (
+          <StatCard
+            label={t("Avg pace", "Ritmo medio")}
+            value={speed != null ? formatPace(speed / 3.6) : "–"}
+            unit="/km"
+          />
+        ) : (
+          <StatCard
+            label={t("Avg speed", "Velocità media")}
+            value={speed != null ? speed.toFixed(1) : "–"}
+            unit="km/h"
+          />
+        )}
         <StatCard
           label={t("Avg / max HR", "FC media / max")}
           value={effort ? `${n(effort.avgHr)} / ${n(effort.maxHr)}` : "–"}
@@ -136,18 +147,22 @@ function FriendRide() {
           tone="fatigue"
           hint={hidden}
         />
-        <StatCard
-          label={t("Avg / max power", "Potenza media / max")}
-          value={effort ? `${n(effort.avgWatts)} / ${n(effort.maxWatts)}` : "–"}
-          unit="W"
-          hint={hidden}
-        />
-        <StatCard
-          label={t("Norm. power", "Potenza norm.")}
-          value={effort ? n(effort.np) : "–"}
-          unit="W"
-          hint={hidden}
-        />
+        {!isRun && (
+          <>
+            <StatCard
+              label={t("Avg / max power", "Potenza media / max")}
+              value={effort ? `${n(effort.avgWatts)} / ${n(effort.maxWatts)}` : "–"}
+              unit="W"
+              hint={hidden}
+            />
+            <StatCard
+              label={t("Norm. power", "Potenza norm.")}
+              value={effort ? n(effort.np) : "–"}
+              unit="W"
+              hint={hidden}
+            />
+          </>
+        )}
       </div>
       {route ? (
         <Panel title={t("Route", "Percorso")}>
@@ -198,8 +213,8 @@ function FriendRide() {
       ) : (
         <p className="text-sm text-muted-foreground">
           {ride.trainer
-            ? t("An indoor ride: no route.", "Un'uscita indoor: nessun percorso.")
-            : t("No map for this ride.", "Nessuna mappa per questa uscita.")}
+            ? t("Indoors: no route.", "Al chiuso: nessun percorso.")
+            : t("No map for this activity.", "Nessuna mappa per questa attività.")}
         </p>
       )}
     </div>

@@ -3,9 +3,11 @@ import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { z } from "zod";
 import { briochesIn } from "./brioches";
 import { garminAttribution } from "./garmin";
-import { API_KEY, GARMIN, readSetting, writeSetting } from "./settings";
+import { API_KEY, GARMIN, readSetting, RUN_THRESHOLD_ICU, writeSetting } from "./settings";
+import { runSummary, summaryRunLoad, type RunSummary } from "./run-metrics";
 import type { RideRef } from "./segment-engine";
 import { trackFromStreams, type TrackLike } from "./segments";
+import { isOutdoorActivity, isSport, knownRunThreshold, type MainSport } from "./sport";
 
 /** Missing or rejected API key: the UI sends the user to Settings. */
 export class AuthError extends Error {
@@ -135,7 +137,21 @@ const pickWellness = (w: Record<string, unknown>): Wellness => ({
   comments: (w["comments"] as string) ?? null,
 });
 
-const pickActivity = (a: Record<string, unknown>): Activity => ({
+/** A run intervals.icu has no load or intensity for (no threshold pace or heart rate there) still counts. */
+function fillRunNumbers(a: Activity): Activity {
+  if (!isSport(a, "run") || (a.icu_training_load != null && a.icu_intensity != null)) return a;
+  const threshold = knownRunThreshold();
+  if (!threshold || !a.average_speed) return a;
+  return {
+    ...a,
+    icu_training_load: a.icu_training_load ?? summaryRunLoad(a.moving_time, a.average_speed, threshold),
+    icu_intensity: a.icu_intensity ?? Math.round((a.average_speed / threshold) * 1000) / 10,
+  };
+}
+
+const pickActivity = (a: Record<string, unknown>): Activity => fillRunNumbers(pickRawActivity(a));
+
+const pickRawActivity = (a: Record<string, unknown>): Activity => ({
   id: String(a["id"]),
   name: (a["name"] as string) ?? null,
   type: (a["type"] as string) ?? null,
@@ -186,14 +202,107 @@ export async function getAthlete() {
 /** The ride zones set in intervals.icu: zone tops in watts and bpm, lowest zone first; empty when not set. */
 export type RideZones = { ftp: number | null; power: number[]; hr: number[] };
 
-export async function getRideZones(): Promise<RideZones> {
-  const a = await icu<Record<string, unknown>>(`/athlete/0`);
-  const all = Array.isArray(a["sportSettings"])
-    ? (a["sportSettings"] as Record<string, unknown>[])
-    : [];
-  const ride = all.find(
-    (s) => Array.isArray(s["types"]) && (s["types"] as string[]).includes("Ride"),
+type RawSettings = Record<string, unknown>;
+
+/** A sport's settings among the athlete's: the first that lists it. */
+const settingsFor = (all: RawSettings[], sport: MainSport) =>
+  all.find(
+    (s) =>
+      Array.isArray(s["types"]) &&
+      (s["types"] as string[]).includes(sport === "run" ? "Run" : "Ride"),
   );
+
+async function allSportSettings(): Promise<RawSettings[]> {
+  const a = await icu<RawSettings>(`/athlete/0`);
+  return Array.isArray(a["sportSettings"]) ? (a["sportSettings"] as RawSettings[]) : [];
+}
+
+/**
+ * What `threshold_pace` is measured in. The API's documentation doesn't say, so until it's been checked on a real
+ * account (null) intervals.icu's pace is neither read nor written, and Cirmolo's own is used.
+ */
+export const ICU_PACE_UNIT: IcuPaceUnit | null = null;
+export type IcuPaceUnit = "m/s" | "s/km";
+
+/** intervals.icu's threshold pace → speed in m/s. */
+export function icuPaceToSpeed(raw: unknown, unit: IcuPaceUnit | null = ICU_PACE_UNIT) {
+  if (!unit || typeof raw !== "number" || !(raw > 0)) return null;
+  return unit === "m/s" ? raw : 1000 / raw;
+}
+/** Speed in m/s → intervals.icu's threshold pace. */
+export const speedToIcuPace = (speed: number, unit: IcuPaceUnit) =>
+  unit === "m/s" ? speed : 1000 / speed;
+
+/** Thresholds as the account's source holds them. `paceSynced` false: pace is Cirmolo's own, not the source's. */
+export type AthleteThresholds = {
+  /** intervals.icu has settings for this sport. */
+  exists: boolean;
+  paceSynced: boolean;
+  ftp: number | null;
+  lthr: number | null;
+  maxHr: number | null;
+  /** m/s. */
+  pace: number | null;
+};
+export type ThresholdPatch = {
+  ftp?: number | null;
+  lthr?: number | null;
+  maxHr?: number | null;
+  /** m/s. */
+  pace?: number | null;
+};
+
+export async function getThresholds(sport: MainSport): Promise<AthleteThresholds> {
+  const s = settingsFor(await allSportSettings(), sport);
+  const num = (k: string) => (typeof s?.[k] === "number" ? (s[k] as number) : null);
+  return {
+    exists: !!s,
+    paceSynced: ICU_PACE_UNIT != null,
+    ftp: sport === "run" ? null : num("ftp"),
+    lthr: num("lthr"),
+    maxHr: num("max_hr"),
+    pace: icuPaceToSpeed(s?.["threshold_pace"]),
+  };
+}
+
+/** The settings with `patch` applied, and whether a heart-rate value changed. Pure; what isn't patched stays as it was. */
+export function patchedSettings(
+  raw: RawSettings,
+  patch: ThresholdPatch,
+  unit: IcuPaceUnit | null = ICU_PACE_UNIT,
+) {
+  const next: RawSettings = { ...raw };
+  if (patch.ftp != null) next["ftp"] = Math.round(patch.ftp);
+  if (patch.lthr != null) next["lthr"] = Math.round(patch.lthr);
+  if (patch.maxHr != null) next["max_hr"] = Math.round(patch.maxHr);
+  if (patch.pace != null && unit) next["threshold_pace"] = speedToIcuPace(patch.pace, unit);
+  return { next, hrChanged: next["lthr"] !== raw["lthr"] || next["max_hr"] !== raw["max_hr"] };
+}
+
+/**
+ * Writes thresholds to intervals.icu: the sport's whole settings are read first and sent back with only these changed,
+ * so nothing else is lost. Its heart-rate zones are recalculated only when a heart-rate value changed.
+ */
+export async function saveThresholds(sport: MainSport, patch: ThresholdPatch) {
+  const found = settingsFor(await allSportSettings(), sport);
+  if (!found) throw new Error(`No ${sport} settings on intervals.icu`);
+  const id = String(found["id"]);
+  const raw = await icu<RawSettings>(`/athlete/0/sport-settings/${idSchema.parse(id)}`);
+  const { next, hrChanged } = patchedSettings(raw, patch);
+  await icu(`/athlete/0/sport-settings/${idSchema.parse(id)}?recalcHrZones=${hrChanged}`, {
+    method: "PUT",
+    body: JSON.stringify(next),
+  });
+}
+
+export async function getRideZones(sport: MainSport = "ride"): Promise<RideZones> {
+  const all = await allSportSettings();
+  // Kept for what can't wait for a query (see knownRunThreshold); gone again if intervals.icu has none.
+  writeSetting(RUN_THRESHOLD_ICU, icuPaceToSpeed(settingsFor(all, "run")?.["threshold_pace"]));
+  const ride = settingsFor(all, sport);
+  // A run's zones are its heart rate here; pace zones follow Cirmolo's threshold pace (see run-metrics).
+  if (sport === "run")
+    return { ftp: null, power: [], hr: Array.isArray(ride?.["hr_zones"]) ? (ride["hr_zones"] as number[]) : [] };
   const ftp = (ride?.["ftp"] as number) ?? null;
   const pct = Array.isArray(ride?.["power_zones"]) ? (ride["power_zones"] as number[]) : [];
   const hr = Array.isArray(ride?.["hr_zones"]) ? (ride["hr_zones"] as number[]) : [];
@@ -337,7 +446,7 @@ export async function getRideWatts(id: string): Promise<(number | null)[]> {
   return rows.find((r) => r.type === "watts")?.data ?? [];
 }
 
-/** Outdoor rides (GPS, not trainer or virtual) in a date range, for the segment engine. */
+/** Outdoor rides and runs (not trainer or virtual) in a date range, for the segment engine. */
 export async function listOutdoorRides(from: string, to: string): Promise<RideRef[]> {
   const { oldest, newest } = rangeSchema.parse({ oldest: from, newest: to });
   const acts = await icu<Record<string, unknown>[]>(
@@ -346,23 +455,43 @@ export async function listOutdoorRides(from: string, to: string): Promise<RideRe
   return acts
     .filter((a) => {
       const type = String(a["type"] ?? "");
-      return (
-        type.includes("Ride") &&
-        !type.startsWith("Virtual") &&
-        !a["trainer"] &&
-        Number(a["distance"]) > 3000
-      );
+      return isOutdoorActivity({ type, trainer: !!a["trainer"] }) && Number(a["distance"]) > 3000;
     })
-    .map((a) => ({
-      id: String(a["id"]),
-      name: (a["name"] as string) ?? null,
-      date: String(a["start_date_local"] ?? ""),
-    }));
+    .map((a) => {
+      const type = String(a["type"] ?? "");
+      return {
+        id: String(a["id"]),
+        name: (a["name"] as string) ?? null,
+        date: String(a["start_date_local"] ?? ""),
+        ...(isSport({ type }, "run") ? { sport: "run" as const } : {}),
+      };
+    });
 }
+
+const runSummaryKey = (id: string) => `run-summary:v1:${id}`;
+
+/** What a run's streams give, worked out once and kept on this device; null for a run without streams. */
+export async function getRunSummary(id: string): Promise<RunSummary | null> {
+  const key = runSummaryKey(idSchema.parse(id));
+  const hit = await idbGet<RunSummary | 0>(key).catch(() => undefined);
+  if (hit !== undefined) return hit || null;
+  return keepRunSummary(id, await downloadStreams(id));
+}
+
+function keepRunSummary(id: string, s: RideStreams): RunSummary | null {
+  const summary = s.distance.length >= 60 ? runSummary(s) : null;
+  void idbSet(runSummaryKey(id), summary ?? 0).catch(() => {});
+  return summary;
+}
+
+/** Intervals.icu works out every run's load itself, so there's nothing to fill in afterwards. */
+export const fillRunLoads = async () => {};
 
 /** A ride's 20 m track straight from its streams (not kept in the streams cache), or null without GPS. */
 export async function downloadRideTrack(ref: RideRef): Promise<Track | null> {
   const s = await downloadStreams(idSchema.parse(ref.id));
+  // The same download serves a run's pace analysis, so it isn't fetched twice.
+  if (ref.sport === "run") keepRunSummary(ref.id, s);
   return s.lat.length ? trackFromStreams(ref, s) : null;
 }
 
@@ -502,7 +631,7 @@ export const raceSchema = z.object({
   date: day,
   name: z.string().min(1).max(120),
   priority: z.enum(["A", "B", "C"]),
-  type: z.enum(["Ride", "MountainBikeRide"]),
+  type: z.enum(["Ride", "MountainBikeRide", "Run", "TrailRun"]),
   description: z.string().max(4000),
 });
 
@@ -526,6 +655,98 @@ export async function createRace(r: RaceEntry) {
 
 export async function updateRace(id: string, r: RaceEntry) {
   await icu(`/athlete/0/events/${idSchema.parse(id)}`, { method: "PUT", body: raceBody(r) });
+}
+
+export const workoutSchema = z.object({
+  name: z.string().min(1).max(120),
+  type: z.string().min(1).max(40),
+  description: z.string().max(10000),
+  /** Worked out from the text; intervals.icu calculates its own, so only Cirmolo's store keeps these. */
+  moving_time: z.number().nonnegative().nullable().optional(),
+  icu_training_load: z.number().nonnegative().nullable().optional(),
+});
+export type WorkoutEntry = z.infer<typeof workoutSchema>;
+export type LibraryWorkout = {
+  id: string;
+  name: string;
+  type: string | null;
+  description: string | null;
+  moving_time: number | null;
+  icu_training_load: number | null;
+  /** Its folder or training plan on intervals.icu. */
+  folder: string | null;
+};
+
+type IcuFolder = { id: number; name: string; type?: string };
+
+const icuFolders = () => icu<IcuFolder[]>(`/athlete/0/folders`);
+
+/** The library: intervals.icu's own, so what's there is here and the other way round. */
+export async function getWorkouts(): Promise<LibraryWorkout[]> {
+  const [rows, folders] = await Promise.all([
+    icu<Record<string, unknown>[]>(`/athlete/0/workouts`),
+    // Only names for the headings: the workouts still show without them.
+    icuFolders().catch(() => [] as IcuFolder[]),
+  ]);
+  const names = new Map(folders.map((f) => [f.id, f.name]));
+  return rows.map((w) => ({
+    id: String(w["id"]),
+    name: (w["name"] as string) ?? "",
+    type: (w["type"] as string) ?? null,
+    description: (w["description"] as string) ?? null,
+    moving_time: (w["moving_time"] as number) ?? null,
+    icu_training_load: (w["icu_training_load"] as number) ?? null,
+    folder: names.get(w["folder_id"] as number) ?? null,
+  }));
+}
+
+/** New workouts go in a folder of their own, so they don't mix with a training plan's. */
+const CIRMOLO_FOLDER = "Cirmolo";
+async function cirmoloFolder(): Promise<number> {
+  const found = (await icuFolders()).find(
+    (f) => f.name === CIRMOLO_FOLDER && (f.type ?? "FOLDER") === "FOLDER",
+  );
+  if (found) return found.id;
+  const made = await icu<IcuFolder>(`/athlete/0/folders`, {
+    method: "POST",
+    body: JSON.stringify({ name: CIRMOLO_FOLDER, type: "FOLDER" }),
+  });
+  return made.id;
+}
+
+const workoutBody = (w: WorkoutEntry) => {
+  const v = workoutSchema.parse(w);
+  return { name: v.name, type: v.type, description: v.description };
+};
+
+export async function createWorkout(w: WorkoutEntry) {
+  await icu(`/athlete/0/workouts`, {
+    method: "POST",
+    body: JSON.stringify({ ...workoutBody(w), folder_id: await cirmoloFolder() }),
+  });
+}
+
+export async function updateWorkout(id: string, w: WorkoutEntry) {
+  await icu(`/athlete/0/workouts/${idSchema.parse(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(workoutBody(w)),
+  });
+}
+
+export async function deleteWorkout(id: string) {
+  await icu(`/athlete/0/workouts/${idSchema.parse(id)}`, { method: "DELETE" });
+}
+
+/** A workout on the calendar. intervals.icu reads the text, and works out its duration and load. */
+export async function scheduleWorkout(w: WorkoutEntry, date: string) {
+  await icu(`/athlete/0/events?upsertOnUid=false`, {
+    method: "POST",
+    body: JSON.stringify({
+      ...workoutBody(w),
+      category: "WORKOUT",
+      start_date_local: `${day.parse(date)}T00:00:00`,
+    }),
+  });
 }
 
 /** Replaces an activity's description on intervals.icu. */

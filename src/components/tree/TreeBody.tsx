@@ -18,6 +18,7 @@ import {
   type TrunkPiece,
 } from "@/lib/tree";
 import { format, t } from "@/lib/i18n";
+import { byMain } from "@/lib/sport";
 
 /** Days shown one branch per ride; older history folds into weeks. */
 const RECENT_DAYS = 5;
@@ -178,7 +179,10 @@ export function TreeBody({
         : run.length === 1
           ? format(parseISO(dates[0]!), "EEEE d MMMM")
           : run.some((d) => d.sprouts.length)
-            ? t(`${run.length} days off the bike`, `${run.length} giorni senza bici`)
+            ? byMain(
+                t(`${run.length} days off the bike`, `${run.length} giorni senza bici`),
+                t(`${run.length} days of other sports`, `${run.length} giorni di altri sport`),
+              )
             : t(`${run.length} rest days`, `${run.length} giorni di riposo`);
       pieces.push({
         h: restHeight(run.length),

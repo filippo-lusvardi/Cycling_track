@@ -207,10 +207,10 @@ export function parseFit(buf: ArrayBuffer, fileName = ""): ParsedRide {
   evenDistance(raw.time, raw.distance);
   const streams = toOneHz(raw);
 
-  // Zwift's own files: a virtual ride whatever the sub-sport says (its GPS track is the game's map).
+  // Zwift's own files: virtual whatever the sub-sport says (its GPS track is the game's map).
   const zwift = fileId["manufacturer"] === "zwift";
   const { type, trainer } = zwift
-    ? { type: "VirtualRide", trainer: true }
+    ? { type: session["sport"] === "running" ? "VirtualRun" : "VirtualRide", trainer: true }
     : rideType(session["sport"], session["subSport"]);
   const intervals = lapIntervals((messages["lapMesgs"] as Rec[]) ?? [], t0, tEnd);
   // Strava titles its exports; anything else gets a name from the time of day.

@@ -10,9 +10,11 @@ import {
   formScore,
   readinessFor,
   type Confidence,
+  withoutAnswers,
   type LoadCheck,
 } from "./readiness";
 import { earlySignals, type Signal } from "./signals";
+import { isSport, RIDE_KINDS, type MainSport } from "./sport";
 import { addDays, computeForm, formZone } from "./training";
 
 /** 1–4, 1 being the easiest / best, like the check-in scales. */
@@ -37,6 +39,16 @@ export const FEEL_WORD = [
 /** One leaf per this many metres climbed. */
 export const CLIMB_PER_LEAF = 100;
 const MAX_LEAVES = 30;
+
+/**
+ * How a session of the main sport draws as a branch: a run is shorter, lighter on load and climbs less than a ride,
+ * so a usual 50-minute run makes a branch like a usual 90-minute ride's. Length levels off with `minutes`, thickness
+ * peaks at `load`.
+ */
+export const TREE_SCALE: Record<MainSport, { minutes: number; load: number; climbPerLeaf: number }> = {
+  ride: { minutes: 120, load: 250, climbPerLeaf: CLIMB_PER_LEAF },
+  run: { minutes: 60, load: 180, climbPerLeaf: 30 },
+};
 
 export type TreeBranch = {
   id: string;
@@ -137,7 +149,7 @@ export type Weather = "sun" | "partly" | "clouds" | "rain";
 
 export type Crown = {
   score: number | null;
-  /** True until today's check-in is done (the score comes from HRV, sleep and form only), or with too little data. */
+  /** True until today's check-in is done (the score comes from HRV, sleep and form only), or with too little data. With the check-in off, only with too little data. */
   estimated: boolean;
   /** How much the score has behind it: inputs present and how well each knows your normal. */
   confidence: Confidence;
@@ -237,8 +249,7 @@ export function rng(seed: number) {
 
 const dayOf = (a: Activity) => a.start_date_local.slice(0, 10);
 
-/** Bike rides of every kind: the ones that count for the tree's all-time records. */
-export const RIDE_KINDS = new Set<Kind>(["road", "gravel", "mtb", "indoor", "ebike"]);
+export { RIDE_KINDS };
 
 /**
  * The ids of the longest ride (distance) and of the ride with the most climbing among `acts`, up to `today`; the
@@ -247,11 +258,12 @@ export const RIDE_KINDS = new Set<Kind>(["road", "gravel", "mtb", "indoor", "ebi
 export function rideRecords(
   acts: Activity[],
   today: string,
+  sport: MainSport = "ride",
 ): { longest: string | null; mostClimbing: string | null } {
   let longest: Activity | null = null;
   let climbing: Activity | null = null;
   const rides = acts
-    .filter((a) => dayOf(a) <= today && RIDE_KINDS.has(activityKind(a)))
+    .filter((a) => dayOf(a) <= today && isSport(a, sport))
     .sort((a, b) => a.start_date_local.localeCompare(b.start_date_local));
   for (const a of rides) {
     if ((a.distance ?? 0) > (longest?.distance ?? 0)) longest = a;
@@ -267,7 +279,9 @@ export function buildDays(
   oldest: string,
   today: string,
   off: Map<string, OffKind> = new Map(),
+  sport: MainSport = "ride",
 ): TreeDay[] {
+  const scale = TREE_SCALE[sport];
   const byDay = new Map<string, Activity[]>();
   for (const a of acts) {
     const d = dayOf(a);
@@ -275,7 +289,7 @@ export function buildDays(
     byDay.set(d, [...(byDay.get(d) ?? []), a]);
   }
   const ctlByDay = new Map(wellness.filter((w) => w.ctl != null).map((w) => [w.id, w.ctl!]));
-  const records = rideRecords(acts, today);
+  const records = rideRecords(acts, today, sport);
 
   const days: TreeDay[] = [];
   let ctl: number | null = null;
@@ -286,7 +300,7 @@ export function buildDays(
       a.start_date_local.localeCompare(b.start_date_local),
     );
     const sprouts = day
-      .filter((a) => !RIDE_KINDS.has(activityKind(a)))
+      .filter((a) => !isSport(a, sport))
       .map((a): TreeSprout => ({
         id: a.id,
         kind: activityKind(a),
@@ -295,7 +309,7 @@ export function buildDays(
         load: a.icu_training_load ?? 0,
       }));
     const branches = day
-      .filter((a) => RIDE_KINDS.has(activityKind(a)))
+      .filter((a) => isSport(a, sport))
       .map((a): TreeBranch => {
         const minutes = (a.moving_time ?? 0) / 60;
         const load = a.icu_training_load ?? 0;
@@ -305,9 +319,9 @@ export function buildDays(
           name: a.name ?? a.type ?? t("Activity", "Attività"),
           kind: activityKind(a),
           side: turn++ % 2 ? -1 : 1,
-          length: 1 - Math.exp(-minutes / 120),
-          thickness: 1.5 + clamp01(load / 250) * 6.5,
-          leaves: Math.min(MAX_LEAVES, Math.floor(climb / CLIMB_PER_LEAF)),
+          length: 1 - Math.exp(-minutes / scale.minutes),
+          thickness: 1.5 + clamp01(load / scale.load) * 6.5,
+          leaves: Math.min(MAX_LEAVES, Math.floor(climb / scale.climbPerLeaf)),
           intensity: intensityLevel(a.icu_intensity),
           minutes,
           load,
@@ -334,6 +348,14 @@ export function buildDays(
   for (const d of days) d.trunk = trunkWidth(d.ctl, sorted);
   return days.reverse();
 }
+
+/** The days with sprouts only for what grows in the garden (`keep`, activity ids): the rest don't count in weeks or rings either. */
+export const onlySprouts = (days: TreeDay[], keep: Set<string>): TreeDay[] =>
+  days.map((d) =>
+    d.sprouts.some((x) => !keep.has(x.id))
+      ? { ...d, sprouts: d.sprouts.filter((x) => keep.has(x.id)) }
+      : d,
+  );
 
 const weekStart = (date: string) => {
   const [y, m, d] = date.split("-").map(Number);
@@ -631,8 +653,11 @@ export function crownFor(
   acts: Activity[],
   today: string,
   offEvents: PlannedEvent[] = [],
+  /** False when the check-in is turned off: any answers on record are ignored, and no answer is awaited. */
+  checkIn = true,
 ): Crown {
-  const wellness = morningWellness(allWellness, acts, today);
+  const answered = checkIn ? allWellness : withoutAnswers(allWellness);
+  const wellness = morningWellness(answered, acts, today);
   const row = wellness.find((w) => w.id === today);
   const form = row?.ctl != null && row.atl != null ? computeForm(row.ctl, row.atl) : null;
   const formPct = row?.ctl != null && row.atl != null ? formPercent(row.ctl, row.atl) : null;
@@ -645,7 +670,7 @@ export function crownFor(
   const phase = score != null ? seasonPhase(score) : 0;
   return {
     score,
-    estimated: !checkedIn || r.confidence === "low",
+    estimated: (checkIn && !checkedIn) || r.confidence === "low",
     confidence: r.confidence,
     season,
     seasonPhase: phase,
@@ -661,7 +686,7 @@ export function crownFor(
     // Load first: it's the one that already holds readiness down.
     signals: [
       ...r.load.reasons.map((text) => ({ key: "load" as const, text })),
-      ...earlySignals(allWellness, today),
+      ...earlySignals(answered, today),
     ],
     load: r.load,
   };

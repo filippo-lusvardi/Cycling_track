@@ -19,10 +19,21 @@ import {
 import { uid } from "./firebase";
 import { db } from "./db";
 import type { SavedSegment } from "./segment-store";
+import type { ZoneTops } from "./settings";
 
 export type Profile = {
   intervalsKey?: string | null;
   segmentHistory?: number | null;
+  /** The sport that grows the tree. Missing means cycling. */
+  mainSport?: "ride" | "run" | null;
+  /** Analysis shows both sports, with a toggle between them. */
+  analysisBoth?: boolean | null;
+  /** The morning check-in is asked and counts toward readiness. Missing means yes. */
+  checkIn?: boolean | null;
+  /** The Garden is part of the app. Missing means yes. */
+  garden?: boolean | null;
+  /** The sports in the garden and what grows for each: a CropMap as JSON. */
+  gardenCrops?: string | null;
   /** Where training data comes from: intervals.icu (default) or Cirmolo's own store (uploaded ride files). */
   source?: "intervals" | "native" | null;
   // For accounts without intervals.icu, what its athlete settings would hold.
@@ -31,6 +42,13 @@ export type Profile = {
   ftp?: number | null;
   lthr?: number | null;
   maxHr?: number | null;
+  /** Threshold pace set by hand (m/s), over the estimate. Under intervals.icu's, when that has one. */
+  runThreshold?: number | null;
+  /** Heart rate on foot, when it differs from the bike's. */
+  runLthr?: number | null;
+  runMaxHr?: number | null;
+  /** Zone limits set by hand, as % of each threshold. */
+  zoneTops?: ZoneTops | null;
   /** When the user consented to Cirmolo storing their health data (accounts without intervals.icu). */
   healthConsentAt?: number | null;
 };
@@ -90,7 +108,15 @@ export const saveSummitNote = (place: string, effort: string, text: string) =>
 
 /** Everything stored for this user, before the account itself is deleted. */
 export async function deleteUserData() {
-  for (const name of ["segments", "summit", "activities", "wellness", "events", "streams"]) {
+  for (const name of [
+    "segments",
+    "summit",
+    "activities",
+    "wellness",
+    "events",
+    "streams",
+    "workouts",
+  ]) {
     const docs = (await getDocs(collection(db, "users", uid(), name))).docs;
     for (let i = 0; i < docs.length; i += 500) {
       const batch = writeBatch(db);

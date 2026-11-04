@@ -8,6 +8,7 @@ import {
 } from "./durability";
 import type { Activity } from "./intervals";
 import { getActivities, getAthlete, getRideWatts, getWellness } from "./source";
+import { isSport } from "./sport";
 import { addDays, isoDate, weightFor } from "./training";
 
 /** Days of rides looked at, and the shortest ride that can reach the fatigue buckets. */
@@ -15,7 +16,7 @@ export const DURABILITY_DAYS = 90;
 const MIN_SECS = 2 * 3600;
 
 const isLongPowerRide = (a: Activity) =>
-  (a.type ?? "").includes("Ride") &&
+  isSport(a, "ride") &&
   a.icu_average_watts != null &&
   (a.moving_time ?? 0) >= MIN_SECS;
 

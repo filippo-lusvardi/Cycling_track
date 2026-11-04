@@ -4,6 +4,22 @@ export const API_KEY = "cadence_api_key";
 export const GITHUB_TOKEN = "cadence_github_token";
 export const GIST_ID = "cadence_gist_id";
 export const SEGMENTS = "cadence_segments";
+/** The sport that grows the tree, "ride" (default) or "run". Follows the account. */
+export const MAIN_SPORT = "cadence_main_sport";
+/** Analysis shows both sports, with a toggle between them. Follows the account. */
+export const ANALYSIS_BOTH = "cadence_analysis_both";
+/** The morning check-in is asked and its answers count toward readiness (true, the default). Follows the account. */
+export const CHECK_IN = "cadence_check_in";
+/** The Garden is part of the app (true, the default); off, for someone tracking one sport only. Follows the account. */
+export const GARDEN = "cadence_garden";
+/** Threshold pace set by hand (m/s), from the account. */
+export const RUN_THRESHOLD = "cadence_run_threshold";
+/** Threshold pace as intervals.icu has it (m/s), read with the athlete's zones: it wins, so the two apps agree. */
+export const RUN_THRESHOLD_ICU = "cadence_run_threshold_icu";
+/** Zone limits set by hand, as % of each threshold (see ZoneTops). Follows the account. */
+export const ZONE_TOPS = "cadence_zone_tops";
+/** Threshold pace last estimated on this device (m/s), for what can't wait for the analysis of every run. */
+export const RUN_THRESHOLD_EST = "cadence_run_threshold_est";
 /** How many years of rides the segment analysis covers (0 = all). */
 export const SEGMENT_HISTORY = "cadence_segment_history";
 /** UI language, "en" or "it". */
@@ -24,7 +40,7 @@ export const SEASON_ACCENT = "cadence_season_accent";
 export const LAST_SEASON = "cadence_last_season";
 /** Today's form-weather and how fair it is within its kind, as last computed on this device, for the same reason. */
 export const LAST_WEATHER = "cadence_last_weather";
-/** Which vegetable grows for which sport in the garden (a partial map; the rest keep their default). */
+/** The sports in the garden and which vegetable grows for each (a sport that's missing has no bed). Follows the account. */
 export const GARDEN_CROPS = "cadence_garden_crops";
 /** This device doesn't send speed measurements (Firebase Performance Monitoring). Kept across sign-outs. */
 export const NO_PERF = "cadence_no_perf";
@@ -37,6 +53,21 @@ export function readSetting<T>(key: string): T | null {
     return null;
   }
 }
+
+/** Zone limits set by hand; a kind that's missing or null uses the standard percentages. */
+export type ZoneTops = {
+  power?: number[] | null;
+  hr?: number[] | null;
+  runHr?: number[] | null;
+  pace?: number[] | null;
+};
+export const zoneTops = () => readSetting<ZoneTops>(ZONE_TOPS) ?? {};
+
+/** Whether this account uses the morning check-in. */
+export const checkInOn = () => readSetting<boolean>(CHECK_IN) !== false;
+
+/** Whether this account has the Garden. */
+export const gardenOn = () => readSetting<boolean>(GARDEN) !== false;
 
 export function writeSetting<T>(key: string, value: T | null) {
   try {

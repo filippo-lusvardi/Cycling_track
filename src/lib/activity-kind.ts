@@ -20,7 +20,7 @@ export const KINDS: Record<Kind, { label: string; color: string; icon: typeof Bi
 /** intervals.icu type (+ trainer flag) → kind. Indoor wins over the bike type. */
 export function activityKind(a: { type: string | null; trainer?: boolean }): Kind {
   const t = a.type ?? "";
-  if (/Virtual/.test(t) || (a.trainer && /Ride/.test(t))) return "indoor";
+  if (/VirtualRide/.test(t) || (a.trainer && /Ride/.test(t))) return "indoor";
   if (/Gravel/.test(t)) return "gravel";
   if (/MountainBike/.test(t)) return "mtb";
   if (/EBike|EMountainBike/.test(t)) return "ebike";

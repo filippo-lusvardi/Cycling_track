@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Activity, Wellness } from "../intervals";
-import { bestShared } from "./leaderboard";
+import { bestShared, racePair } from "./leaderboard";
 import { fingerprint, fromSnapshot, offStretches, toSharedRide, yearDocs } from "./snapshot";
 import { isShared, prefsOf } from "./visibility";
 
@@ -150,5 +150,23 @@ describe("visibility and leaderboard", () => {
     const tries = [at("hidden", 900), at("a", 1000), at("b", 950)];
     expect(bestShared(tries, (a) => a.trackId !== "hidden")?.trackId).toBe("b");
     expect(bestShared(tries, () => false)).toBeNull();
+  });
+});
+
+describe("racePair", () => {
+  const board = ["ann", "bob", "cy"];
+  it("needs two racers", () => {
+    expect(racePair(["ann"], "ann")).toBeNull();
+  });
+  it("sets the record against me, or the runner-up if the record is mine", () => {
+    expect(racePair(board, "cy")).toEqual({ a: "ann", b: "cy" });
+    expect(racePair(board, "ann")).toEqual({ a: "ann", b: "bob" });
+    expect(racePair(board, "zed")).toEqual({ a: "ann", b: "bob" });
+  });
+  it("sets a picked rival against me, else the record, else the runner-up", () => {
+    expect(racePair(board, "cy", "bob")).toEqual({ a: "cy", b: "bob" });
+    expect(racePair(board, "zed", "cy")).toEqual({ a: "ann", b: "cy" });
+    expect(racePair(board, "zed", "ann")).toEqual({ a: "bob", b: "ann" });
+    expect(racePair(board, "ann", "ann")).toEqual({ a: "bob", b: "ann" });
   });
 });

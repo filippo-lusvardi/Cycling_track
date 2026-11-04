@@ -2,8 +2,10 @@
 // Firestore, with the numbers intervals.icu would compute worked out by ../metrics.ts.
 //   users/{uid}/activities/{id}   Stored (ActivityDetail + power curve)
 //   users/{uid}/wellness/{date}   what the athlete logged that day
-//   users/{uid}/events/{id}       races, sick/injured days
-//   users/{uid}/streams/{id}      the ride's 1 Hz streams, gzipped JSON in ≤ 900 KB parts ({id}, {id}~1, …)
+//   users/{uid}/events/{id}       races, planned workouts, sick/injured days
+//   users/{uid}/workouts/{id}     the workout library
+//   users/{uid}/streams/{id}      the ride's 1 Hz streams, gzipped in ≤ 900 KB parts ({id}, {id}~1, …): packed by
+//                                 ./streams-codec in field `z`; rides not converted yet are plain JSON in `gz`
 import {
   addDoc,
   collection,
@@ -11,6 +13,7 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   getDocsFromServer,
   query,
@@ -24,7 +27,7 @@ import {
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { DUR } from "../analysis";
 import { briochesIn } from "../brioches";
-import { readProfile } from "../cloud";
+import { readProfile, saveProfile } from "../cloud";
 import { auth, uid } from "../firebase";
 import { db } from "../db";
 import { t } from "../i18n";
@@ -34,11 +37,16 @@ import {
   entrySchema,
   manualSchema,
   raceSchema,
+  workoutSchema,
   type Activity,
   type ActivityDetail,
   type ManualActivity,
   type OffKind,
+  type AthleteThresholds,
+  type LibraryWorkout,
+  type ThresholdPatch,
   type PlannedEvent,
+  type WorkoutEntry,
   type PowerCurve,
   type RaceEntry,
   type Range,
@@ -61,12 +69,21 @@ import type { RideRef } from "../segment-engine";
 import { trackFromStreams } from "../segments";
 import { GARMIN, readSetting, writeSetting } from "../settings";
 import { emptyRide, type Stored } from "./ride";
+import { decodeStreams, encodeStreams, sameStreams } from "./streams-codec";
 
 export { emptyRide, type Origin, type Stored } from "./ride";
 import { applyChanges, type RideDoc } from "./ride";
+import {
+  bestOfCurves,
+  estimateThreshold,
+  runMetrics,
+  withRunThreshold,
+  type RunSummary,
+} from "../run-metrics";
+import { isOutdoorActivity, isSport, type MainSport } from "../sport";
 import { addDays, isoDate } from "../training";
 
-const col = (name: "activities" | "wellness" | "events" | "streams") =>
+const col = (name: "activities" | "wellness" | "events" | "streams" | "workouts") =>
   collection(db, "users", uid(), name);
 
 // Every ride's summary, shared by all queries (fitness needs the whole history anyway). The list lives on the
@@ -76,12 +93,16 @@ const col = (name: "activities" | "wellness" | "events" | "streams") =>
 type Local = { rows: Stored[]; since: number };
 const localKey = () => `native-rides:v1:${uid()}`;
 let all: { at: number; rows: Promise<Stored[]> } | null = null;
-export const forget = () => void (all = null);
+let runTh: ReturnType<typeof readRunThresholds> | null = null;
+export const forget = () => {
+  all = null;
+  runTh = null;
+};
 
 function allRides(): Promise<Stored[]> {
   if (!all || Date.now() - all.at > 5 * 60_000) {
     const rows = refresh();
-    rows.catch(() => (all = null));
+    rows.then(compactOldStreamsSoon, () => (all = null));
     all = { at: Date.now(), rows };
   }
   return all.rows;
@@ -168,15 +189,66 @@ export async function thresholds(): Promise<Thresholds> {
   if (!ftp) {
     const since = addDays(isoDate(new Date()), -42);
     ftp = estimateFtp(
-      bestCurve((await allRides()).filter((a) => dayOf(a) >= since).map((a) => a.curve)),
+      bestCurve(
+        (await allRides())
+          .filter((a) => isSport(a, "ride") && dayOf(a) >= since)
+          .map((a) => a.curve),
+      ),
     );
   }
-  return { ftp, lthr: p.lthr ?? (p.maxHr ? Math.round(p.maxHr * 0.9) : null) };
+  return {
+    ftp,
+    lthr: p.lthr ?? (p.maxHr ? Math.round(p.maxHr * 0.9) : null),
+    powerPct: p.zoneTops?.power,
+    hrPct: p.zoneTops?.hr,
+  };
 }
 
-export async function getRideZones(): Promise<RideZones> {
+/** FTP is a cycling number: a run's power (or a rowing erg's) must not be measured against it. */
+const thresholdsFor = (
+  a: { type: string | null; trainer?: boolean },
+  th: Thresholds,
+): Thresholds => (isSport(a, "ride") ? th : { ...th, ftp: null });
+
+/** A run's thresholds: running heart rate if set (it usually sits above the cycling one), and threshold pace. */
+function runThresholds() {
+  // Once per batch, not once per run: each look at the profile is a Firestore read.
+  return (runTh ??= readRunThresholds().catch((e) => {
+    runTh = null;
+    throw e;
+  }));
+}
+
+async function readRunThresholds() {
+  const p = await readProfile();
+  const since = addDays(isoDate(new Date()), -90);
+  const summaries = (await allRides())
+    .filter((a) => isSport(a, "run") && dayOf(a) >= since && a.run)
+    .map((a) => a.run!.gapCurve);
+  return {
+    thresholdSpeed: p.runThreshold ?? estimateThreshold(bestOfCurves(summaries))?.speed ?? null,
+    lthr:
+      p.runLthr ??
+      (p.runMaxHr ? Math.round(p.runMaxHr * 0.9) : null) ??
+      p.lthr ??
+      (p.maxHr ? Math.round(p.maxHr * 0.9) : null),
+    hrPct: p.zoneTops?.runHr ?? (p.runLthr || p.runMaxHr ? null : p.zoneTops?.hr),
+    pacePct: p.zoneTops?.pace,
+  };
+}
+
+export async function getRideZones(sport: MainSport = "ride"): Promise<RideZones> {
+  if (sport === "run")
+  {
+    const run = await runThresholds();
+    return { ftp: null, power: [], hr: hrZoneTops(run.lthr, run.hrPct) };
+  }
   const th = await thresholds();
-  return { ftp: th.ftp, power: powerZoneTops(th.ftp), hr: hrZoneTops(th.lthr) };
+  return {
+    ftp: th.ftp,
+    power: powerZoneTops(th.ftp, th.powerPct),
+    hr: hrZoneTops(th.lthr, th.hrPct),
+  };
 }
 
 // --- Activities ---
@@ -220,18 +292,14 @@ export async function createManualActivity(input: ManualActivity) {
  * `base` carries what the file knows (name, type, start, device, laps).
  */
 export async function saveRide(base: Stored, streams: RideStreams) {
-  const m = rideMetrics(streams, await thresholds(), base.totals);
-  const type = base.type ?? "";
+  const m = isSport(base, "run")
+    ? runMetrics(streams, await runThresholds(), base.totals)
+    : rideMetrics(streams, thresholdsFor(base, await thresholds()), base.totals);
   const ride: Stored = {
     ...base,
     ...m,
     hasStreams: true,
-    outdoor:
-      type.includes("Ride") &&
-      !type.startsWith("Virtual") &&
-      !base.trainer &&
-      streams.lat.length > 0 &&
-      m.distance > 3000,
+    outdoor: isOutdoorActivity(base) && streams.lat.length > 0 && m.distance > 3000,
   };
   await saveStreams(base.id, streams);
   await putRide(ride);
@@ -265,23 +333,25 @@ async function gunzip(bytes: ArrayBuffer) {
 }
 
 async function saveStreams(id: string, s: RideStreams) {
-  const gz = await gzip(JSON.stringify(s));
-  const parts = Math.max(1, Math.ceil(gz.length / PART));
+  const z = await gzip(JSON.stringify(encodeStreams(s)));
+  const parts = Math.max(1, Math.ceil(z.length / PART));
   for (let i = 0; i < parts; i++)
     await setDoc(doc(col("streams"), partId(id, i)), {
       ...(i ? {} : { parts }),
-      gz: Bytes.fromUint8Array(gz.subarray(i * PART, (i + 1) * PART)),
+      z: Bytes.fromUint8Array(z.subarray(i * PART, (i + 1) * PART)),
     });
 }
 
-async function downloadStreams(id: string): Promise<RideStreams> {
-  const first = await getDoc(doc(col("streams"), id));
-  if (!first.exists()) throw new Error(`No streams for ${id}`);
+type StreamDoc = { get: (field: string) => unknown };
+
+/** A ride's streams as stored, in whichever format: the first document decides, and the other parts share it. */
+async function readStreams(id: string, first: StreamDoc): Promise<RideStreams> {
+  const field = first.get("z") ? "z" : "gz";
   const parts = (first.get("parts") as number) ?? 1;
-  const chunks = [(first.get("gz") as Bytes).toUint8Array()];
+  const chunks = [(first.get(field) as Bytes).toUint8Array()];
   for (let i = 1; i < parts; i++)
     chunks.push(
-      ((await getDoc(doc(col("streams"), partId(id, i)))).get("gz") as Bytes).toUint8Array(),
+      ((await getDoc(doc(col("streams"), partId(id, i)))).get(field) as Bytes).toUint8Array(),
     );
   const all = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
   let at = 0;
@@ -289,7 +359,62 @@ async function downloadStreams(id: string): Promise<RideStreams> {
     all.set(c, at);
     at += c.length;
   }
-  return JSON.parse(await gunzip(all.buffer)) as RideStreams;
+  const s = JSON.parse(await gunzip(all.buffer)) as RideStreams;
+  return field === "z" ? decodeStreams(s) : s;
+}
+
+async function downloadStreams(id: string): Promise<RideStreams> {
+  const first = await getDoc(doc(col("streams"), id));
+  if (!first.exists()) throw new Error(`No streams for ${id}`);
+  return readStreams(id, first);
+}
+
+/** Rides converted per app visit, so a long history spreads over a few and stays well inside the daily quota. */
+const COMPACT_BATCH = 200;
+let compacting = false;
+
+/** Give the app time to settle first: this is background work. */
+function compactOldStreamsSoon(rides: Stored[]) {
+  if (compacting) return;
+  compacting = true;
+  setTimeout(() => {
+    void compactOldStreams(rides)
+      .catch((e) => console.warn("Ride streams not converted", e))
+      .finally(() => (compacting = false));
+  }, 30_000);
+}
+
+/**
+ * Rewrites rides stored in the old, bigger format, a batch per visit. Safe to repeat or run on two devices at once.
+ * A ride is replaced only if it reads back the same, and any that can't be stays readable in the old format.
+ */
+async function compactOldStreams(rides: Stored[]) {
+  const me = uid();
+  const key = `native-streams-compact:v1:${me}`;
+  const done = new Set((await idbGet<string[]>(key).catch(() => undefined)) ?? []);
+  const todo = rides.filter((r) => r.hasStreams && !done.has(r.id)).slice(0, COMPACT_BATCH);
+  for (const r of todo) {
+    if (!navigator.onLine || auth.currentUser?.uid !== me) break;
+    await compactStreams(r.id);
+    done.add(r.id);
+    await idbSet(key, [...done]).catch(() => {});
+    await new Promise((go) => setTimeout(go, 250));
+  }
+}
+
+async function compactStreams(id: string) {
+  const head = doc(col("streams"), id);
+  const first = await getDocFromServer(head);
+  if (!first.exists() || first.get("z")) return;
+  const s = await readStreams(id, first);
+  const packed = encodeStreams(s);
+  if (!sameStreams(s, decodeStreams(packed))) return;
+  const z = await gzip(JSON.stringify(packed));
+  // One document, written in one go, so a ride is never half converted. Only a ride of many days wouldn't fit.
+  if (z.length > PART) return;
+  await setDoc(head, { parts: 1, z: Bytes.fromUint8Array(z) });
+  const parts = (first.get("parts") as number) ?? 1;
+  for (let i = 1; i < parts; i++) await deleteDoc(doc(col("streams"), partId(id, i)));
 }
 
 async function deleteStreams(id: string) {
@@ -324,9 +449,22 @@ export async function getStreams(id: string): Promise<RideStreams> {
 export const getRideWatts = async (id: string) => (await getStreams(id)).watts;
 
 export async function listOutdoorRides(from: string, to: string): Promise<RideRef[]> {
-  return (await allRides())
-    .filter((a) => a.outdoor && a.hasStreams && inRange(dayOf(a), { oldest: from, newest: to }))
-    .map((a) => ({ id: a.id, name: a.name, date: a.start_date_local }));
+  return (
+    (await allRides())
+      // Runs by their type: those stored before running was a main sport were never marked outdoor.
+      .filter(
+        (a) =>
+          a.hasStreams &&
+          (a.outdoor || (isSport(a, "run") && isOutdoorActivity(a) && (a.distance ?? 0) > 3000)) &&
+          inRange(dayOf(a), { oldest: from, newest: to }),
+      )
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        date: a.start_date_local,
+        ...(isSport(a, "run") ? { sport: "run" as const } : {}),
+      }))
+  );
 }
 
 export async function downloadRideTrack(r: RideRef): Promise<Track | null> {
@@ -337,7 +475,7 @@ export async function downloadRideTrack(r: RideRef): Promise<Track | null> {
 // --- Power curves and fitness ---
 
 export async function getPowerCurves(): Promise<PowerCurve[]> {
-  const rides = await allRides();
+  const rides = (await allRides()).filter((a) => isSport(a, "ride"));
   const today = isoDate(new Date());
   const curve = (days: number) => {
     const since = addDays(today, -days);
@@ -365,7 +503,7 @@ export async function getWellness(range: Range): Promise<Wellness[]> {
   const fit = fitnessSeries(loads, range.oldest, range.newest);
   // eFTP day by day from the best efforts of the 42 days up to it.
   const withCurve = rides
-    .filter((a) => a.curve.length)
+    .filter((a) => isSport(a, "ride") && a.curve.length)
     .sort((a, b) => dayOf(a).localeCompare(dayOf(b)));
   const out: Wellness[] = [];
   for (let d = range.oldest; d <= range.newest; d = addDays(d, 1)) {
@@ -473,12 +611,102 @@ export async function updateRace(id: string, r: RaceEntry) {
   await setDoc(doc(col("events"), id), race(r));
 }
 
+export async function getThresholds(sport: MainSport): Promise<AthleteThresholds> {
+  const p = await readProfile();
+  return sport === "run"
+    ? { exists: true, paceSynced: true, ftp: null, lthr: p.runLthr ?? null, maxHr: p.runMaxHr ?? null, pace: p.runThreshold ?? null }
+    : { exists: true, paceSynced: true, ftp: p.ftp ?? null, lthr: p.lthr ?? null, maxHr: p.maxHr ?? null, pace: null };
+}
+
+export async function saveThresholds(sport: MainSport, patch: ThresholdPatch) {
+  await saveProfile(
+    sport === "run"
+      ? {
+          ...(patch.lthr !== undefined ? { runLthr: patch.lthr } : {}),
+          ...(patch.maxHr !== undefined ? { runMaxHr: patch.maxHr } : {}),
+          ...(patch.pace !== undefined ? { runThreshold: patch.pace } : {}),
+        }
+      : {
+          ...(patch.ftp !== undefined ? { ftp: patch.ftp } : {}),
+          ...(patch.lthr !== undefined ? { lthr: patch.lthr } : {}),
+          ...(patch.maxHr !== undefined ? { maxHr: patch.maxHr } : {}),
+        },
+  );
+  runTh = null;
+}
+
+export async function getWorkouts(): Promise<LibraryWorkout[]> {
+  const snap = await getDocs(col("workouts"));
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<LibraryWorkout, "id">), id: d.id }));
+}
+
+const workoutDoc = (w: WorkoutEntry): Omit<LibraryWorkout, "id"> => {
+  const v = workoutSchema.parse(w);
+  return {
+    name: v.name,
+    type: v.type,
+    description: v.description,
+    moving_time: v.moving_time ?? null,
+    icu_training_load: v.icu_training_load ?? null,
+    folder: null,
+  };
+};
+
+export async function createWorkout(w: WorkoutEntry) {
+  await addDoc(col("workouts"), workoutDoc(w));
+}
+
+export async function updateWorkout(id: string, w: WorkoutEntry) {
+  await setDoc(doc(col("workouts"), id), workoutDoc(w));
+}
+
+export const deleteWorkout = (id: string) => deleteDoc(doc(col("workouts"), id));
+
+export async function scheduleWorkout(w: WorkoutEntry, date: string) {
+  const { folder: _, ...v } = workoutDoc(w);
+  await addDoc(col("events"), event({ ...v, date: day.parse(date), category: "WORKOUT" }));
+}
+
 /** Recompute every stored ride's numbers (after FTP or threshold heart rate changed in Settings). */
+/**
+ * What a run's streams give. Runs stored before running was a main sport have none: their streams are read once (one
+ * Firestore read) and the result stays with the run, along with a load if it had none.
+ */
+export async function getRunSummary(id: string): Promise<RunSummary | null> {
+  const a = (await allRides()).find((r) => r.id === id);
+  if (!a?.hasStreams) return null;
+  if (a.run) return a.run;
+  const m = runMetrics(await downloadStreams(id), await runThresholds(), a.totals);
+  // Not awaited: offline, the write waits in Firestore's queue for the connection.
+  void putRide({ ...a, ...m }).catch((e) => console.warn("Run summary not saved", e));
+  Object.assign(a, m);
+  return m.run;
+}
+
+/** Load for runs still without one, now that enough runs are summarised to know the threshold pace. No stream reads. */
+export async function fillRunLoads(): Promise<void> {
+  const { thresholdSpeed, pacePct } = await runThresholds();
+  if (!thresholdSpeed) return;
+  let changed = false;
+  for (const a of await allRides()) {
+    if (!isSport(a, "run") || a.icu_training_load != null || !a.run) continue;
+    const next = withRunThreshold(a, a.run, thresholdSpeed, pacePct);
+    if (next === a) continue;
+    void putRide(next).catch((e) => console.warn("Run load not saved", e));
+    Object.assign(a, next);
+    changed = true;
+  }
+  if (changed) runTh = null;
+}
+
 export async function recomputeRides(onProgress?: (done: number, total: number) => void) {
-  const th = await thresholds();
+  const [th, runTh] = await Promise.all([thresholds(), runThresholds()]);
   const rides = (await allRides()).filter((a) => a.hasStreams);
   for (const [i, a] of rides.entries()) {
-    const m = rideMetrics(await downloadStreams(a.id), th, a.totals);
+    const s = await downloadStreams(a.id);
+    const m = isSport(a, "run")
+      ? runMetrics(s, runTh, a.totals)
+      : rideMetrics(s, thresholdsFor(a, th), a.totals);
     await putRide({ ...a, ...m });
     onProgress?.(i + 1, rides.length);
   }

@@ -12,6 +12,8 @@ describe("activity kinds", () => {
   });
   it("covers other sports", () => {
     expect(activityKind({ type: "TrailRun" })).toBe("run");
+    expect(activityKind({ type: "VirtualRun" })).toBe("run");
+    expect(activityKind({ type: "Run", trainer: true })).toBe("run");
     expect(activityKind({ type: "Hike" })).toBe("walk");
     expect(activityKind({ type: "WeightTraining" })).toBe("gym");
     expect(activityKind({ type: null })).toBe("other");

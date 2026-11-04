@@ -25,12 +25,15 @@ export function ClimbWorld({
   onOpen,
   w: W = 360,
   fit = 0,
+  clear = 0,
 }: {
   climbs: WorldClimb[];
   onOpen: (sid: string) => void;
   w?: number;
-  /** The height that fits on screen (see OpenScene): a wide range stands lower, down to it. */
+  /** The height that fits on screen (see OpenScene): the range stands lower, down to it. */
   fit?: number;
+  /** Room to keep free under the last row (see phoneFit). */
+  clear?: number;
 }) {
   const uid = `climbs${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   // Each peak is 160 wide; a slot is at least 176, so peaks never touch.
@@ -39,10 +42,13 @@ export function ClimbWorld({
   const rows = Math.max(1, Math.ceil(climbs.length / cols));
   // A short range stands mid-field on a wide scene (the phone's two columns are always full width).
   const inset = W <= 360 ? 0 : (W - 40 - Math.min(climbs.length, cols) * slot) / 2;
-  // A wide scene fills the window down to its bottom edge: the range stands low, nearer mountains and wild pines
-  // fill the land behind it.
-  const lift = W <= 360 ? 0 : Math.max(0, Math.round(Math.min(fit, W * 0.5) - (TOP + rows * ROW)));
-  const H = TOP + rows * ROW + lift;
+  // The scene fills the window down to its bottom edge: the range stands low, nearer mountains and wild pines fill
+  // the land behind it.
+  const lift = Math.max(
+    0,
+    Math.round((W <= 360 ? fit : Math.min(fit, W * 0.5)) - (TOP + rows * ROW + clear)),
+  );
+  const H = TOP + rows * ROW + lift + clear;
   const mid = ridgeAcross("climb-mid", W, 1.2);
   // The nearer range darkens toward its foot, so the climbs stand out against it.
   const ridgeAt = (i: number) => TOP + 10 + (1 - mid[i]!) * lift * 0.35;
@@ -114,6 +120,7 @@ export function ClimbWorld({
               return [x, ridge + 12 + r() ** 1.5 * (foot - ridge) * 0.55];
             }}
             size={0.8}
+            phone
             tone={L("color-mix(in oklab, var(--pine) 22%, var(--scene-background))")}
           />
         </>

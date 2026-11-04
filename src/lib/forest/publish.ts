@@ -16,10 +16,11 @@ import { db } from "../db";
 import type { Activity, PlannedEvent, Wellness } from "../intervals";
 import { storedTrack } from "../segment-app";
 import { addDays } from "../training";
-import { activityKind } from "../activity-kind";
-import { RIDE_KINDS, type Crown } from "../tree";
+import { isSport, type MainSport } from "../sport";
+import type { Crown } from "../tree";
 import { lifetime } from "./age";
-import { effortOf, ridePage, RIDE_PAGE_DAYS } from "./rides";
+import { forestSport, type Forest } from "./forests";
+import { effortOf, ridePage, RIDE_PAGE_DAYS, toStoredPage } from "./rides";
 import { fingerprint, offStretches, toSharedCrown, toSharedRide, yearDocs } from "./snapshot";
 import type { SharedRide, TreeHeader } from "./types";
 import { isShared, prefsOf, readOverrides } from "./visibility";
@@ -66,18 +67,19 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
   );
   if (forests.empty) return;
   const overrides = await readOverrides();
-  // How tall the tree stands in every forest: the whole riding history counts, not only what's shared there.
-  const growthFacts = lifetime(acts);
   for (const f of forests.docs) {
     const fid = f.id;
+    const sport: MainSport = forestSport(f.data() as Pick<Forest, "sport">);
+    // How tall the tree stands here: the whole history in the forest's sport counts, not only what's shared.
+    const growthFacts = lifetime(acts, sport);
     const member = await getDoc(doc(db, "forests", fid, "members", me));
     if (!member.exists()) continue;
     const prefs = prefsOf(member.data());
-    // Only rides grow a forest's trees; the rest of the training stays in the garden, on this device.
+    // Only the forest's sport grows its trees, whatever my main sport is; the rest stays on this device.
     const shared = acts
       .filter(
         (a) =>
-          RIDE_KINDS.has(activityKind(a)) &&
+          isSport(a, sport) &&
           isShared({ id: a.id, day: a.start_date_local.slice(0, 10) }, fid, prefs, overrides),
       )
       .map(toSharedRide);
@@ -95,6 +97,7 @@ async function run({ acts, wellness, offEvents, crown, today }: TreeInput) {
       day: today,
       years: Object.keys(years).sort(),
       ...growthFacts,
+      ...(sport === "run" ? { sport } : {}),
       off: offStretches(offEvents),
     };
     const key = `forest-pub:${me}:${fid}:header`;
@@ -127,7 +130,7 @@ async function publishRidePages(
   for (const r of recent) {
     const track = (maps || effort) && !r.trainer ? await storedTrack(r.id) : null;
     const a = byId.get(r.id);
-    const page = ridePage(r, track, maps, effort && a ? effortOf(a, track) : null);
+    const page = toStoredPage(ridePage(r, track, maps, effort && a ? effortOf(a, track) : null));
     const key = `forest-pub:${me}:${fid}:ride:${r.id}`;
     const fp = fingerprint(page);
     before.delete(r.id);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { packTrack, unpackTrack, packedBytes } from "./compact";
 import { createSegmentEngine, yearChunks, type KV, type RideRef } from "./segment-engine";
-import { groupSegment, ridesIn } from "./segment-index";
+import { attemptsIn, groupSegment, ridesIn, traceIn, type EffortRec } from "./segment-index";
 import { findAttempts, haversine, segmentFromRange, type TrackLike } from "./segments";
 import { branch, join, profile, ride, road } from "@/test/ride-fixtures";
 
@@ -199,5 +199,96 @@ describe("history listing", () => {
       ["2024-10-30", "2025-10-30"],
       ["2024-03-01", "2024-10-29"],
     ]);
+  });
+});
+
+describe("segments for both sports", () => {
+  const kv = () => {
+    const m = new Map<string, unknown>();
+    return {
+      get: async <T,>(k: string) => m.get(k) as T | undefined,
+      set: async (k: string, v: unknown) => void m.set(k, v),
+      del: async (k: string) => void m.delete(k),
+      keys: async () => [...m.keys()],
+    };
+  };
+  const hill = road(6, 11);
+  const alts = profile(6, [[1, 4, 8]]);
+  const seedOf = (s: string) => s.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  // A ride at 7 m/s, a run at half that: the same climb, ever so much slower on foot.
+  const track = (id: string, slow = 1) => {
+    const t = ride(id, seedOf(id), hill, alts);
+    return { ...t, time: t.time.map((v) => v * slow) };
+  };
+  const engineWith = (refs: RideRef[], meta = kv()) => {
+    const tracks = new Map(refs.map((r) => [r.id, track(r.id, r.sport === "run" ? 2.5 : 1)]));
+    const downloads: string[] = [];
+    const engine = createSegmentEngine({
+      meta,
+      tracks: kv(),
+      listRides: async () => refs,
+      downloadTrack: async (r) => {
+        downloads.push(r.id);
+        return tracks.get(r.id)!;
+      },
+      historyFrom: () => "2026-01-01",
+      today: () => "2026-10-20",
+    });
+    return { engine, downloads };
+  };
+  const refs: RideRef[] = [
+    { id: "b1", name: "b1", date: "2026-10-01" },
+    { id: "b2", name: "b2", date: "2026-10-02" },
+    { id: "r1", name: "r1", date: "2026-10-03", sport: "run" },
+    { id: "r2", name: "r2", date: "2026-10-04", sport: "run" },
+    { id: "r3", name: "r3", date: "2026-10-05", sport: "run" },
+  ];
+
+  it("keeps each sport's efforts, times and fastest line apart on one climb", async () => {
+    const { engine } = engineWith(refs);
+    await engine.sync();
+    const snap = engine.getSnapshot();
+    expect(snap.groups.length).toBe(1);
+    const rec = snap.efforts[snap.groups[0]!.id]!;
+    expect(ridesIn(rec)).toBe(5);
+    expect(ridesIn(rec, "ride")).toBe(2);
+    expect(ridesIn(rec, "run")).toBe(3);
+    const bestRide = Math.min(...attemptsIn(rec, "ride").map((a) => a.duration));
+    const bestRun = Math.min(...attemptsIn(rec, "run").map((a) => a.duration));
+    expect(bestRun).toBeGreaterThan(bestRide * 2);
+    expect(traceIn(rec, "ride")).toBeTruthy();
+    expect(traceIn(rec, "run")).toBeTruthy();
+    expect(snap.runs).toBe(3);
+    expect(snap.rides).toBe(5);
+  });
+
+  it("finds old runs after the update: everything is listed again, stored tracks aren't downloaded again", async () => {
+    const meta = kv();
+    const rides = refs.filter((r) => !r.sport);
+    const before = engineWith(rides, meta);
+    await before.engine.sync();
+    expect(before.downloads.sort()).toEqual(["b1", "b2"]);
+    // As an index built by the last version: rides only, and already listed up to today.
+    await meta.set("version", 2);
+    await meta.set("listed", { from: "2026-01-01", to: "2026-10-20" });
+    const tracks = kv();
+    const engine = createSegmentEngine({
+      meta,
+      tracks,
+      listRides: async (from) => (from === "2026-01-01" || from < "2026-08-01" ? refs : refs.filter((r) => r.date >= from)),
+      downloadTrack: async (r) => track(r.id, r.sport === "run" ? 2.5 : 1),
+      historyFrom: () => "2026-01-01",
+      today: () => "2026-10-20",
+    });
+    await engine.sync();
+    const snap = engine.getSnapshot();
+    expect(snap.runs).toBe(3);
+    expect(ridesIn(snap.efforts[snap.groups[0]!.id], "run")).toBe(3);
+  });
+
+  it("reads efforts from before runs existed as rides", () => {
+    const rec = { sig: "", upTo: 0, trace: null, attempts: [{ trackId: "old" }] } as unknown as EffortRec;
+    expect(ridesIn(rec, "ride")).toBe(1);
+    expect(ridesIn(rec, "run")).toBe(0);
   });
 });

@@ -14,11 +14,16 @@ import { Button } from "@/components/ui/button";
 import { useXZoom, ZOOM_AREA } from "@/hooks/use-x-zoom";
 import { wbal } from "@/lib/analysis";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
+import { gapStreams } from "@/lib/gap";
+import { formatPace } from "@/lib/pace";
 import { rideSeries, type SeriesPoint } from "@/lib/ride-series";
+import { isSport } from "@/lib/sport";
 import { t } from "@/lib/i18n";
 
 type Metric = {
-  key: "speed" | "watts" | "hr" | "wbal";
+  key: "speed" | "gap" | "watts" | "hr" | "wbal";
+  /** How a value reads, when not as a plain number. */
+  format?: (v: number) => string;
   label: string;
   unit: string;
   color: string;
@@ -64,7 +69,15 @@ export function RideCharts({
         : undefined,
     [streams, cp],
   );
-  const all = useMemo(() => rideSeries({ ...streams, wbal: balance }), [streams, balance]);
+  const isRun = isSport(a, "run");
+  const all = useMemo(
+    () =>
+      isRun
+        ? // Running power isn't charted; pace and grade-adjusted pace are.
+          rideSeries({ ...streams, watts: [], gap: gapStreams(streams).gap })
+        : rideSeries({ ...streams, wbal: balance }),
+    [streams, balance, isRun],
+  );
   const data = useMemo(
     () => (work ? all.filter((p) => p.km >= work.startKm && p.km <= work.endKm) : all),
     [all, work],
@@ -105,12 +118,23 @@ export function RideCharts({
         [
           {
             key: "speed",
-            label: t("Speed", "Velocità"),
-            unit: "km/h",
+            label: isRun ? t("Pace", "Ritmo") : t("Speed", "Velocità"),
+            unit: isRun ? "/km" : "km/h",
             color: "var(--fitness)",
             avg: a.average_speed != null ? a.average_speed * 3.6 : null,
             max: a.max_speed != null ? a.max_speed * 3.6 : null,
             digits: 1,
+            ...(isRun ? { format: kmhAsPace } : {}),
+          },
+          {
+            key: "gap",
+            label: t("Grade-adjusted pace", "Ritmo corretto per pendenza"),
+            unit: "/km",
+            color: "var(--pine)",
+            avg: avgOf(data.map((p) => p.gap ?? null)),
+            max: null,
+            digits: 1,
+            format: kmhAsPace,
           },
           {
             key: "watts",
@@ -145,7 +169,11 @@ export function RideCharts({
         .filter((m) => data.some((p) => p[m.key] != null))
         .map((m) =>
           work
-            ? { ...m, avg: avgOf(data.map((p) => p[m.key])), max: peak(data.map((p) => p[m.key])) }
+            ? {
+                ...m,
+                avg: avgOf(data.map((p) => p[m.key] ?? null)),
+                max: peak(data.map((p) => p[m.key] ?? null)),
+              }
             : m,
         )
         .map((m): Metric => {
@@ -163,7 +191,7 @@ export function RideCharts({
             yDomain: [Math.min(0, Math.floor(low / 10) * 10), 100] as [number, number],
           };
         }),
-    [a, streams, data, work, cp],
+    [a, streams, data, work, cp, isRun],
   );
 
   if (!metrics.length)
@@ -190,13 +218,15 @@ export function RideCharts({
                 <>
                   {at.km.toFixed(1)} km ·{" "}
                   <span className="font-semibold" style={{ color: m.color }}>
-                    {fmt(at[m.key], m.digits)}
+                    {m.format && at[m.key] != null ? m.format(at[m.key]!) : fmt(at[m.key], m.digits)}
                   </span>{" "}
                   {m.unit}
                 </>
               ) : (
                 (m.summary ??
-                `${t("avg", "media")} ${fmt(m.avg, m.digits)} · max ${fmt(m.max, m.digits)} ${m.unit}`)
+                (m.format
+                  ? `${t("avg", "media")} ${m.avg != null ? m.format(m.avg) : "–"}${m.max != null ? ` · max ${m.format(m.max)}` : ""} ${m.unit}`
+                  : `${t("avg", "media")} ${fmt(m.avg, m.digits)} · max ${fmt(m.max, m.digits)} ${m.unit}`))
               )}
             </span>
           </div>
@@ -227,6 +257,9 @@ export function RideCharts({
     </div>
   );
 }
+
+/** Speeds are charted in km/h, higher being faster; on runs they read as min/km. */
+const kmhAsPace = (kmh: number) => formatPace(kmh / 3.6);
 
 const fmt = (v: number | null | undefined, digits: number) => (v != null ? v.toFixed(digits) : "–");
 
@@ -274,6 +307,7 @@ const Chart = memo(function Chart({
             fontSize={11}
             allowDecimals={false}
             domain={m.yDomain ?? (fit ? ["auto", "auto"] : [0, "auto"])}
+            {...(m.format ? { tickFormatter: m.format } : {})}
           />
           {/* Cursor line and dot only; the value shows in the header. */}
           <Tooltip

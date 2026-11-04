@@ -84,12 +84,27 @@ export const POWER_ZONE_PCT = [55, 75, 90, 105, 120, 150, 999];
 /** Friel's 7 heart-rate zones as % of threshold heart rate (zone tops; the last is open). */
 export const HR_ZONE_PCT = [81, 89, 93, 99, 102, 106, 999];
 
-export type Thresholds = { ftp: number | null; lthr: number | null };
+export type Thresholds = {
+  ftp: number | null;
+  lthr: number | null;
+  /** Zone tops set by hand, as % of the threshold; missing means the standard ones. */
+  powerPct?: number[] | null | undefined;
+  hrPct?: number[] | null | undefined;
+};
 
-export const powerZoneTops = (ftp: number | null) =>
-  ftp ? POWER_ZONE_PCT.map((p) => Math.round((ftp * p) / 100)) : [];
-export const hrZoneTops = (lthr: number | null) =>
-  lthr ? HR_ZONE_PCT.map((p) => Math.round((lthr * p) / 100)) : [];
+export const powerZoneTops = (ftp: number | null, pct?: number[] | null) =>
+  ftp ? (pct ?? POWER_ZONE_PCT).map((p) => Math.round((ftp * p) / 100)) : [];
+export const hrZoneTops = (lthr: number | null, pct?: number[] | null) =>
+  lthr ? (pct ?? HR_ZONE_PCT).map((p) => Math.round((lthr * p) / 100)) : [];
+
+/** The top of the last zone, which has no limit. */
+export const OPEN_ZONE = 999;
+
+/** Zone tops someone can set: seven, each above the last, the last one open. */
+export function validZoneTops(pct: number[]): boolean {
+  if (pct.length !== 7 || pct[6] !== OPEN_ZONE) return false;
+  return pct.every((p, i) => Number.isFinite(p) && p > 0 && (i === 0 || p > pct[i - 1]!));
+}
 
 const mean = (xs: Num[]) => {
   let s = 0,
@@ -134,7 +149,13 @@ export type FileTotals = {
  * Everything the app reads off a ride, from 1 Hz streams. Load is TSS from power when there's an FTP, else an
  * hrTSS-style load from heart rate against threshold heart rate; zones follow power, else heart rate.
  */
-export function rideMetrics(s: RideStreams, th: Thresholds, file?: FileTotals): RideMetrics {
+export function rideMetrics(
+  s: RideStreams,
+  th: Thresholds,
+  file?: FileTotals,
+  /** Slower than this (m/s) with no power or cadence is standing still. */
+  movingSpeed = 0.5,
+): RideMetrics {
   const n = s.time.length;
   const dist = file?.distance ?? s.distance.at(-1) ?? 0;
   // Moving: seconds where the distance advanced (or power/cadence say you were pedalling, on a trainer).
@@ -144,7 +165,7 @@ export function rideMetrics(s: RideStreams, th: Thresholds, file?: FileTotals): 
   let alt = s.altitude[0] ?? 0;
   for (let i = 1; i < n; i++) {
     const v = (s.distance[i] ?? 0) - (s.distance[i - 1] ?? 0);
-    if (v > 0.5 || (s.watts[i] ?? 0) > 0 || (s.cadence[i] ?? 0) > 0) moving++;
+    if (v > movingSpeed || (s.watts[i] ?? 0) > 0 || (s.cadence[i] ?? 0) > 0) moving++;
     // Over 5 s, as Strava and Garmin report it: second by second, GPS jumps read as sprints.
     if (i >= 5)
       maxSpeed = Math.max(maxSpeed, ((s.distance[i] ?? 0) - (s.distance[i - 5] ?? 0)) / 5);
@@ -171,7 +192,8 @@ export function rideMetrics(s: RideStreams, th: Thresholds, file?: FileTotals): 
       : avgHr && th.lthr
         ? hours * (avgHr / th.lthr) ** 2 * 100
         : null;
-  const tops = hasPower && th.ftp ? powerZoneTops(th.ftp) : hrZoneTops(th.lthr);
+  const tops =
+    hasPower && th.ftp ? powerZoneTops(th.ftp, th.powerPct) : hrZoneTops(th.lthr, th.hrPct);
   const zoneSource = hasPower && th.ftp ? s.watts : s.heartrate;
   return {
     moving_time: moving,

@@ -11,10 +11,13 @@ import { historyYears } from "@/lib/segment-app";
 import type { Status } from "@/lib/segment-engine";
 import { segmentSummary } from "@/lib/segments";
 import { densestRegion } from "@/lib/density";
+import { mainSport, type MainSport } from "@/lib/sport";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/segments/")({
+  validateSearch: (s: Record<string, unknown>): { sport?: MainSport } =>
+    s["sport"] === "run" || s["sport"] === "ride" ? { sport: s["sport"] } : {},
   head: () => ({ meta: [{ title: t("Segments — Cirmolo", "Segmenti — Cirmolo") }] }),
   component: Segments,
 });
@@ -35,7 +38,9 @@ const fold = (s: string) =>
     .toLowerCase();
 
 function Segments() {
-  const lib = useSegmentLibrary();
+  // Opens on the main sport; the toggle shows the other sport's segments.
+  const sport = Route.useSearch().sport ?? mainSport();
+  const lib = useSegmentLibrary({ sport });
   const isLoading =
     lib.status.phase !== "idle" && lib.status.phase !== "error" && lib.list.length === 0;
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
@@ -99,12 +104,12 @@ function Segments() {
       if (!t) continue;
       const events = {
         tooltip: nameOf(s),
-        onClick: () => navigate({ to: "/segments/$id", params: { id: s.id } }),
+        onClick: () => navigate({ to: "/segments/$id", params: { id: s.id }, search: { sport } }),
         onHover: (over: boolean) => hover(s.id, over, true),
       };
       if (highlight === s.id) {
         top.push({ lat: t.lat, lng: t.lng, color: "#ffffff", weight: 12, ...events });
-        top.push(...gradientLines(t).map((g) => ({ ...g, weight: 7, ...events })));
+        top.push(...gradientLines(t, null, sport === "run").map((g) => ({ ...g, weight: 7, ...events })));
       } else if (highlight)
         base.push({
           lat: t.lat,
@@ -124,7 +129,7 @@ function Segments() {
         });
     }
     return [...base, ...top];
-  }, [shown, highlight, navigate, nameOf]);
+  }, [shown, highlight, navigate, nameOf, sport]);
   // Open on the area with most segments, not on everything ever ridden (one trip far away zooms the map out).
   const home = useMemo(
     () => densestRegion(shown.flatMap((s) => (s.trace ? [s.trace] : []))),
@@ -144,7 +149,10 @@ function Segments() {
       <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">
-            {t(`${lib.ridesAnalysed} outdoor rides`, `${lib.ridesAnalysed} pedalate`)} ·{" "}
+            {sport === "run"
+              ? t(`${lib.ridesAnalysed} outdoor runs`, `${lib.ridesAnalysed} corse`)
+              : t(`${lib.ridesAnalysed} outdoor rides`, `${lib.ridesAnalysed} pedalate`)}{" "}
+            ·{" "}
             {historyYears()
               ? historyYears() > 1
                 ? t(`last ${historyYears()} years`, `ultimi ${historyYears()} anni`)
@@ -153,7 +161,31 @@ function Segments() {
           </div>
           <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Segments", "Segmenti")}</h1>
         </div>
-        <div className="flex gap-1 rounded-lg bg-secondary p-1">
+        <div className="flex flex-wrap gap-2">
+          <div className="flex gap-1 rounded-lg bg-secondary p-1">
+            {(
+              [
+                ["ride", t("Rides", "Bici")],
+                ["run", t("Runs", "Corsa")],
+              ] as const
+            ).map(([s, label]) => (
+              <button
+                key={s}
+                aria-pressed={sport === s}
+                onClick={() => {
+                  navigate({ to: "/segments", search: { sport: s }, replace: true });
+                  setFocused(null);
+                }}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs",
+                  sport === s ? "bg-background text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1 rounded-lg bg-secondary p-1">
           {FILTERS.map((f) => (
             <button
               key={f}
@@ -169,6 +201,7 @@ function Segments() {
               {FILTER_LABEL[f]}
             </button>
           ))}
+          </div>
         </div>
       </div>
 
@@ -261,7 +294,7 @@ function Segments() {
             {isLoading && (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 {t(
-                  "Looking for recurring climbs in your rides… The first time each ride is downloaded once; after that only new rides are.",
+                  "Looking for recurring climbs in your activities… The first time each one is downloaded once; after that only new ones are.",
                   "Ricerca delle salite ricorrenti nelle tue attività… La prima volta ogni attività viene scaricata una volta; poi solo le nuove.",
                 )}
               </p>
@@ -320,6 +353,7 @@ function Segments() {
                   <Link
                     to="/segments/$id"
                     params={{ id: s.id }}
+                    search={{ sport }}
                     onClick={(e) => {
                       // Phone: the first tap shows the segment on the map, the second opens it.
                       if (touch && focused !== s.id) {
@@ -332,7 +366,7 @@ function Segments() {
                     <div className="min-w-0">
                       <div className="truncate font-medium">{nameOf(s)}</div>
                       <div className="stat-num truncate text-xs text-muted-foreground">
-                        {segmentSummary(s)}
+                        {segmentSummary(s, sport)}
                       </div>
                       {touch && focused === s.id && (
                         <div className="text-[11px] text-primary">

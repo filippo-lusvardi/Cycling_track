@@ -1,4 +1,4 @@
-// Pages that live under the sky of the moment (Home, the Garden, the forests and the plain pages: calendar, analysis, body, rides and a ride, settings): the page itself takes the sky's top
+// Pages that live under the sky of the moment (the Tree, the Garden, the forests and the plain pages: calendar, analysis, rides and a ride, settings): the page itself takes the sky's top
 // colour, so a scene's sky runs on behind the top bar and the page's own header with no edge, and those float over
 // it as glass (see styles.css, `html.time-sky`).
 import { useEffect } from "react";
@@ -7,7 +7,7 @@ import { daylight, skyColors } from "@/lib/daylight";
 
 /** Paths drawn under the time-of-day sky: every page but sign-in, the privacy notice and a forest invite. */
 export const SKY_PAGE =
-  /^\/($|(analysis|body|calendar|settings)\/?$|rides(\/|$)|segments(\/|$)|tree(\/|$)|garden(\/|$)|forest\/?$|forest\/[^/]+\/?$|forest\/[^/]+\/[^/]+\/?$|forest\/[^/]+\/[^/]+\/ride\/|forest\/[^/]+\/climb\/)/;
+  /^\/($|(analysis|calendar|settings|workouts)\/?$|rides(\/|$)|segments(\/|$)|garden(\/|$)|forest\/?$|forest\/[^/]+\/?$|forest\/[^/]+\/[^/]+\/?$|forest\/[^/]+\/[^/]+\/ride\/|forest\/[^/]+\/climb\/)/;
 
 /**
  * Colour the page with the sky's top on `active` pages (and nothing elsewhere), following the hour. Sets

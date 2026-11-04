@@ -10,6 +10,7 @@ import { formatDuration } from "@/lib/training";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
+import { mainSport } from "@/lib/sport";
 
 const PAGE = 100;
 
@@ -144,7 +145,9 @@ function Rides() {
         <div className="mb-1 hidden justify-end gap-4 px-3 text-right sm:flex">
           <span className="eyebrow">{t("Dist", "Dist")}</span>
           <span className="eyebrow">{t("Time", "Tempo")}</span>
-          <span className="eyebrow w-14">{t("Power", "Potenza")}</span>
+          <span className="eyebrow w-14">
+            {mainSport() === "run" ? t("Pace", "Ritmo") : t("Power", "Potenza")}
+          </span>
           <span className="eyebrow w-12">{t("Load", "Carico")}</span>
         </div>
         <div className="-mx-3">

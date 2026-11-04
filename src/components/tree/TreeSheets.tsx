@@ -6,16 +6,20 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ActivityRow } from "@/components/ActivityRow";
 import { CheckInForm, isCheckedIn, useCheckInState } from "@/components/CheckIn";
+import { WorkoutPreview } from "@/components/WorkoutPreview";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import type { FocusInfo } from "@/hooks/use-focus";
 import { roleText } from "@/lib/focus";
-import { FOCUS_LABEL, FOCUS_PURPOSE, FOCUSES, raceSummary, type Focus } from "@/lib/races";
+import { FOCUS_LABEL, FOCUS_PURPOSE, focusesFor, raceSummary, type Focus } from "@/lib/races";
+import { formatPace } from "@/lib/pace";
+import { byMain, mainSport } from "@/lib/sport";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Activity, OffKind, PlannedEvent, Wellness } from "@/lib/intervals";
 import { createOffEvent, deleteEvent, updateOffEvent } from "@/lib/source";
 import { briochesFor, intakeTarget } from "@/lib/fuel";
-import { advice, formPercent, readinessFor, recommendation } from "@/lib/readiness";
+import { advice, formPercent, readinessFor, readinessRows, recommendation } from "@/lib/readiness";
+import { checkInOn } from "@/lib/settings";
 import { computeForm, formatDuration, formZoneLabel, isoDate } from "@/lib/training";
 import {
   crownFor,
@@ -33,6 +37,7 @@ import {
 } from "@/lib/tree";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
+import type { Ceiling } from "@/lib/readiness";
 
 export type Sheet =
   | { kind: "today" }
@@ -62,7 +67,7 @@ export function TreeSheet({
   wellness: Wellness[];
   acts: Activity[];
   offEvents: PlannedEvent[];
-  limit: { watts: number | null; bpm: number | null } | null;
+  limit: Ceiling | null;
   focus: FocusInfo;
 }) {
   const title = !sheet
@@ -140,7 +145,7 @@ function TodayBody({
   wellness: Wellness[];
   acts: Activity[];
   offEvents: PlannedEvent[];
-  limit: { watts: number | null; bpm: number | null } | null;
+  limit: Ceiling | null;
   focus: FocusInfo;
   onSaved: () => void;
 }) {
@@ -150,8 +155,9 @@ function TodayBody({
   const [, setState] = useCheckInState(today);
   // Same numbers as the crown: this morning's fitness and fatigue until today has an activity, and the
   // score estimated from HRV, sleep and form until the check-in is done.
-  const crown = crownFor(wellness, acts, today, offEvents);
-  const r = readinessFor(morningWellness(wellness, acts, today), today);
+  const checkIn = checkInOn();
+  const crown = crownFor(wellness, acts, today, offEvents, checkIn);
+  const r = readinessFor(morningWellness(readinessRows(wellness), acts, today), today);
   const rec = crown.score != null ? recommendation(crown.score, crown.form) : null;
   // A day ready for intensity, without a race nearby: today's session is the block's.
   const quality = !focus.role && rec?.zones === "Z4–Z5";
@@ -162,38 +168,45 @@ function TodayBody({
         <PlanCard crown={crown} rec={rec} limit={limit} focus={focus} quality={quality} />
       ) : (
         <p className="text-[15px] text-muted-foreground">
-          {t(
-            "Not enough data for today yet. Do the check-in to get advice.",
-            "Non ci sono ancora abbastanza dati per oggi. Fai il check-in per avere un consiglio.",
-          )}
+          {checkIn
+            ? t(
+                "Not enough data for today yet. Do the check-in to get advice.",
+                "Non ci sono ancora abbastanza dati per oggi. Fai il check-in per avere un consiglio.",
+              )
+            : t("Not enough data for today yet.", "Non ci sono ancora abbastanza dati per oggi.")}
         </p>
       )}
       {crown.signals.length > 0 && <WatchCard crown={crown} />}
       {r.components.length > 0 && <ScoreDetails r={r} crown={crown} />}
       <FocusPanel focus={focus} quality={quality} />
-      <Collapsible>
-        <CollapsibleTrigger asChild>
-          <Button variant="secondary" className="h-11 w-full text-[15px]">
-            {done
-              ? t("Edit today's check-in", "Modifica il check-in di oggi")
-              : t("Do today's check-in", "Fai il check-in di oggi")}
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-4">
-          <CheckInForm
-            key={row?.id ?? "none"}
-            date={today}
-            row={row}
-            onSaved={() => {
-              setState("done");
-              onSaved();
-            }}
-          />
-        </CollapsibleContent>
-      </Collapsible>
+      {checkIn && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="secondary" className="h-11 w-full text-[15px]">
+              {done
+                ? t("Edit today's check-in", "Modifica il check-in di oggi")
+                : t("Do today's check-in", "Fai il check-in di oggi")}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-4">
+            <CheckInForm
+              key={row?.id ?? "none"}
+              date={today}
+              row={row}
+              onSaved={() => {
+                setState("done");
+                onSaved();
+              }}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
       <section className="space-y-2">
         <h3 className="text-sm font-medium text-muted-foreground">
-          {t("Not riding today because you're…", "Oggi non pedali perché sei…")}
+          {byMain(
+            t("Not riding today because you're…", "Oggi non pedali perché sei…"),
+            t("Not running today because you're…", "Oggi non corri perché sei…"),
+          )}
         </h3>
         <div className="grid grid-cols-2 gap-2">
           {(["SICK", "INJURED"] as const).map((k) => (
@@ -248,14 +261,18 @@ function PlanCard({
 }: {
   crown: ReturnType<typeof crownFor>;
   rec: ReturnType<typeof recommendation>;
-  limit: { watts: number | null; bpm: number | null } | null;
+  limit: Ceiling | null;
   focus: FocusInfo;
   quality: boolean;
 }) {
   const color = SEASON_COLOR[crown.season!];
   const under =
     limit &&
-    [limit.watts != null && `${limit.watts} W`, limit.bpm != null && `${limit.bpm} bpm`]
+    [
+      limit.pace != null && `${formatPace(limit.pace)}/km`,
+      limit.watts != null && `${limit.watts} W`,
+      limit.bpm != null && `${limit.bpm} bpm`,
+    ]
       .filter(Boolean)
       .join(" · ");
   return (
@@ -283,7 +300,7 @@ function PlanCard({
       </div>
       <p className="text-[15px] leading-relaxed">
         {focus.role
-          ? roleText(focus.role)
+          ? roleText(focus.role, mainSport())
           : quality
             ? t(
                 "You're ready for intensity: do this block's session.",
@@ -298,7 +315,11 @@ function PlanCard({
           {rec.minutes > 0 && (
             <Fact label={t("Fuel", "Rifornimento")} value={fuelText(rec.minutes, rec.intensity)} />
           )}
-          {under && <Fact label={t("Stay under", "Resta sotto")} value={under} wide />}
+          {under && <Fact
+              label={limit?.pace != null ? t("Limit", "Limite") : t("Stay under", "Resta sotto")}
+              value={under}
+              wide
+            />}
         </dl>
       )}
       {quality && (
@@ -336,8 +357,9 @@ function WatchCard({ crown }: { crown: ReturnType<typeof crownFor> }) {
         {load
           ? [
               t(
-                "Easy rides count too: fatigue builds with volume, not only intensity. Today's advice stays capped until it settles.",
-                "Contano anche le uscite facili: la fatica cresce col volume, non solo con l'intensità. Il consiglio di oggi resta limitato finché non si assesta.",
+                byMain("Easy rides", "Easy runs") +
+                  " count too: fatigue builds with volume, not only intensity. Today's advice stays capped until it settles.",
+                `Contano anche ${byMain("le uscite facili", "le corse facili")}: la fatica cresce col volume, non solo con l'intensità. Il consiglio di oggi resta limitato finché non si assesta.`,
               ),
               crown.load.returning
                 ? t(
@@ -400,19 +422,29 @@ function ScoreDetails({
       ))}
       <p className="text-sm text-muted-foreground">
         {crown.confidence === "high"
-          ? t(
-              "Each part is measured against your own normal: HRV against your 60-day range, sleep against your usual, answers against how you usually answer.",
-              "Ogni parte è misurata rispetto al tuo normale: HRV sul tuo intervallo di 60 giorni, sonno sul tuo solito, risposte su come rispondi di solito.",
-            )
+          ? checkInOn()
+            ? t(
+                "Each part is measured against your own normal: HRV against your 60-day range, sleep against your usual, answers against how you usually answer.",
+                "Ogni parte è misurata rispetto al tuo normale: HRV sul tuo intervallo di 60 giorni, sonno sul tuo solito, risposte su come rispondi di solito.",
+              )
+            : t(
+                "Each part is measured against your own normal: HRV against your 60-day range, sleep against your usual.",
+                "Ogni parte è misurata rispetto al tuo normale: HRV sul tuo intervallo di 60 giorni, sonno sul tuo solito.",
+              )
           : crown.confidence === "medium"
             ? t(
                 "Fair confidence: some parts are still learning your normal (HRV needs 14 readings in 60 days, sleep 10 nights).",
                 "Affidabilità discreta: alcune parti stanno ancora imparando il tuo normale (l'HRV serve 14 letture in 60 giorni, il sonno 10 notti).",
               )
-            : t(
-                "Low confidence: too few inputs today. Wear the HRV sensor at night and do the check-in.",
-                "Affidabilità bassa: pochi dati oggi. Misura l'HRV di notte e fai il check-in.",
-              )}
+            : checkInOn()
+              ? t(
+                  "Low confidence: too few inputs today. Wear the HRV sensor at night and do the check-in.",
+                  "Affidabilità bassa: pochi dati oggi. Misura l'HRV di notte e fai il check-in.",
+                )
+              : t(
+                  "Low confidence: too few inputs today. Wear the HRV sensor at night.",
+                  "Affidabilità bassa: pochi dati oggi. Misura l'HRV di notte.",
+                )}
       </p>
       {crown.load.level > 0 && r.uncapped != null && (
         <p className="text-sm text-muted-foreground">
@@ -526,7 +558,7 @@ function FocusPanel({ focus, quality }: { focus: FocusInfo; quality: boolean }) 
             <option value="" className="bg-popover">
               {t("Automatic", "Automatico")}
             </option>
-            {FOCUSES.map((f) => (
+            {focusesFor(mainSport()).map((f) => (
               <option key={f} value={f} className="bg-popover">
                 {FOCUS_LABEL[f]}
               </option>
@@ -709,6 +741,7 @@ function PlanBody({ e }: { e: PlannedEvent }) {
         {e.moving_time ? ` · ${formatDuration(e.moving_time)}` : ""}
         {e.icu_training_load ? ` · ${t("load", "carico")} ${e.icu_training_load}` : ""}
       </p>
+      {e.category === "WORKOUT" && <WorkoutPreview text={e.description} type={e.type} />}
       {e.description && <p className="whitespace-pre-line">{e.description}</p>}
     </div>
   );

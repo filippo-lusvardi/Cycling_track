@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { segmentEngine } from "@/lib/segment-app";
 import { cn } from "@/lib/utils";
+import { byMain } from "@/lib/sport";
 
 /** Drop or pick .fit files (Garmin, Wahoo, Zwift…); each becomes a ride in the account. */
 export function UploadRides({ onDone }: { onDone?: () => void }) {
@@ -59,8 +60,14 @@ export function UploadRides({ onDone }: { onDone?: () => void }) {
     >
       <p className="text-muted-foreground">
         {t(
-          "Ride files (.fit) from a Garmin, Wahoo, Zwift (Documents/Zwift/Activities)… Drop them here or",
-          "File delle uscite (.fit) da Garmin, Wahoo, Zwift (Documenti/Zwift/Activities)… Trascinali qui oppure",
+          byMain(
+            "Ride files (.fit) from a Garmin, Wahoo, Zwift (Documents/Zwift/Activities)… Drop them here or",
+            "Run files (.fit) from a Garmin, Coros, Suunto, Strava… Drop them here or",
+          ),
+          byMain(
+            "File delle uscite (.fit) da Garmin, Wahoo, Zwift (Documenti/Zwift/Activities)… Trascinali qui oppure",
+            "File delle corse (.fit) da Garmin, Coros, Suunto, Strava… Trascinali qui oppure",
+          ),
         )}
       </p>
       <input

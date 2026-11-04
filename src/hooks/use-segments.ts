@@ -5,9 +5,10 @@ import { readSegments, watchSegments, writeSegments } from "@/lib/cloud";
 import { auth } from "@/lib/firebase";
 import { liveSegments, mergeSegments, type SavedSegment } from "@/lib/segment-store";
 import { segmentEngine, startSegments } from "@/lib/segment-app";
-import { groupSegment, groupTrace, ridesIn } from "@/lib/segment-index";
+import { groupSegment, groupTrace, ridesIn, traceIn } from "@/lib/segment-index";
 import type { Segment, Trace } from "@/lib/segments";
 import { SEGMENTS, readSetting, writeSetting } from "@/lib/settings";
+import { mainSport, type MainSport } from "@/lib/sport";
 
 /** Remote copies newer than this device's (or unknown here) come in; this device's newer ones go out. */
 function mergeRemote(remote: SavedSegment[]) {
@@ -104,7 +105,10 @@ export type LibrarySegment = Segment & {
  * how often ridden. Climbs starred from auto-detection follow their group's shared stretch. With `sync`,
  * opening the page also fetches and analyses new rides in the background.
  */
-export function useSegmentLibrary({ sync = true }: { sync?: boolean } = {}) {
+export function useSegmentLibrary({
+  sync = true,
+  sport = mainSport(),
+}: { sync?: boolean; sport?: MainSport } = {}) {
   const store = useSegments();
   const idx = useSyncExternalStore(segmentEngine.subscribe, segmentEngine.getSnapshot);
   useEffect(() => void startSegments(sync), [sync]);
@@ -131,8 +135,10 @@ export function useSegmentLibrary({ sync = true }: { sync?: boolean } = {}) {
         ...(s.renamed ? { renamed: true } : {}),
         saved: true,
         effortsKey: g?.id ?? s.id,
-        rides: rec ? ridesIn(rec) : null,
-        trace: rec?.trace ?? (g ? groupTrace(g) : null),
+        rides: rec ? ridesIn(rec, sport) : null,
+        trace: traceIn(rec, sport) ?? (g ? groupTrace(g) : null),
+        // Saved with efforts only in the other sport: it belongs to that sport's list.
+        other: !!rec && !ridesIn(rec, sport) && ridesIn(rec) > 0,
       };
     });
     const auto = idx.groups
@@ -144,25 +150,25 @@ export function useSegmentLibrary({ sync = true }: { sync?: boolean } = {}) {
           starred: false,
           saved: false,
           effortsKey: g.id,
-          rides: rec ? ridesIn(rec) : g.members.length,
-          trace: rec?.trace ?? groupTrace(g),
+          rides: rec ? ridesIn(rec, sport) : g.members.length,
+          trace: traceIn(rec, sport) ?? groupTrace(g),
         };
       })
       .filter((a) => a.rides >= 2);
-    return [...saved, ...auto].sort(
+    return [...saved.filter((s) => !s.other).map(({ other: _, ...s }) => s), ...auto].sort(
       (a, b) =>
         Number(b.starred) - Number(a.starred) ||
         (b.rides ?? 0) - (a.rides ?? 0) ||
         a.name.localeCompare(b.name),
     );
-  }, [store.segments, idx]);
+  }, [store.segments, idx, sport]);
 
   return {
     ...store,
     list,
     efforts: idx.efforts,
     status: idx.status,
-    ridesAnalysed: idx.rides,
+    ridesAnalysed: sport === "run" ? idx.runs : idx.rides - idx.runs,
     lastSync: idx.lastSync,
   };
 }

@@ -6,12 +6,16 @@ import {
   getEvents,
   getOffEvents,
   getRideZones,
+  getThresholds,
+  getWorkouts,
   getPowerCurves,
   getStreams,
   getWellness,
 } from "./source";
 import type { Range } from "./intervals";
 import { getDurability } from "./durability-data";
+import { getRunData } from "./run-data";
+import type { MainSport } from "./sport";
 import { addDays, isoDate } from "./training";
 
 function range(days: number): Range {
@@ -81,6 +85,22 @@ export const racesQuery = (today: string) =>
     staleTime: 5 * 60_000,
   });
 
+/** Thresholds as the account's source holds them, for editing: read fresh, not the day-old zones. */
+export const thresholdsQuery = (sport: MainSport) =>
+  queryOptions({
+    queryKey: ["thresholds", sport],
+    queryFn: () => getThresholds(sport),
+    staleTime: 0,
+  });
+
+/** The workout library. */
+export const workoutsQuery = () =>
+  queryOptions({
+    queryKey: ["workouts"],
+    queryFn: () => getWorkouts(),
+    staleTime: 5 * 60_000,
+  });
+
 /** The intervals.icu profile (name, profile weight), which rarely changes. */
 export const athleteQuery = () =>
   queryOptions({
@@ -89,10 +109,18 @@ export const athleteQuery = () =>
     staleTime: 24 * 60 * 60_000,
   });
 
-export const rideZonesQuery = () =>
+/** Every run's pace numbers. The first time, runs are downloaded one by one (see run-data's progress). */
+export const runDataQuery = () =>
   queryOptions({
-    queryKey: ["ride-zones"],
-    queryFn: () => getRideZones(),
+    queryKey: ["run-data"],
+    queryFn: () => getRunData(),
+    staleTime: 5 * 60_000,
+  });
+
+export const rideZonesQuery = (sport: MainSport = "ride") =>
+  queryOptions({
+    queryKey: sport === "run" ? ["ride-zones", sport] : ["ride-zones"],
+    queryFn: () => getRideZones(sport),
     staleTime: 24 * 60 * 60_000,
   });
 

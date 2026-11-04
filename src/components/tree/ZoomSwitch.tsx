@@ -46,7 +46,7 @@ export function ZoomSwitch({ active, onZoom }: { active: View; onZoom?: (z: Zoom
               key={v}
               role="tab"
               aria-selected={active === v}
-              to={v === "forest" ? "/forest" : "/tree"}
+              to={v === "forest" ? "/forest" : "/"}
               search={v === "years" ? { zoom: "years" } : {}}
               className={pill(active === v)}
             >

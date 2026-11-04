@@ -44,7 +44,7 @@ function MemberTree() {
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [ref, w] = useWidth();
   useEffect(() => watchMembers(fid, setMembers), [fid]);
-  // The member's form is the weather of the page's sky, as on Home.
+  // The member's form is the weather of the page's sky, as on my own Tree.
   const weather = tree?.crown?.weather ?? null;
   const weatherPhase = tree?.crown?.weatherPhase ?? 0;
   useTreeSky(weather, weatherPhase);
@@ -54,7 +54,8 @@ function MemberTree() {
     if (!tree) return null;
     const first = tree.acts.at(-1)?.start_date_local.slice(0, 10) ?? tree.wellness[0]?.id;
     const oldest = first && first < today ? first : addDays(today, -365);
-    return buildDays(tree.acts, tree.wellness, oldest, today, offDays(tree.off));
+    // The tree's owner's sport, not this device's: a runner's tree is the same for a cyclist looking at it.
+    return buildDays(tree.acts, tree.wellness, oldest, today, offDays(tree.off), tree.sport);
   }, [tree, today]);
 
   return (

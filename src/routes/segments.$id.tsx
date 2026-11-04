@@ -26,7 +26,10 @@ import { useSegmentLibrary } from "@/hooks/use-segments";
 import { useXZoom, ZOOM_AREA } from "@/hooks/use-x-zoom";
 import { athleteQuery, wellnessRangeQuery } from "@/lib/queries";
 import { gradeChunks, maxGrade } from "@/lib/profile";
+import { formatPace, paceLabel, stepsPerMinute } from "@/lib/pace";
 import { historyYears } from "@/lib/segment-app";
+import { attemptsIn } from "@/lib/segment-index";
+import { mainSport, type MainSport } from "@/lib/sport";
 import { segmentSummary, type Attempt } from "@/lib/segments";
 import { addDays, formatClock, isoDate, weightFor } from "@/lib/training";
 import { fitTrend } from "@/lib/trend";
@@ -34,12 +37,17 @@ import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/segments/$id")({
+  validateSearch: (s: Record<string, unknown>): { sport?: MainSport } =>
+    s["sport"] === "run" || s["sport"] === "ride" ? { sport: s["sport"] } : {},
   head: () => ({ meta: [{ title: t("Segment — Cirmolo", "Segmento — Cirmolo") }] }),
   component: SegmentPage,
 });
 
 /** Climbs this long (m) or more get a summit book instead of the plain list of efforts. */
 const SUMMIT_BOOK_MIN = 12_000;
+/** On foot, climbs are shorter and steeper: this long (m), or this much climbing (m). */
+const RUN_SUMMIT_BOOK_MIN = 3_000;
+const RUN_SUMMIT_BOOK_GAIN = 300;
 
 const r = (n: number | null | undefined, suffix = "") =>
   n != null ? `${Math.round(n)}${suffix}` : "–";
@@ -47,7 +55,9 @@ const r = (n: number | null | undefined, suffix = "") =>
 function SegmentPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const lib = useSegmentLibrary();
+  const sport = Route.useSearch().sport ?? mainSport();
+  const isRun = sport === "run";
+  const lib = useSegmentLibrary({ sport });
   const nameOf = useSegmentNames(lib.list);
   const seg = lib.list.find((s) => s.id === id);
   const isLoading = !seg && lib.status.phase !== "idle";
@@ -55,7 +65,10 @@ function SegmentPage() {
   const [editing, setEditing] = useState<string | null>(null);
 
   // Efforts come from the on-device index: no ride is re-read to open this page.
-  const attempts = seg ? lib.efforts[seg.effortsKey]?.attempts : undefined;
+  const attempts = useMemo(
+    () => (seg ? attemptsIn(lib.efforts[seg.effortsKey], sport) : undefined),
+    [seg, lib.efforts, sport],
+  );
   const oldest = attempts
     ?.reduce((m, a) => (a.date < m ? a.date : m), isoDate(new Date()))
     .slice(0, 10);
@@ -73,10 +86,12 @@ function SegmentPage() {
       (attempts ?? [])
         .map((a) => {
           const kg = wellness ? weightFor(wellness, a.date, athlete?.weight ?? null) : null;
+          // Running power isn't compared here: pace and VAM are.
+          if (isRun) return { ...a, avgWatts: null, wkg: null };
           return { ...a, wkg: a.avgWatts && kg ? a.avgWatts / kg : null };
         })
         .sort((a, b) => a.duration - b.duration),
-    [attempts, wellness, athlete],
+    [attempts, wellness, athlete, isRun],
   );
   // Path and profile of the fastest effort (or of the climb itself while efforts are being computed).
   const trace = seg?.trace ?? null;
@@ -92,7 +107,7 @@ function SegmentPage() {
     setRace({ a: pr, b: b ?? fallback, n: Date.now() });
     routeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  const lines = useMemo(() => (trace ? gradientLines(trace) : []), [trace]);
+  const lines = useMemo(() => (trace ? gradientLines(trace, null, isRun) : []), [trace, isRun]);
   const pins = useMemo(
     () =>
       trace
@@ -150,7 +165,7 @@ function SegmentPage() {
   if (!seg)
     return (
       <div className="space-y-4">
-        <BackLink />
+        <BackLink sport={sport} />
         <p className="text-sm text-muted-foreground">
           {isLoading
             ? t("Loading rides…", "Caricamento attività…")
@@ -163,7 +178,7 @@ function SegmentPage() {
 
   return (
     <div className="space-y-6">
-      <BackLink />
+      <BackLink sport={sport} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="eyebrow">
@@ -197,7 +212,9 @@ function SegmentPage() {
           ) : (
             <h1 className="text-3xl font-bold tracking-tight">{nameOf(seg)}</h1>
           )}
-          <div className="stat-num mt-1 text-sm text-muted-foreground">{segmentSummary(seg)}</div>
+          <div className="stat-num mt-1 text-sm text-muted-foreground">
+            {segmentSummary(seg, sport)}
+          </div>
         </div>
         <div className="flex gap-1">
           <Button
@@ -225,7 +242,7 @@ function SegmentPage() {
               aria-label={t("Delete", "Elimina")}
               onClick={() => {
                 lib.remove(seg);
-                navigate({ to: "/segments" });
+                navigate({ to: "/segments", search: { sport } });
               }}
             >
               <Trash2 />
@@ -305,6 +322,7 @@ function SegmentPage() {
                   alt={trace.alt}
                   hover={hover}
                   onHover={setHover}
+                  steep={isRun}
                 />
               </div>
             )}
@@ -316,6 +334,7 @@ function SegmentPage() {
         <Panel
           title={t("Progression", "Progressione")}
           action={
+            isRun ? undefined :
             <div className="flex gap-1 rounded-lg bg-secondary p-1">
               {(["time", "watts"] as const).map((m) => (
                 <button
@@ -429,7 +448,8 @@ function SegmentPage() {
       )}
 
       {/* The summit book is for the big climbs; shorter ones keep the plain list of efforts. */}
-      {seg.length >= SUMMIT_BOOK_MIN ? (
+      {seg.length >= SUMMIT_BOOK_MIN ||
+      (isRun && (seg.length >= RUN_SUMMIT_BOOK_MIN || (seg.gain ?? 0) >= RUN_SUMMIT_BOOK_GAIN)) ? (
         <SummitBook
           place={placeKey(seg)}
           efforts={efforts}
@@ -438,16 +458,17 @@ function SegmentPage() {
           onRace={startRace}
         />
       ) : (
-        <AllEfforts efforts={efforts} loading={isLoading} onRace={startRace} />
+        <AllEfforts efforts={efforts} loading={isLoading} onRace={startRace} isRun={isRun} />
       )}
     </div>
   );
 }
 
-function BackLink() {
+function BackLink({ sport }: { sport: MainSport }) {
   return (
     <Link
       to="/segments"
+      search={{ sport }}
       className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
     >
       <ArrowLeft className="h-4 w-4" /> {t("Segments", "Segmenti")}
@@ -460,7 +481,9 @@ function AllEfforts({
   efforts,
   loading,
   onRace,
+  isRun,
 }: {
+  isRun: boolean;
   efforts: (Attempt & { wkg: number | null })[];
   loading: boolean;
   onRace: (effort: string) => void;
@@ -483,14 +506,14 @@ function AllEfforts({
           {/* Phone: one compact row per effort instead of a table wider than the screen. */}
           <div className="-mx-4 divide-y divide-border md:hidden">
             {efforts.map((e, i) => {
-              // Two short lines that fit a phone: effort (power, heart rate), then pace (VAM, speed).
+              // Two short lines that fit a phone: effort (power, heart rate), then pace (VAM, speed or pace).
               const effort = [
                 e.avgWatts != null && `${Math.round(e.avgWatts)} W`,
                 e.avgHr != null && `${Math.round(e.avgHr)} bpm`,
               ].filter(Boolean);
               const pace = [
                 e.vam != null && `VAM ${Math.round(e.vam)}`,
-                `${e.speed.toFixed(1)} km/h`,
+                isRun ? paceLabel(e.speed / 3.6) : `${e.speed.toFixed(1)} km/h`,
               ].filter(Boolean);
               return (
                 <div key={`${e.trackId}-${i}`} className="flex items-center gap-1 pr-2">
@@ -553,12 +576,13 @@ function AllEfforts({
                   <th className="py-2 font-normal">#</th>
                   <th className="font-normal">{t("Date", "Data")}</th>
                   <th className="text-right font-normal">{t("Time", "Tempo")}</th>
-                  <th className="text-right font-normal">{t("Power", "Potenza")}</th>
-                  <th className="text-right font-normal">W/kg</th>
+                  {!isRun && <th className="text-right font-normal">{t("Power", "Potenza")}</th>}
+                  {!isRun && <th className="text-right font-normal">W/kg</th>}
+                  {isRun && <th className="text-right font-normal">{t("Pace", "Ritmo")}</th>}
                   <th className="text-right font-normal">VAM</th>
                   <th className="text-right font-normal">{t("HR", "FC")}</th>
-                  <th className="text-right font-normal">{t("Cad", "Cad")}</th>
-                  <th className="text-right font-normal">km/h</th>
+                  <th className="text-right font-normal">{isRun ? t("Steps", "Passi") : t("Cad", "Cad")}</th>
+                  {!isRun && <th className="text-right font-normal">km/h</th>}
                   <th />
                 </tr>
               </thead>
@@ -581,12 +605,13 @@ function AllEfforts({
                       )}
                     </td>
                     <td className="text-right">{formatClock(e.duration)}</td>
-                    <td className="text-right">{r(e.avgWatts, "W")}</td>
-                    <td className="text-right">{e.wkg ? e.wkg.toFixed(2) : "–"}</td>
+                    {!isRun && <td className="text-right">{r(e.avgWatts, "W")}</td>}
+                    {!isRun && <td className="text-right">{e.wkg ? e.wkg.toFixed(2) : "–"}</td>}
+                    {isRun && <td className="text-right">{formatPace(e.speed / 3.6)}</td>}
                     <td className="text-right">{r(e.vam)}</td>
                     <td className="text-right text-fatigue">{r(e.avgHr)}</td>
-                    <td className="text-right">{r(e.avgCad)}</td>
-                    <td className="text-right">{e.speed.toFixed(1)}</td>
+                    <td className="text-right">{r(isRun ? stepsPerMinute(e.avgCad) : e.avgCad)}</td>
+                    {!isRun && <td className="text-right">{e.speed.toFixed(1)}</td>}
                     <td className="text-right">
                       {i > 0 && (
                         <button

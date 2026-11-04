@@ -1,5 +1,5 @@
 // Ghost race: two efforts on the same segment replayed on a shared clock. Pure and browser-safe.
-import type { Attempt, TrackLike } from "./segments";
+import type { Attempt, Trace, TrackLike } from "./segments";
 
 /** One effort as time (s) and distance (m) from its start, with its positions. */
 export type EffortSeries = { t: number[]; d: number[]; lat: number[]; lng: number[] };
@@ -19,7 +19,8 @@ export const duration = (s: EffortSeries) => s.t.at(-1) ?? 0;
 
 /** Index k with xs[k] <= x < xs[k + 1] (xs ascending), clamped to the ends. */
 function bracket(xs: number[], x: number): number {
-  let lo = 0, hi = xs.length - 1;
+  let lo = 0,
+    hi = xs.length - 1;
   if (x <= xs[0]!) return 0;
   if (x >= xs[hi]!) return Math.max(0, hi - 1);
   while (hi - lo > 1) {
@@ -39,7 +40,11 @@ export function atTime(s: EffortSeries, t: number): { d: number; lat: number; ln
   const k = bracket(s.t, tc);
   const span = s.t[k + 1]! - s.t[k]!;
   const f = span > 0 ? (tc - s.t[k]!) / span : 0;
-  return { d: lerp(s.d[k]!, s.d[k + 1]!, f), lat: lerp(s.lat[k]!, s.lat[k + 1]!, f), lng: lerp(s.lng[k]!, s.lng[k + 1]!, f) };
+  return {
+    d: lerp(s.d[k]!, s.d[k + 1]!, f),
+    lat: lerp(s.lat[k]!, s.lat[k + 1]!, f),
+    lng: lerp(s.lng[k]!, s.lng[k + 1]!, f),
+  };
 }
 
 /** Seconds into the effort when the rider reached distance `d` (m from the start). */
@@ -52,10 +57,46 @@ export function timeAtDist(s: EffortSeries, d: number): number {
 }
 
 /** Time gap of b behind a (s; negative = b ahead) every `step` metres along the shorter of the two. */
-export function gapSeries(a: EffortSeries, b: EffortSeries, step = 50): { d: number; gap: number }[] {
+export function gapSeries(
+  a: EffortSeries,
+  b: EffortSeries,
+  step = 50,
+): { d: number; gap: number }[] {
   const end = Math.min(a.d.at(-1) ?? 0, b.d.at(-1) ?? 0);
   const out: { d: number; gap: number }[] = [];
   for (let d = 0; d < end; d += step) out.push({ d, gap: timeAtDist(b, d) - timeAtDist(a, d) });
   if (end > 0) out.push({ d: end, gap: timeAtDist(b, end) - timeAtDist(a, end) });
   return out;
+}
+
+/** An effort's pacing without its positions: what a member shares with a forest, in whole seconds and metres. */
+export type Splits = { t: number[]; d: number[] };
+
+/** At most `n` points of an effort, evenly spaced, ends kept. */
+export function toSplits(s: EffortSeries, n = 160): Splits {
+  const len = s.t.length;
+  const idx =
+    len <= n
+      ? s.t.map((_, i) => i)
+      : Array.from({ length: n }, (_, i) => Math.round((i / (n - 1)) * (len - 1)));
+  return { t: idx.map((i) => Math.round(s.t[i]!)), d: idx.map((i) => Math.round(s.d[i]!)) };
+}
+
+/** An effort rebuilt from its splits on a climb's shared route: everyone rides the same line, start to finish. */
+export function splitsOnTrace(s: Splits, trace: Pick<Trace, "lat" | "lng" | "dist">): EffortSeries {
+  const d0 = trace.dist[0] ?? 0;
+  const total = (trace.dist.at(-1) ?? 0) - d0;
+  const ridden = s.d.at(-1) ?? 0;
+  const scale = ridden > 0 ? total / ridden : 0;
+  const lat: number[] = [];
+  const lng: number[] = [];
+  for (const d of s.d) {
+    const x = d0 + d * scale;
+    const k = bracket(trace.dist, x);
+    const span = (trace.dist[k + 1] ?? x) - trace.dist[k]!;
+    const f = span > 0 ? Math.min(1, Math.max(0, (x - trace.dist[k]!) / span)) : 0;
+    lat.push(lerp(trace.lat[k]!, trace.lat[k + 1] ?? trace.lat[k]!, f));
+    lng.push(lerp(trace.lng[k]!, trace.lng[k + 1] ?? trace.lng[k]!, f));
+  }
+  return { t: s.t, d: s.d, lat, lng };
 }

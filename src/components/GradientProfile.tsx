@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GRADE_STOPS, gradeChunks, gradeColor, gradeRampCss, type Chunk } from "@/lib/profile";
+import {
+  GRADE_STOPS,
+  gradeChunks,
+  gradeColor,
+  gradeRampCss,
+  STEEP_SCALE,
+  type Chunk,
+} from "@/lib/profile";
 import { t } from "@/lib/i18n";
 
 const H = 220;
@@ -16,7 +23,10 @@ export function GradientProfile({
   onHover,
   markers,
   focus,
+  steep = false,
 }: {
+  /** Colours stretched for trails (see STEEP_SCALE). */
+  steep?: boolean;
   dist: number[];
   alt: number[];
   hover?: number | null;
@@ -111,8 +121,8 @@ export function GradientProfile({
             <polygon
               key={i}
               points={`${x(c.from)},${y(c.altFrom)} ${x(c.to)},${y(c.altTo)} ${x(c.to)},${bottom} ${x(c.from)},${bottom}`}
-              fill={gradeColor(c.grade)}
-              stroke={gradeColor(c.grade)}
+              fill={gradeColor(c.grade / (steep ? STEEP_SCALE : 1))}
+              stroke={gradeColor(c.grade / (steep ? STEEP_SCALE : 1))}
               strokeWidth={0.6}
             />
           ))}
@@ -254,7 +264,7 @@ export function GradientProfile({
               className="absolute -translate-x-1/2 first:translate-x-0 last:-translate-x-full"
               style={{ left: `${(g / GRADE_STOPS.at(-1)![0]) * 100}%` }}
             >
-              {g}
+              {g * (steep ? STEEP_SCALE : 1)}
               {i === GRADE_STOPS.length - 1 ? "%+" : "%"}
             </span>
           ))}
@@ -278,11 +288,12 @@ function lineAlt(chunks: Chunk[], d: number): number {
 export function gradientLines(
   t: { lat: number[]; lng: number[]; dist: number[]; alt: number[] },
   focus?: { i0: number; i1: number } | null,
+  steep = false,
 ) {
   const lines = gradeChunks(t.dist, t.alt).map((c) => ({
     lat: t.lat.slice(c.i0, c.i1 + 1),
     lng: t.lng.slice(c.i0, c.i1 + 1),
-    color: gradeColor(c.grade),
+    color: gradeColor(c.grade / (steep ? STEEP_SCALE : 1)),
     weight: 6,
     opacity: focus && (c.i1 <= focus.i0 || c.i0 >= focus.i1) ? 0.35 : 1,
   }));

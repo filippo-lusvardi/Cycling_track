@@ -32,6 +32,8 @@ export type TreeHeader = {
   since?: string | null;
   /** Kilometres ridden in all (every ride, shared or not): with the age, how tall the tree stands. */
   km?: number | null;
+  /** The sport this tree grows from; missing means cycling. */
+  sport?: "run";
   /** Sick / injured stretches, for knots in the bark. */
   off: { start: string; end: string; kind: "SICK" | "INJURED" }[];
   updatedAt: number;

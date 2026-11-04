@@ -1,19 +1,23 @@
 import { Link } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
-import { ArrowLeft, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeft, Swords, Trash2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { RaceReplay } from "@/components/GhostRace";
 import { GradientProfile, gradientLines } from "@/components/GradientProfile";
-import { RouteMap } from "@/components/RouteMap";
+import { RouteMap, type MapLine, type MapPin } from "@/components/RouteMap";
 import { Panel, StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
-import type { Forest, Member } from "@/lib/forest/forests";
-import type { ForestClimb, ForestTime } from "@/lib/forest/leaderboard";
+import { forestSport, type Forest, type Member } from "@/lib/forest/forests";
+import { racePair, type ForestClimb, type ForestTime } from "@/lib/forest/leaderboard";
 import { RIDE_PAGE_DAYS } from "@/lib/forest/rides";
+import { splitsOnTrace } from "@/lib/ghost";
 import { format, t } from "@/lib/i18n";
 import { gradeChunks, maxGrade } from "@/lib/profile";
+import type { Trace } from "@/lib/segments";
 import { addDays, formatClock, isoDate } from "@/lib/training";
 import { cn } from "@/lib/utils";
+import { sportWords } from "@/lib/sport";
 
 /** A forest climb's page: like one's own climb page, with the forest's leaderboard instead of one's efforts. */
 export function ForestClimbView({
@@ -22,7 +26,7 @@ export function ForestClimbView({
   forest,
   climb,
   members,
-  times,
+  times: allTimes,
   onRemove,
 }: {
   fid: string;
@@ -34,6 +38,13 @@ export function ForestClimbView({
   onRemove: () => void;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  // The board is the forest's sport; until a member's app has republished, an older time of the other may be there.
+  const sport = forest ? forestSport(forest) : "ride";
+  const w = sportWords(sport);
+  const times = useMemo(
+    () => allTimes.filter((x) => (x.sport ?? "ride") === sport),
+    [allTimes, sport],
+  );
   const trace = climb?.trace ?? null;
   const lines = useMemo(() => (trace ? gradientLines(trace) : []), [trace]);
   const steepest = useMemo(
@@ -42,6 +53,26 @@ export function ForestClimbView({
   );
   const names = new Map(members.map((m) => [m.uid, m.name]));
   const me = auth.currentUser?.uid;
+  // Race: two of the board's times, for those published with their pacing. `n` restarts it on a new pick.
+  const [race, setRace] = useState<{ a: string; b: string; n: number } | null>(null);
+  const routeRef = useRef<HTMLDivElement>(null);
+  const racers = useMemo(() => (trace ? times.filter((x) => x.splits) : []), [times, trace]);
+  const raceable = racers.length > 1;
+  // A rider who leaves the board mid-race ends it.
+  const liveRace =
+    race && racers.some((x) => x.uid === race.a) && racers.some((x) => x.uid === race.b)
+      ? race
+      : null;
+  const startRace = (picked?: string) => {
+    const pair = racePair(
+      racers.map((x) => x.uid),
+      me,
+      picked,
+    );
+    if (!pair) return;
+    setRace({ ...pair, n: Date.now() });
+    routeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const back = (
     <Link
       to="/forest/$fid"
@@ -123,34 +154,67 @@ export function ForestClimbView({
       </div>
 
       {trace && (
-        <Panel title={t("Route", "Percorso")}>
-          <div className="space-y-3">
-            <RouteMap
-              fitKey={sid}
-              lines={lines}
-              pins={[
-                {
-                  lat: trace.lat[0]!,
-                  lng: trace.lng[0]!,
-                  color: "var(--pine)",
-                  label: t("Start", "Partenza"),
-                },
-                {
-                  lat: trace.lat.at(-1)!,
-                  lng: trace.lng.at(-1)!,
-                  color: "var(--lingon)",
-                  label: t("Finish", "Arrivo"),
-                },
-              ]}
-              cursor={hover != null ? { lat: trace.lat[hover]!, lng: trace.lng[hover]! } : null}
-            />
-            <GradientProfile dist={trace.dist} alt={trace.alt} hover={hover} onHover={setHover} />
-          </div>
-        </Panel>
+        <div ref={routeRef} className="scroll-mt-20">
+          <Panel
+            title={t("Route", "Percorso")}
+            action={
+              !liveRace && raceable ? (
+                <Button size="sm" variant="secondary" onClick={() => startRace()}>
+                  <Swords /> {t("Race", "Sfida")}
+                </Button>
+              ) : undefined
+            }
+          >
+            {liveRace ? (
+              <ForestRace
+                key={liveRace.n}
+                racers={racers}
+                initialA={liveRace.a}
+                initialB={liveRace.b}
+                names={names}
+                me={me}
+                trace={trace}
+                lines={lines}
+                pins={pins(trace)}
+                onClose={() => setRace(null)}
+              />
+            ) : (
+              <div className="space-y-3">
+                <RouteMap
+                  fitKey={sid}
+                  lines={lines}
+                  pins={pins(trace)}
+                  cursor={hover != null ? { lat: trace.lat[hover]!, lng: trace.lng[hover]! } : null}
+                />
+                <GradientProfile
+                  dist={trace.dist}
+                  alt={trace.alt}
+                  hover={hover}
+                  onHover={setHover}
+                />
+              </div>
+            )}
+          </Panel>
+        </div>
       )}
 
       <Panel title={t("Leaderboard", "Classifica")}>
-        <Leaderboard fid={fid} sid={sid} times={times} names={names} me={me} />
+        <Leaderboard
+          fid={fid}
+          sid={sid}
+          times={times}
+          names={names}
+          me={me}
+          onRace={raceable ? startRace : undefined}
+        />
+        {trace && times.length > 1 && racers.length < times.length && (
+          <p className="pt-3 text-xs text-muted-foreground">
+            {t(
+              `A time can be raced once its owner opens the updated app with that ${w.ride} still on their device.`,
+              `Un tempo si può sfidare quando il suo autore apre l'app aggiornata con ${sport === "run" ? "quella corsa" : "quell'uscita"} ancora sul dispositivo.`,
+            )}
+          </p>
+        )}
       </Panel>
 
       {canRemove && (
@@ -164,6 +228,70 @@ export function ForestClimbView({
   );
 }
 
+const pins = (trace: Trace): MapPin[] => [
+  {
+    lat: trace.lat[0]!,
+    lng: trace.lng[0]!,
+    color: "var(--pine)",
+    label: t("Start", "Partenza"),
+  },
+  {
+    lat: trace.lat.at(-1)!,
+    lng: trace.lng.at(-1)!,
+    color: "var(--lingon)",
+    label: t("Finish", "Arrivo"),
+  },
+];
+
+/** Two members' best times replayed on the climb's route, from the pacing each one published. */
+function ForestRace({
+  racers,
+  initialA,
+  initialB,
+  names,
+  me,
+  trace,
+  lines,
+  pins,
+  onClose,
+}: {
+  racers: ForestTime[];
+  initialA: string;
+  initialB: string;
+  names: Map<string, string>;
+  me: string | undefined;
+  trace: Trace;
+  lines: MapLine[];
+  pins: MapPin[];
+  onClose: () => void;
+}) {
+  const [aKey, setAKey] = useState(initialA);
+  const [bKey, setBKey] = useState(initialB);
+  const series = useMemo(
+    () =>
+      new Map(racers.flatMap((x) => (x.splits ? [[x.uid, splitsOnTrace(x.splits, trace)]] : []))),
+    [racers, trace],
+  );
+  return (
+    <RaceReplay
+      a={series.get(aKey) ?? null}
+      b={series.get(bKey) ?? null}
+      aKey={aKey}
+      bKey={bKey}
+      onPickA={setAKey}
+      onPickB={setBKey}
+      options={racers.map((x) => ({
+        key: x.uid,
+        label: `${names.get(x.uid) ?? "…"}${x.uid === me ? ` ${t("(you)", "(tu)")}` : ""} · ${formatClock(x.duration)}`,
+      }))}
+      trace={trace}
+      lines={lines}
+      pins={pins}
+      onClose={onClose}
+    />
+  );
+}
+
 /**
  * Everyone's best time from the rides they share here, fastest first; mine highlighted. Each opens its ride: mine my
  * own ride page, a friend's the page they share with the forest (published for the last year's rides only).
@@ -174,19 +302,22 @@ function Leaderboard({
   times,
   names,
   me,
+  onRace,
 }: {
   fid: string;
   sid: string;
   times: ForestTime[];
   names: Map<string, string>;
   me: string | undefined;
+  /** Race this member's time; missing while fewer than two times can be raced. */
+  onRace: ((uid: string) => void) | undefined;
 }) {
   if (!times.length)
     return (
       <p className="py-4 text-center text-sm text-muted-foreground">
         {t(
-          "No times yet: they appear once members' apps find an effort in a ride they share here.",
-          "Ancora nessun tempo: compaiono quando l'app dei membri trova un passaggio in un'uscita condivisa qui.",
+          "No times yet: they appear once members' apps find an effort in an activity they share here.",
+          "Ancora nessun tempo: compaiono quando l'app dei membri trova un passaggio in un'attività condivisa qui.",
         )}
       </p>
     );
@@ -226,10 +357,10 @@ function Leaderboard({
             </span>
           </>
         );
-        const cls = cn("flex items-center gap-3 px-4 py-3", x.uid === me && "bg-primary/5");
+        const cls = "flex min-w-0 flex-1 items-center gap-3 px-4 py-3";
         const link = cn(cls, "hover:bg-secondary/40");
         return (
-          <li key={x.uid}>
+          <li key={x.uid} className={cn("flex items-center", x.uid === me && "bg-primary/5")}>
             {x.uid === me ? (
               <Link to="/rides/$id" params={{ id: x.rideId }} className={link}>
                 {row}
@@ -246,6 +377,21 @@ function Leaderboard({
             ) : (
               <div className={cls}>{row}</div>
             )}
+            {onRace &&
+              (x.splits ? (
+                <button
+                  aria-label={t(
+                    `Race ${names.get(x.uid) ?? ""}`.trim(),
+                    `Sfida ${names.get(x.uid) ?? ""}`.trim(),
+                  )}
+                  onClick={() => onRace(x.uid)}
+                  className="mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground active:bg-secondary/60"
+                >
+                  <Swords className="h-5 w-5" />
+                </button>
+              ) : (
+                <span className="mr-2 w-11 shrink-0" />
+              ))}
           </li>
         );
       })}
