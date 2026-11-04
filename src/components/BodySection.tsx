@@ -230,8 +230,8 @@ function LogForm({
     } catch {
       toast.error(
         t(
-          "Couldn't save — check the values and try again",
-          "Salvataggio non riuscito — controlla i valori e riprova",
+          "Couldn't save. Check the values and try again",
+          "Impossibile salvare. Controlla i valori e riprova",
         ),
       );
     } finally {

@@ -124,7 +124,7 @@ export function lapIntervals(laps: Rec[], t0: number, tEnd: number): ParsedRide[
     const secs = num(l["totalElapsedTime"]) ?? num(l["totalTimerTime"]) ?? 0;
     return {
       id: i + 1,
-      label: t(`Lap ${i + 1}`, `Giro ${i + 1}`),
+      label: t(`Lap ${i + 1}`, `Lap ${i + 1}`),
       type: null,
       moving_time: num(l["totalTimerTime"]),
       average_watts: num(l["avgPower"]),

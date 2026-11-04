@@ -138,8 +138,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       {
         title: byMain(
-          t("Cirmolo — Cycling Training", "Cirmolo — Allenamento ciclismo"),
-          t("Cirmolo — Running Training", "Cirmolo — Allenamento corsa"),
+          t("Cirmolo — Cycling Training", "Cirmolo — Allenamento di ciclismo"),
+          t("Cirmolo — Running Training", "Cirmolo — Allenamento di corsa"),
         ),
       },
     ],

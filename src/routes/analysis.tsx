@@ -110,7 +110,7 @@ function Analysis() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">
-            {body ? t("Last 180 days", "Ultimi 180 giorni") : t("Performance", "Prestazione")}
+            {body ? t("Last 180 days", "Ultimi 180 giorni") : t("Performance", "Performance")}
           </div>
           <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Analysis", "Analisi")}</h1>
         </div>
@@ -250,7 +250,7 @@ function PowerSection() {
         action={
           rides.length > 0 && (
             <select
-              aria-label={t("Compare ride", "Confronta attività")}
+              aria-label={t("Compare ride", "Confronta uscita")}
               value={ride?.id ?? ""}
               onChange={(e) => setRideId(e.target.value || null)}
               className="h-8 max-w-[11rem] rounded-md border border-input bg-transparent px-2 text-xs"
@@ -346,7 +346,7 @@ function PowerSection() {
                 />
                 {rideMmp && (
                   <Line
-                    name={t("Selected ride", "Attività selezionata")}
+                    name={t("Selected ride", "Uscita selezionata")}
                     dataKey="ride"
                     stroke="var(--pine)"
                     strokeWidth={1.5}
@@ -377,7 +377,7 @@ function PowerSection() {
           <p className="mt-2 text-xs text-muted-foreground">
             {t(
               "Shaded: what W′ adds on top of CP. Short efforts lean on it, long ones are mostly CP.",
-              "In ombra: quanto W′ aggiunge sopra la CP. Gli sforzi brevi ci si appoggiano, quelli lunghi sono quasi solo CP.",
+              "Area ombreggiata: quanto W′ aggiunge sopra la CP. Gli sforzi brevi dipendono da W′, quelli lunghi quasi solo dalla CP.",
             )}
           </p>
         )}
@@ -396,21 +396,21 @@ function DurabilitySection() {
     strong: {
       text: t(
         "Holds power well late in long rides.",
-        "Tiene bene la potenza nel finale delle uscite lunghe.",
+        "Tieni bene la potenza nel finale delle uscite lunghe.",
       ),
       tone: "text-pine",
     },
     average: {
       text: t(
         "Loses some power late in long rides.",
-        "Perde un po' di potenza nel finale delle uscite lunghe.",
+        "Perdi un po' di potenza nel finale delle uscite lunghe.",
       ),
       tone: "text-fitness",
     },
     fades: {
       text: t(
         "Fades late in long rides: long Z2 rides and fuelling build durability.",
-        "Cala nel finale delle uscite lunghe: fondo lungo in Z2 e alimentazione costruiscono la resistenza.",
+        "Cali nel finale delle uscite lunghe: fondo lungo in Z2 e alimentazione costruiscono la durability.",
       ),
       tone: "text-birch",
     },
@@ -419,7 +419,7 @@ function DurabilitySection() {
     <Panel
       title={t(
         `Durability · rides ≥ 2 h, last ${DURABILITY_DAYS} days`,
-        `Resistenza alla fatica · uscite ≥ 2 h, ultimi ${DURABILITY_DAYS} giorni`,
+        `Durability · uscite ≥ 2 h, ultimi ${DURABILITY_DAYS} giorni`,
       )}
     >
       {isLoading ? (
@@ -435,7 +435,7 @@ function DurabilitySection() {
           {data.missingWeight
             ? t(
                 "Log your weight on the Body page: durability is measured per kg.",
-                "Registra il peso nella pagina Corpo: la resistenza si misura per kg.",
+                "Registra il peso nella pagina Corpo: la durability si misura per kg.",
               )
             : t(
                 "No ride of 2 hours or more with power yet.",
@@ -446,8 +446,8 @@ function DurabilitySection() {
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             {t(
-              `Your best power once you'd already done 15, 30 or 45 kJ per kg of work, from ${data.rides} rides. The smaller the drop from fresh, the more you have left for the finale.`,
-              `La tua potenza migliore dopo aver già svolto 15, 30 o 45 kJ per kg di lavoro, da ${data.rides} uscite. Più piccolo il calo rispetto a fresco, più ne hai per il finale.`,
+              `Your best power once you'd already done 15, 30 or 45 kJ per kg of work, from ${data.rides} ${data.rides === 1 ? "ride" : "rides"}. The smaller the drop from fresh, the more you have left for the finale.`,
+              `La tua potenza migliore dopo aver già svolto 15, 30 o 45 kJ per kg di lavoro, su ${data.rides} ${data.rides === 1 ? "uscita" : "uscite"}. Meno cala rispetto a fresco, più ne hai per il finale.`,
             )}
           </p>
           {/* Fits a phone without scrolling: short column heads, the drop under each value. */}
@@ -508,8 +508,8 @@ function DurabilitySection() {
           {data.missingWeight > 0 && (
             <p className="text-xs text-muted-foreground">
               {t(
-                `${data.missingWeight} rides skipped: no weight logged before them.`,
-                `${data.missingWeight} uscite escluse: nessun peso registrato prima.`,
+                `${data.missingWeight} ${data.missingWeight === 1 ? "ride" : "rides"} skipped: no weight logged before ${data.missingWeight === 1 ? "it" : "them"}.`,
+                `${data.missingWeight} ${data.missingWeight === 1 ? "uscita esclusa" : "uscite escluse"}: nessun peso registrato prima.`,
               )}
             </p>
           )}
@@ -605,7 +605,7 @@ function DecouplingSection() {
     <Panel
       title={t(
         "Aerobic decoupling (Pw:HR) · steady rides ≥ 1 h",
-        "Disaccoppiamento aerobico (Pw:FC) · attività regolari ≥ 1 h",
+        "Decoupling (Pw:HR) · uscite regolari ≥ 1 h",
       )}
     >
       <p className="mb-3 text-sm text-muted-foreground">
@@ -638,7 +638,7 @@ function DecouplingSection() {
               contentStyle={tip}
               formatter={(v, n) =>
                 n === "d"
-                  ? [`${Number(v).toFixed(1)}%`, t("Decoupling", "Disaccoppiamento")]
+                  ? [`${Number(v).toFixed(1)}%`, t("Decoupling", "Decoupling")]
                   : [format(Number(v), "d MMM"), t("Date", "Data")]
               }
             />
@@ -654,8 +654,8 @@ function DecouplingSection() {
         aria-expanded={showRides}
       >
         {showRides
-          ? t(`Hide the ${recent.length} rides`, `Nascondi le ${recent.length} attività`)
-          : t(`Show the ${recent.length} rides`, `Mostra le ${recent.length} attività`)}
+          ? t(`Hide rides (${recent.length})`, `Nascondi uscite (${recent.length})`)
+          : t(`Show rides (${recent.length})`, `Mostra uscite (${recent.length})`)}
         <ChevronDown className={cn("transition-transform", showRides && "rotate-180")} />
       </Button>
       {showRides && (
@@ -738,7 +738,7 @@ function ZonesSection() {
             tone="fatigue"
           />
           <StatCard
-            label={t("Pattern", "Modello")}
+            label={t("Pattern", "Pattern")}
             value={<span className="font-sans text-lg leading-tight">{distributionLabel(f)}</span>}
             hint={
               pi != null

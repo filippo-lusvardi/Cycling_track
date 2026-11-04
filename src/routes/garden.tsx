@@ -307,8 +307,8 @@ function BedSheet({
       onOpenChange={(o) => !o && onClose()}
       title={found?.name ?? ""}
       description={t(
-        `Last ${weeks} weeks: ${plants.length} sessions · ${formatDuration(minutes * 60)}${km >= 1 ? ` · ${Math.round(km)} km` : ""}`,
-        `Ultime ${weeks} settimane: ${plants.length} sessioni · ${formatDuration(minutes * 60)}${km >= 1 ? ` · ${Math.round(km)} km` : ""}`,
+        `Last ${weeks} weeks: ${plants.length} ${plants.length === 1 ? "session" : "sessions"} · ${formatDuration(minutes * 60)}${km >= 1 ? ` · ${Math.round(km)} km` : ""}`,
+        `Ultime ${weeks} settimane: ${plants.length} ${plants.length === 1 ? "seduta" : "sedute"} · ${formatDuration(minutes * 60)}${km >= 1 ? ` · ${Math.round(km)} km` : ""}`,
       )}
     >
       <ul className="-mx-2 divide-y divide-border">

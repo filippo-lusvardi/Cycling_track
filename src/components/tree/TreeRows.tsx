@@ -176,11 +176,11 @@ function offRuns(days: TreeDay[]): [number, number][] {
 function offWord(n: number, kind: OffKind): string {
   return kind === "SICK"
     ? n === 1
-      ? t("sick", "malato")
-      : t(`${n} days sick`, `${n} giorni malato`)
+      ? t("sick", "malattia")
+      : t(`${n} days sick`, `${n} giorni di malattia`)
     : n === 1
-      ? t("injured", "infortunato")
-      : t(`${n} days injured`, `${n} giorni infortunato`);
+      ? t("injured", "infortunio")
+      : t(`${n} days injured`, `${n} giorni di infortunio`);
 }
 
 /** Leaf colour: the activity's intensity, or a muted kind colour when there's no power data. */
@@ -585,7 +585,7 @@ export function MonthRow({
             fill="var(--fitness)"
             className="stat-num"
           >
-            {t("fitness", "forma")} {Math.round(ctl)}
+            {t("fitness", "fitness")} {Math.round(ctl)}
           </text>
         )}
       </svg>
@@ -634,7 +634,7 @@ export function WeekRow({
     quiet ? null : String(Math.round(week.load)),
     chapterStart && week.chapter !== "steady"
       ? week.chapter === "build"
-        ? t("building", "costruzione")
+        ? t("building", "carico")
         : t("resting", "scarico")
       : null,
   ];
@@ -642,7 +642,7 @@ export function WeekRow({
     <Slice
       h={WEEK_H}
       label={t(
-        `Week ${weekRange(week.start, week.end)}: ${week.count} activities`,
+        `Week ${weekRange(week.start, week.end)}: ${week.count} ${week.count === 1 ? "activity" : "activities"}`,
         `Settimana ${weekRange(week.start, week.end)}: ${week.count} attività`,
       )}
       onOpen={onOpen}
@@ -674,7 +674,7 @@ export function WeekRow({
                   )
                 : week.off
                   ? offWord(week.off.days, week.off.kind)
-                  : t("rest week", "settimana di riposo")
+                  : t("rest week", "settimana di scarico")
           }
         />
       </svg>

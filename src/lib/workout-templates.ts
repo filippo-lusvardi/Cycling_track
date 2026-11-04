@@ -23,12 +23,12 @@ export const kindLabel = (kind: WorkoutKind, sport: MainSport): string =>
   ({
     recovery: t("Recovery", "Recupero"),
     endurance: t("Endurance", "Fondo"),
-    tempo: sport === "run" ? "Tempo" : t("Tempo & sweet spot", "Tempo e sweet spot"),
+    tempo: sport === "run" ? t("Tempo", "Medio") : t("Tempo & sweet spot", "Tempo e sweet spot"),
     threshold: t("Threshold", "Soglia"),
     vo2: sport === "run" ? "VO2max" : t("VO2max & race", "VO2max e gara"),
     anaerobic:
       sport === "run" ? t("Speed", "Velocità") : t("Sprint & anaerobic", "Sprint e anaerobico"),
-    extreme: t("Psycho", "Psicopatici"),
+    extreme: t("Psycho", "Psycho"),
     warmup: t("Warm-ups & openers", "Riscaldamenti e attivazioni"),
   })[kind];
 
@@ -129,7 +129,7 @@ const RUN: WorkoutTemplate[] = [
   {
     id: "w-easy",
     kind: "endurance",
-    name: () => t("Easy 45 minutes", "Corsa facile 45 minuti"),
+    name: () => t("Easy 45 minutes", "Lento 45 minuti"),
     focus: "base",
     text: () => "Main set\n- 45m 75% Pace",
   },
@@ -143,7 +143,7 @@ const RUN: WorkoutTemplate[] = [
   {
     id: "w-strides",
     kind: "endurance",
-    name: () => t("Easy with strides", "Facile con allunghi"),
+    name: () => t("Easy with strides", "Lento con allunghi"),
     focus: "base",
     text: () =>
       "Main set\n- 35m 75% Pace\n\nStrides 6x\n- 20s 110% Pace\n- 1m40 65% Pace\n\nCooldown\n- 5m 70% Pace",
@@ -182,7 +182,7 @@ const RUN: WorkoutTemplate[] = [
   {
     id: "w-hills",
     kind: "vo2",
-    name: () => t("Hills 8 x 90 s", "Salite 8 x 90 s"),
+    name: () => t("Hills 8 x 90 s", "Ripetute in salita 8 x 90 s"),
     focus: "vo2",
     text: () =>
       "Warmup\n- 15m 75% Pace\n\nUphill 8x\n- 1m30 Z5 Pace\n- 2m30 Z1 Pace\n\nCooldown\n- 10m 70% Pace",
@@ -201,7 +201,7 @@ const RUN: WorkoutTemplate[] = [
 const stepsIn = (steps: string) =>
   steps
     .replaceAll("{aero}", "Aero")
-    .replaceAll("{up}", t("Sit up", "Seduto"))
+    .replaceAll("{up}", t("Sit up", "Busto alto"))
     .replaceAll("{cadence}", t("High cadence", "Agilità"));
 
 const LIBRARY: WorkoutTemplate[] = WORKOUT_LIBRARY.map((w) => ({

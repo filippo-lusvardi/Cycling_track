@@ -136,11 +136,11 @@ function AddClimb({
     <Panel title={t("Add one of my climbs", "Aggiungi una mia salita")}>
       {choices.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {t("Star a climb on the ", "Aggiungi ai preferiti una salita nella pagina ")}
+          {t("Star a climb on the ", "Prima aggiungi ai preferiti una salita nella pagina ")}
           <Link to="/segments" className="underline">
             {t("Segments", "Segmenti")}
           </Link>
-          {t(" page first.", " prima.")}
+          {t(" page first.", ".")}
         </p>
       ) : (
         <ul className="max-h-48 divide-y sm:max-h-72 divide-border overflow-y-auto">

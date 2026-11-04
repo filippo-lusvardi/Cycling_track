@@ -99,8 +99,8 @@ export function TreeSheet({
 }
 
 const OFF_LABEL: Record<OffKind, string> = {
-  SICK: t("Sick", "Malato"),
-  INJURED: t("Injured", "Infortunato"),
+  SICK: t("Sick", "Malattia"),
+  INJURED: t("Injured", "Infortunio"),
 };
 
 /** Writes a sick/injured change to the intervals.icu calendar; needs the network (events aren't queued offline). */
@@ -110,7 +110,10 @@ function useOffChange() {
   const run = async (kind: OffKind, c: OffChange) => {
     if (!navigator.onLine) {
       toast.error(
-        t("You're offline: try again when connected", "Sei offline: riprova quando sei connesso"),
+        t(
+          "You're offline: try again when connected",
+          "Sei offline: riprova appena torna la connessione",
+        ),
       );
       return;
     }
@@ -124,7 +127,7 @@ function useOffChange() {
         t("Saved to the intervals.icu calendar", "Salvato nel calendario di intervals.icu"),
       );
     } catch {
-      toast.error(t("Couldn't save. Try again", "Salvataggio non riuscito. Riprova"));
+      toast.error(t("Couldn't save. Try again", "Impossibile salvare. Riprova"));
     } finally {
       setBusy(false);
     }
@@ -171,9 +174,9 @@ function TodayBody({
           {checkIn
             ? t(
                 "Not enough data for today yet. Do the check-in to get advice.",
-                "Non ci sono ancora abbastanza dati per oggi. Fai il check-in per avere un consiglio.",
+                "Dati ancora insufficienti per oggi. Fai il check-in per avere un consiglio.",
               )
-            : t("Not enough data for today yet.", "Non ci sono ancora abbastanza dati per oggi.")}
+            : t("Not enough data for today yet.", "Dati ancora insufficienti per oggi.")}
         </p>
       )}
       {crown.signals.length > 0 && <WatchCard crown={crown} />}
@@ -204,8 +207,8 @@ function TodayBody({
       <section className="space-y-2">
         <h3 className="text-sm font-medium text-muted-foreground">
           {byMain(
-            t("Not riding today because you're…", "Oggi non pedali perché sei…"),
-            t("Not running today because you're…", "Oggi non corri perché sei…"),
+            t("Not riding today because you're…", "Oggi non pedali per…"),
+            t("Not running today because you're…", "Oggi non corri per…"),
           )}
         </h3>
         <div className="grid grid-cols-2 gap-2">
@@ -242,7 +245,7 @@ function Fact({ label, value, wide }: { label: string; value: string; wide?: boo
 /** What to bring for the longest suggested session: brioches for the carbs the guidelines ask for. */
 function fuelText(minutes: number, intensity: number) {
   const g = intakeTarget(minutes * 60, intensity).grams;
-  if (!g) return t("Nothing needed", "Niente");
+  if (!g) return t("Nothing needed", "Non serve niente");
   const n = Math.max(1, briochesFor(g));
   return t(
     `${n} brioche${n > 1 ? "s" : ""} (~${Math.round(g)} g)`,
@@ -293,8 +296,8 @@ function PlanCard({
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {crown.estimated
-              ? t("readiness, estimated", "prontezza, stimata")
-              : t("readiness", "prontezza")}
+              ? t("readiness, estimated", "readiness, stimata")
+              : t("readiness", "readiness")}
           </div>
         </div>
       </div>
@@ -303,8 +306,8 @@ function PlanCard({
           ? roleText(focus.role, mainSport())
           : quality
             ? t(
-                "You're ready for intensity: do this block's session.",
-                "Sei pronto per l'intensità: fai la seduta del blocco.",
+                "It's a day for intensity: do this block's session.",
+                "Giornata da intensità: fai la seduta del blocco.",
               )
             : rec.text}
       </p>
@@ -359,7 +362,7 @@ function WatchCard({ crown }: { crown: ReturnType<typeof crownFor> }) {
               t(
                 byMain("Easy rides", "Easy runs") +
                   " count too: fatigue builds with volume, not only intensity. Today's advice stays capped until it settles.",
-                `Contano anche ${byMain("le uscite facili", "le corse facili")}: la fatica cresce col volume, non solo con l'intensità. Il consiglio di oggi resta limitato finché non si assesta.`,
+                `Contano anche ${byMain("le uscite facili", "le corse lente")}: la fatica cresce col volume, non solo con l'intensità. Il consiglio di oggi resta limitato finché non si assesta.`,
               ),
               crown.load.returning
                 ? t(
@@ -370,7 +373,7 @@ function WatchCard({ crown }: { crown: ReturnType<typeof crownFor> }) {
             ].join("")
           : t(
               "These show up before readiness drops. An easier day or two now protects the weeks ahead.",
-              "Si vedono prima che la prontezza cali. Un giorno o due più leggeri ora proteggono le settimane a venire.",
+              "Si vedono prima che la readiness cali. Un giorno o due più leggeri ora proteggono le settimane a venire.",
             )}
       </p>
     </section>
@@ -424,17 +427,17 @@ function ScoreDetails({
         {crown.confidence === "high"
           ? checkInOn()
             ? t(
-                "Each part is measured against your own normal: HRV against your 60-day range, sleep against your usual, answers against how you usually answer.",
-                "Ogni parte è misurata rispetto al tuo normale: HRV sul tuo intervallo di 60 giorni, sonno sul tuo solito, risposte su come rispondi di solito.",
+                "Each part is compared with your own normal: HRV with your 60-day range, sleep with your usual, answers with how you usually answer.",
+                "Ogni parte è confrontata con il tuo normale: HRV con il suo intervallo di 60 giorni, sonno con il tuo solito, risposte con come rispondi di solito.",
               )
             : t(
-                "Each part is measured against your own normal: HRV against your 60-day range, sleep against your usual.",
-                "Ogni parte è misurata rispetto al tuo normale: HRV sul tuo intervallo di 60 giorni, sonno sul tuo solito.",
+                "Each part is compared with your own normal: HRV with your 60-day range, sleep with your usual.",
+                "Ogni parte è confrontata con il tuo normale: HRV con il suo intervallo di 60 giorni, sonno con il tuo solito.",
               )
           : crown.confidence === "medium"
             ? t(
                 "Fair confidence: some parts are still learning your normal (HRV needs 14 readings in 60 days, sleep 10 nights).",
-                "Affidabilità discreta: alcune parti stanno ancora imparando il tuo normale (l'HRV serve 14 letture in 60 giorni, il sonno 10 notti).",
+                "Affidabilità discreta: alcune parti stanno ancora imparando il tuo normale (per l'HRV servono 14 letture in 60 giorni, per il sonno 10 notti).",
               )
             : checkInOn()
               ? t(
@@ -493,10 +496,7 @@ function FocusPanel({ focus, quality }: { focus: FocusInfo; quality: boolean }) 
         {!quality && (
           <div className="rounded-lg bg-secondary/60 p-3">
             <div className="text-xs text-muted-foreground">
-              {t(
-                "Its session, on a day you're ready for intensity",
-                "La sua seduta, in un giorno pronto per l'intensità",
-              )}
+              {t("Its session, on days for intensity", "La sua seduta, nei giorni da intensità")}
             </div>
             <p className="mt-1 text-[15px] leading-relaxed">{focus.session}</p>
           </div>
@@ -576,7 +576,7 @@ function dayFacts(w: Wellness | undefined): [string, string][] {
   const tsb = w.ctl != null && w.atl != null ? computeForm(w.ctl, w.atl) : null;
   const tsbPct = w.ctl != null && w.atl != null ? formPercent(w.ctl, w.atl) : null;
   const facts: [string, string | false | null][] = [
-    [t("Fitness", "Forma fisica"), w.ctl != null && String(Math.round(w.ctl))],
+    [t("Fitness", "Fitness"), w.ctl != null && String(Math.round(w.ctl))],
     [
       t("Form", "Forma"),
       tsb != null &&
@@ -601,7 +601,7 @@ function OffLine({ e, wellness }: { e: PlannedEvent; wellness: Wellness[] }) {
         <span className="text-base font-semibold">{offTitle(kind, e.date, last)}</span>
         {from != null && to != null && (
           <span className="stat-num text-sm text-muted-foreground">
-            {t("Fitness", "Forma fisica")} {Math.round(from)} → {Math.round(to)}
+            {t("Fitness", "Fitness")} {Math.round(from)} → {Math.round(to)}
           </span>
         )}
       </div>
@@ -612,8 +612,8 @@ function OffLine({ e, wellness }: { e: PlannedEvent; wellness: Wellness[] }) {
               "Un calo dopo una malattia è normale; riparti con qualche giorno facile.",
             )
           : t(
-              "Fitness waits for you; let the injury heal before it asks for load.",
-              "La forma ti aspetta; lascia guarire l'infortunio prima di caricarlo.",
+              "Fitness waits for you; let the injury heal before adding load.",
+              "Il fitness ti aspetta; prima lascia guarire l'infortunio.",
             )}
       </p>
     </div>
@@ -665,8 +665,8 @@ function DaysBody({
               onClick={() => change(k, { op: "create", start: first, last })}
             >
               {k === "SICK"
-                ? t("Mark as sick", "Segna come malato")
-                : t("Mark as injured", "Segna come infortunato")}
+                ? t("Mark as sick", "Segna malattia")
+                : t("Mark as injured", "Segna infortunio")}
             </Button>
           ))}
         </div>

@@ -173,14 +173,14 @@ function CalendarPage() {
               : format(anchor, "MMMM yyyy")}
           </h1>
         </div>
-        <div className="flex w-full items-center gap-1 md:w-auto">
+        <div className="flex w-full flex-wrap items-center gap-1 md:w-auto">
           <div className="mr-auto flex gap-1 rounded-lg bg-secondary p-1 md:hidden">
             {(["week", "month"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(() => v)}
                 className={cn(
-                  "min-h-8 rounded-md px-3 text-xs",
+                  "min-h-8 rounded-md px-2 text-xs sm:px-3",
                   view === v ? "bg-background text-foreground" : "text-muted-foreground",
                 )}
               >
@@ -225,7 +225,7 @@ function CalendarPage() {
               <ChevronRight />
             </Link>
           </Button>
-          <Button size="sm" className="ml-2" onClick={() => setLogging(true)}>
+          <Button size="sm" className="sm:ml-2" onClick={() => setLogging(true)}>
             <Plus />
             <span className="hidden sm:inline">{t("Log workout", "Registra allenamento")}</span>
             <span className="sm:hidden">{t("Log", "Registra")}</span>
@@ -303,7 +303,7 @@ function CalendarPage() {
                 <span>
                   {w.totals
                     ? `${Math.round(w.totals.load)} TSS · ${w.totals.hours.toFixed(1)} h · ${Math.round(w.totals.km)} km · ${Math.round(w.totals.elevation)} m`
-                    : t("rest week", "settimana di riposo")}
+                    : t("rest week", "settimana di scarico")}
                 </span>
               </div>
               <div className="divide-y divide-border">
@@ -349,7 +349,7 @@ function CalendarPage() {
         title={t("Log a workout", "Registra un allenamento")}
         description={t(
           "For sessions the watch didn't record.",
-          "Per le sessioni che l'orologio non ha registrato.",
+          "Per le sedute che l'orologio non ha registrato.",
         )}
       >
         {sourceKind() === "native" && (
@@ -442,7 +442,7 @@ function DayHeader({ d, today }: { d: DayData; today: string }) {
         <span
           className="stat-num rounded-full px-1.5 text-[10px] font-semibold text-background"
           style={{ background: tone }}
-          title={t("Readiness", "Prontezza")}
+          title={t("Readiness", "Readiness")}
         >
           {d.score}
         </span>
@@ -514,12 +514,12 @@ function RemovePlanned({ id }: { id: string }) {
           await qc.invalidateQueries({ queryKey: ["events"] });
         } catch (err) {
           console.warn("Workout not removed", err);
-          toast.error(t("Couldn't remove the workout", "Impossibile togliere l'allenamento"));
+          toast.error(t("Couldn't remove the workout", "Impossibile rimuovere l'allenamento"));
           setBusy(false);
         }
       }}
     >
-      {sure ? t("Remove for good?", "Togliere davvero?") : t("Remove", "Togli")}
+      {sure ? t("Remove for good?", "Rimuovere davvero?") : t("Remove", "Rimuovi")}
     </Button>
   );
 }
@@ -536,7 +536,7 @@ function WeekSummary({ totals }: { totals: WeekRow | undefined }) {
         </>
       ) : (
         <div className="font-sans text-muted-foreground">
-          {t("Rest week", "Settimana di riposo")}
+          {t("Rest week", "Settimana di scarico")}
         </div>
       )}
     </div>

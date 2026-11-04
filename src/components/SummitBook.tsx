@@ -55,12 +55,12 @@ export function SummitBook({
     <Panel title={t("Summit book", "Libro di vetta")}>
       {loading ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          {t("Loading rides…", "Caricamento attività…")}
+          {t("Loading activities…", "Caricamento attività…")}
         </p>
       ) : !book.count ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
           {t(
-            "No ascents found in the analysed rides.",
+            "No ascents found in the analysed activities.",
             "Nessuna salita trovata nelle attività analizzate.",
           )}
         </p>

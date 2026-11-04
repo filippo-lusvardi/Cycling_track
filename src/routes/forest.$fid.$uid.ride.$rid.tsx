@@ -129,7 +129,7 @@ function FriendRide() {
         />
         {isRun ? (
           <StatCard
-            label={t("Avg pace", "Ritmo medio")}
+            label={t("Avg pace", "Passo medio")}
             value={speed != null ? formatPace(speed / 3.6) : "–"}
             unit="/km"
           />
@@ -204,8 +204,8 @@ function FriendRide() {
             />
             <p className="text-xs text-muted-foreground">
               {t(
-                `The first and last ${PRIVACY_ZONE / 1000} km are hidden, for privacy.`,
-                `Il primo e l'ultimo ${PRIVACY_ZONE / 1000} km sono nascosti, per privacy.`,
+                `Hidden for privacy: ${PRIVACY_ZONE / 1000} km at each end.`,
+                `Nascosti per privacy: ${PRIVACY_ZONE / 1000} km a ogni estremità.`,
               )}
             </p>
           </div>
@@ -213,7 +213,7 @@ function FriendRide() {
       ) : (
         <p className="text-sm text-muted-foreground">
           {ride.trainer
-            ? t("Indoors: no route.", "Al chiuso: nessun percorso.")
+            ? t("Indoors: no route.", "Indoor: nessun percorso.")
             : t("No map for this activity.", "Nessuna mappa per questa attività.")}
         </p>
       )}

@@ -82,8 +82,8 @@ function ForestPage() {
       {failed && (
         <p className="mx-auto max-w-xl rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
           {t(
-            "Your forests couldn't be loaded right now. Check the connection and open this page again.",
-            "Non è stato possibile caricare i tuoi boschi. Controlla la connessione e riapri questa pagina.",
+            "Couldn't load your forests. Check the connection and open this page again.",
+            "Impossibile caricare i tuoi boschi. Controlla la connessione e riapri questa pagina.",
           )}
         </p>
       )}
@@ -241,7 +241,7 @@ function PlantForm({ onDone }: { onDone: () => void }) {
       <p className="text-xs text-muted-foreground">
         {t(
           `Members see your tree: the ${w.rides} you share, your fitness and today's crown (readiness and form).`,
-          `I membri vedono il tuo albero: le ${w.uscite} che condividi, la tua forma e la chioma di oggi (prontezza e forma).`,
+          `I membri vedono il tuo albero: le ${w.uscite} che condividi, il tuo fitness e la chioma di oggi (readiness e forma).`,
         )}
       </p>
       <Button type="submit" className="w-full" disabled={busy || !name.trim() || !me.trim()}>

@@ -146,7 +146,7 @@ function Rides() {
           <span className="eyebrow">{t("Dist", "Dist")}</span>
           <span className="eyebrow">{t("Time", "Tempo")}</span>
           <span className="eyebrow w-14">
-            {mainSport() === "run" ? t("Pace", "Ritmo") : t("Power", "Potenza")}
+            {mainSport() === "run" ? t("Pace", "Passo") : t("Power", "Potenza")}
           </span>
           <span className="eyebrow w-12">{t("Load", "Carico")}</span>
         </div>

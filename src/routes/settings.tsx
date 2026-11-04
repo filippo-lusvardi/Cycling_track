@@ -169,8 +169,11 @@ function IntervalsKey() {
       await saveProfile({ intervalsKey: key.trim(), source: "intervals" });
       toast.success(
         a.name
-          ? t(`Connected to intervals.icu as ${a.name}`, `Connesso a intervals.icu come ${a.name}`)
-          : t("Connected to intervals.icu", "Connesso a intervals.icu"),
+          ? t(
+              `Connected to intervals.icu as ${a.name}`,
+              `Connessione a intervals.icu riuscita: ${a.name}`,
+            )
+          : t("Connected to intervals.icu", "Connessione a intervals.icu riuscita"),
       );
       await qc.invalidateQueries();
       navigate({ to: "/" });
@@ -216,14 +219,14 @@ function IntervalsKey() {
                 qc.clear();
               }}
             >
-              {t("Forget key", "Dimentica chiave")}
+              {t("Remove key", "Rimuovi chiave")}
             </Button>
           )}
         </div>
         <p className="text-xs text-muted-foreground">
           {t(
-            "Kept in your account (readable only by you), so every device you sign in on uses it.",
-            "Conservata nel tuo account (leggibile solo da te), così ogni dispositivo su cui accedi la usa.",
+            "Kept in your account (readable only by you), ready on every device you sign in on.",
+            "Conservata nel tuo account (leggibile solo da te), pronta su ogni dispositivo su cui accedi.",
           )}
         </p>
       </form>
@@ -241,8 +244,8 @@ function WithoutIntervals() {
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           {t(
-            "Cirmolo can keep your rides itself: upload ride files (.fit) from your Garmin, Wahoo or Zwift, and it works out fitness, fatigue, zones and power curves on its own. Check-ins, weight, races and sick days are saved in your account.",
-            "Cirmolo può conservare da sé le tue uscite: carica i file (.fit) di Garmin, Wahoo o Zwift e calcola da solo forma, fatica, zone e curve di potenza. Check-in, peso, gare e giorni di malattia restano nel tuo account.",
+            "Cirmolo can keep your rides itself. Upload .fit files from Garmin, Wahoo or Zwift and it works out fitness, fatigue, zones and power curves. Check-ins, weight, races and sick days are saved in your account.",
+            "Cirmolo può conservare le tue uscite: carica i file .fit da Garmin, Wahoo o Zwift e calcola fitness, fatica, zone e curve di potenza. Check-in, peso, gare e giorni di malattia restano nel tuo account.",
           )}
         </p>
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
@@ -254,9 +257,9 @@ function WithoutIntervals() {
           />
           <span>
             {t(
-              "I agree that Cirmolo stores my rides and health data (heart rate, HRV, sleep, weight) in my account to analyse my training, as described in the",
-              "Acconsento che Cirmolo conservi nel mio account le mie uscite e i dati sulla salute (frequenza cardiaca, HRV, sonno, peso) per analizzare il mio allenamento, come descritto nell'",
-            )}{" "}
+              "I agree that Cirmolo stores my rides and health data (heart rate, HRV, sleep, weight) in my account to analyse my training, as described in the ",
+              "Acconsento alla conservazione nel mio account delle mie uscite e dei dati sulla salute (frequenza cardiaca, HRV, sonno, peso) per analizzare il mio allenamento, come descritto nell'",
+            )}
             <Link to="/privacy" className="underline">
               {t("privacy notice", "informativa privacy")}
             </Link>
@@ -358,7 +361,7 @@ function Athlete() {
         <p className="text-xs text-muted-foreground">
           {t(
             "FTP sets power zones and training load; leave it empty to use the estimate from your last 42 days. Threshold heart rate (or 90% of max) is used for rides without a power meter.",
-            "L'FTP definisce zone di potenza e carico; lascialo vuoto per usare la stima dagli ultimi 42 giorni. La FC di soglia (o il 90% della massima) serve per le uscite senza misuratore di potenza.",
+            "L'FTP definisce zone di potenza e carico; lascialo vuoto per usare la stima degli ultimi 42 giorni. La FC di soglia (o il 90% della massima) serve per le uscite senza misuratore di potenza.",
           )}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -442,7 +445,8 @@ function Account() {
       <div className="space-y-4 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span>
-            {t("Signed in as", "Accesso come")} <span className="font-medium">{user.email}</span>
+            {t("Signed in as", "Accesso effettuato come")}{" "}
+            <span className="font-medium">{user.email}</span>
           </span>
           <Button
             variant="outline"
@@ -458,7 +462,7 @@ function Account() {
         <p className="text-xs text-muted-foreground">
           {t(
             "Signing out removes your data from this device. It stays in your account and on intervals.icu.",
-            "Uscendo i tuoi dati vengono rimossi da questo dispositivo. Restano nel tuo account e su intervals.icu.",
+            "Uscendo, i tuoi dati vengono rimossi da questo dispositivo. Restano nel tuo account e su intervals.icu.",
           )}{" "}
           <Link to="/privacy" className="underline hover:text-foreground">
             {t("Privacy notice", "Informativa privacy")}
@@ -571,17 +575,17 @@ const TREE_GUIDE: GuideItem[] = [
   {
     term: t("Crown", "Chioma"),
     text: t(
-      "Today's readiness (HRV, sleep, form and check-in, if you use it) as a season, each measured against your own normal: HRV against its 60-day range, sleep against your usual, answers against how you usually answer. Tap it for today's advice and the check-in.",
-      "La prontezza di oggi (HRV, sonno, forma e check-in, se lo usi) come stagione, ognuno misurato rispetto al tuo normale: HRV sul suo intervallo di 60 giorni, sonno sul tuo solito, risposte su come rispondi di solito. Toccala per il consiglio del giorno e il check-in.",
+      "Today's readiness as a season: HRV, sleep, form and check-in (if you use it), each compared with your own normal. Tap for today's advice and the check-in.",
+      "La readiness di oggi come stagione: HRV, sonno, forma e check-in (se lo usi), ognuno rispetto al tuo normale. Tocca per il consiglio del giorno e il check-in.",
     ),
     points: [
-      t("Summer (≥ 75): ready for intensity", "Estate (≥ 75): pronto per l'intensità"),
+      t("Summer (≥ 75): ready for intensity", "Estate (≥ 75): giornata da intensità"),
       t("Spring (≥ 55): endurance day", "Primavera (≥ 55): giornata di fondo"),
       t("Autumn (≥ 40): go easy", "Autunno (≥ 40): vai piano"),
       t("Winter: rest", "Inverno: riposo"),
       t(
-        "Held at spring when fatigue is 1.3× fitness or fitness rises 6 in a week, and at autumn from 1.5× or +8 (stricter for six weeks after injury, illness or two weeks off): volume counts, not only intensity",
-        "Ferma alla primavera quando la fatica è 1,3× la forma fisica o la forma fisica sale di 6 in una settimana, e all'autunno da 1,5× o +8 (più severa nelle sei settimane dopo infortunio, malattia o due settimane di stop): conta il volume, non solo l'intensità",
+        "Capped at spring when fatigue reaches 1.3× fitness or fitness rises 6 in a week; at autumn from 1.5× or +8. Stricter for six weeks after injury, illness or two weeks off.",
+        "Si ferma alla primavera quando la fatica arriva a 1,3× il fitness o il fitness sale di 6 in una settimana; all'autunno da 1,5× o +8. Più severo per sei settimane dopo infortunio, malattia o due settimane di stop.",
       ),
     ],
   },
@@ -589,34 +593,34 @@ const TREE_GUIDE: GuideItem[] = [
     term: t("Sky", "Cielo"),
     text: t(
       "Form (TSB) as a share of fitness, like intervals.icu: −20 means more at fitness 40 than at 100.",
-      "Forma (TSB) in percentuale della forma fisica, come intervals.icu: −20 pesa di più a forma fisica 40 che a 100.",
+      "Forma (TSB) in percentuale del fitness, come su intervals.icu: −20 pesa di più con fitness 40 che con fitness 100.",
     ),
     points: [
       t("Sun (over +5%): fresh", "Sole (oltre +5%): fresco"),
       t("Sun and clouds (−10% to +5%): neutral", "Sole e nuvole (da −10% a +5%): neutro"),
-      t("Clouds (−30% to −10%): training hard", "Nuvole (da −30% a −10%): carico intenso"),
-      t("Rain (under −30%): overreached", "Pioggia (sotto −30%): sovraccarico"),
+      t("Clouds (−30% to −10%): training hard", "Nuvole (da −30% a −10%): sotto carico"),
+      t("Rain (under −30%): overreached", "Pioggia (sotto −30%): overreaching"),
     ],
   },
   {
     term: t("Wind in the crown", "Vento nella chioma"),
     text: t(
-      "A trend over several days worth watching before it shows in readiness: HRV below your usual for a week, high fatigue, stress or low mood on most recent check-ins, or short nights. Tap the crown to see which.",
-      "Una tendenza di più giorni da tenere d'occhio prima che si veda nella prontezza: HRV sotto il tuo solito da una settimana, fatica o stress alti o umore basso nella maggior parte degli ultimi check-in, oppure notti corte. Tocca la chioma per vedere quale.",
+      "A trend over several days, worth watching before it shows in readiness: HRV below your usual for a week; high fatigue, high stress or low mood on most recent check-ins; or short nights. Tap the crown to see which.",
+      "Una tendenza di più giorni da tenere d'occhio prima che si veda nella readiness: HRV sotto il tuo solito da una settimana; fatica o stress alti o umore basso nella maggior parte degli ultimi check-in; oppure notti corte. Tocca la chioma per vedere quale.",
     ),
   },
   {
-    term: t("Ceiling", "Tetto"),
+    term: t("Limit", "Limite"),
     text: t(
       "On easy and endurance days, the power and heart rate to stay under: the top of Z1 or Z2 in your intervals.icu zones.",
-      "Nei giorni facili e di fondo, la potenza e la frequenza cardiaca da non superare: il limite di Z1 o Z2 nelle tue zone di intervals.icu.",
+      "Nei giorni facili e di fondo, potenza e frequenza cardiaca da non superare: il limite di Z1 o Z2 nelle tue zone di intervals.icu.",
     ),
   },
   {
     term: t("Training focus", "Focus di allenamento"),
     text: t(
       "What to train in this block (base, high aerobic, VO2max, anaerobic, sprint), shown above the crown. Readiness decides when to go hard; the focus decides what. It comes from:",
-      "Cosa allenare in questo blocco (base, aerobico alto, VO2max, anaerobico, sprint), mostrato sopra la chioma. La prontezza decide quando spingere; il focus decide cosa. Nasce da:",
+      "Cosa allenare in questo blocco (base, aerobico alto, VO2max, anaerobico, sprint), mostrato sopra la chioma. La readiness decide quando spingere; il focus decide cosa. Nasce da:",
     ),
     points: [
       t(
@@ -630,21 +634,21 @@ const TREE_GUIDE: GuideItem[] = [
       byMain(
         t(
           "Your last 42 days of power against your best of the year: the biggest gap that the races need",
-          "La tua potenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: la mancanza più grande che serve alle gare",
+          "La tua potenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: il divario più grande tra quelli che servono alle gare",
         ),
         t(
           "Your last 42 days of grade-adjusted pace against your best of the year: the biggest gap that the races need",
-          "Il tuo ritmo corretto per pendenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: la mancanza più grande che serve alle gare",
+          "Il tuo passo corretto per pendenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: il divario più grande tra quelli che servono alle gare",
         ),
       ),
       byMain(
         t(
           "Base first when steady rides decouple, Z2 time drops, fitness is well below your usual, or your 20 min power fades over 15% after 30 kJ/kg (Analysis → Durability)",
-          "Prima la base se le uscite regolari si disaccoppiano, il tempo in Z2 cala, la forma fisica è molto sotto il solito o la potenza sui 20 min cala oltre il 15% dopo 30 kJ/kg (Analisi → Resistenza alla fatica)",
+          "Prima la base se il decoupling delle uscite regolari sale, il tempo in Z2 cala, il fitness è molto sotto il solito o la potenza sui 20 min cala oltre il 15% dopo 30 kJ/kg (Analisi → Durability)",
         ),
         t(
           "Base first when easy runs drift, Z2 time drops, fitness is well below your usual, or your 5 min pace fades over 15% after 25 km (Analysis → Late-run fade)",
-          "Prima la base se le corse facili vanno in deriva, il tempo in Z2 cala, la forma fisica è molto sotto il solito o il ritmo sui 5 min cala oltre il 15% dopo 25 km (Analisi → Calo nel finale)",
+          "Prima la base se il decoupling delle corse lente sale, il tempo in Z2 cala, il fitness è molto sotto il solito o il passo sui 5 min cala oltre il 15% dopo 25 km (Analisi → Calo nel finale)",
         ),
       ),
       t(
@@ -664,7 +668,7 @@ const TREE_GUIDE: GuideItem[] = [
     term: t("Trunk", "Tronco"),
     text: t(
       "Fitness (CTL): the wider, the fitter compared with the rest of your history.",
-      "Forma fisica (CTL): più è largo, più sei in forma rispetto al resto del tuo storico.",
+      "Fitness (CTL): più è largo, più sei in forma rispetto al resto del tuo storico.",
     ),
   },
   {
@@ -690,7 +694,7 @@ const TREE_GUIDE: GuideItem[] = [
       ),
       t(
         "One per 30 m climbed, coloured by intensity against threshold pace:",
-        "Una ogni 30 m di dislivello, colorata per intensità rispetto al ritmo di soglia:",
+        "Una ogni 30 m di dislivello, colorata per intensità rispetto al passo di soglia:",
       ),
     ),
     points: [
@@ -703,22 +707,34 @@ const TREE_GUIDE: GuideItem[] = [
   {
     term: t("Birds", "Uccellini"),
     text: t(
-      "One per brioche eaten on that ride (set it at the bottom of the ride's page). Each is a sparrow, robin, snow bunting, blackbird, blue tit, goldfinch or kingfisher, at random.",
-      "Uno per ogni brioche mangiata in quell'uscita (impostala in fondo alla pagina dell'uscita). Ognuno è un passero, un pettirosso, uno zigolo delle nevi, un merlo, una cinciarella, un cardellino o un martin pescatore, a caso.",
+      "One per brioche eaten on that activity (set it at the bottom of its page). Each is a sparrow, robin, snow bunting, blackbird, blue tit, goldfinch or kingfisher, at random.",
+      "Uno per ogni brioche mangiata in quell'attività (impostala in fondo alla sua pagina). Ognuno è un passero, un pettirosso, uno zigolo delle nevi, un merlo, una cinciarella, un cardellino o un martin pescatore, a caso.",
     ),
   },
   {
     term: t("Squirrel", "Scoiattolo"),
     text: t(
-      "Lives on the branch of your longest ride ever.",
-      "Vive sul ramo della tua uscita più lunga di sempre.",
+      byMain(
+        "Lives on the branch of your longest ride ever.",
+        "Lives on the branch of your longest run ever.",
+      ),
+      byMain(
+        "Vive sul ramo della tua uscita più lunga di sempre.",
+        "Vive sul ramo della tua corsa più lunga di sempre.",
+      ),
     ),
   },
   {
     term: t("Owl", "Gufo"),
     text: t(
-      "Keeps watch on the branch of the ride with the most climbing ever.",
-      "Fa la guardia sul ramo dell'uscita con più dislivello di sempre.",
+      byMain(
+        "Keeps watch on the branch of the ride with the most climbing ever.",
+        "Keeps watch on the branch of the run with the most climbing ever.",
+      ),
+      byMain(
+        "Fa la guardia sul ramo dell'uscita con più dislivello di sempre.",
+        "Fa la guardia sul ramo della corsa con più dislivello di sempre.",
+      ),
     ),
   },
   {
@@ -730,7 +746,7 @@ const TREE_GUIDE: GuideItem[] = [
     term: t("Knots", "Nodi"),
     text: t(
       "A dark spiral for each day sick or injured, from Sick and Injured events in the intervals.icu calendar. Mark today in the crown's sheet, or a past run of rest days by tapping it.",
-      "Una spirale scura per ogni giorno di malattia o infortunio, dagli eventi Malato e Infortunato del calendario di intervals.icu. Segna oggi dal pannello della chioma, o una serie passata di giorni di riposo toccandola.",
+      "Una spirale scura per ogni giorno di malattia o infortunio, dagli eventi Sick e Injured del calendario di intervals.icu. Segna oggi dal pannello della chioma, o una serie passata di giorni di riposo toccandola.",
     ),
   },
   {
@@ -742,7 +758,7 @@ const TREE_GUIDE: GuideItem[] = [
     points: [
       t(
         "Golden bark: building (load above the last 4 weeks)",
-        "Corteccia dorata: costruzione (carico sopra le 4 settimane precedenti)",
+        "Corteccia dorata: settimana di carico (carico sopra le 4 settimane precedenti)",
       ),
       t("Blue bark: recovery week", "Corteccia blu: settimana di scarico"),
     ],
@@ -818,7 +834,7 @@ function MainSportPanel() {
       <p className="text-sm text-muted-foreground">
         {t(
           `Your main sport grows the tree and shapes Analysis, Segments and your training focus.${garden ? " Other sports can grow in the garden." : ""} You can switch at any time: nothing is lost.`,
-          `Lo sport principale fa crescere l'albero e dà forma ad Analisi, Segmenti e obiettivo di allenamento.${garden ? " Gli altri sport possono crescere nell'orto." : ""} Puoi cambiarlo quando vuoi: non si perde nulla.`,
+          `Lo sport principale fa crescere l'albero e determina Analisi, Segmenti e focus di allenamento.${garden ? " Gli altri sport possono crescere nell'orto." : ""} Puoi cambiarlo quando vuoi: non si perde nulla.`,
         )}
       </p>
       <div className="mt-3 flex gap-1 rounded-lg bg-secondary p-1">
@@ -897,7 +913,7 @@ function RunningPanel() {
     const speed = form.pace.trim() ? parsePace(form.pace) : null;
     if (form.pace.trim() && !speed) {
       toast.error(
-        t("Write the pace as min:sec, e.g. 4:30", "Scrivi il ritmo come min:sec, es. 4:30"),
+        t("Write the pace as min:sec, e.g. 4:30", "Scrivi il passo come min:sec, es. 4:30"),
       );
       return;
     }
@@ -922,7 +938,7 @@ function RunningPanel() {
     const pace =
       th?.paceSynced && speed && formatPace(speed) !== formatPace(th.pace)
         ? {
-            label: t("Threshold pace", "Ritmo di soglia"),
+            label: t("Threshold pace", "Passo di soglia"),
             from: th.pace ? `${formatPace(th.pace)}/km` : "–",
             to: `${formatPace(speed)}/km`,
             value: speed,
@@ -993,7 +1009,7 @@ function RunningPanel() {
         <p className="text-xs text-muted-foreground">
           {t(
             "Threshold pace sets pace zones and training load: about what you could hold for an hour. Leave it empty to estimate it from your best efforts of the last 90 days.",
-            "Il ritmo di soglia definisce zone di ritmo e carico: circa quello che reggeresti per un'ora. Lascialo vuoto per stimarlo dai migliori sforzi degli ultimi 90 giorni.",
+            "Il passo di soglia definisce zone di passo e carico: circa quello che reggeresti per un'ora. Lascialo vuoto per stimarlo dai migliori sforzi degli ultimi 90 giorni.",
           )}
           {!native &&
             (hrOff
@@ -1008,7 +1024,7 @@ function RunningPanel() {
                   )
                 : t(
                     " Heart rate is the value on intervals.icu: saving changes it there too, after asking. Pace stays in Cirmolo.",
-                    " La frequenza cardiaca è il valore su intervals.icu: salvando cambia anche lì, dopo avertelo chiesto. Il ritmo resta in Cirmolo.",
+                    " La frequenza cardiaca è il valore su intervals.icu: salvando cambia anche lì, dopo avertelo chiesto. Il passo resta in Cirmolo.",
                   ))}
         </p>
         <Button type="submit" disabled={!loaded}>
@@ -1032,7 +1048,7 @@ function QuietTree() {
           <span className="block text-sm font-normal text-muted-foreground">
             {t(
               "Asks how you slept and how you feel each morning. Off: it's no longer asked, and the crown comes only from your HRV, sleep and form. Your past answers stay saved, but don't count.",
-              "Chiede ogni mattina come hai dormito e come ti senti. Spento: non viene più chiesto, e la chioma dipende solo da HRV, sonno e forma. Le risposte passate restano salvate, ma non contano.",
+              "Chiede ogni mattina come hai dormito e come ti senti. Disattivato: non viene più chiesto, e la chioma dipende solo da HRV, sonno e forma. Le risposte passate restano salvate, ma non contano.",
             )}
           </span>
         </Label>
@@ -1047,11 +1063,13 @@ function QuietTree() {
       </div>
       <div className="flex items-start justify-between gap-4">
         <Label htmlFor="quiet-tree" className="block space-y-1">
-          <span className="block">{t("Quiet tree", "Albero silenzioso")}</span>
+          <span className="block">
+            {t("Hide scores on the tree", "Nascondi i numeri sull'albero")}
+          </span>
           <span className="block text-sm font-normal text-muted-foreground">
             {t(
-              "Hide scores on the tree (readiness, fitness, form, load) until you tap. Read the picture first.",
-              "Nasconde i numeri sull'albero (prontezza, forma fisica, forma, carico) finché non tocchi. Leggi prima l'immagine.",
+              "Readiness, fitness, form and load stay hidden until you tap.",
+              "Readiness, fitness, forma e carico restano nascosti finché non tocchi.",
             )}
           </span>
         </Label>
@@ -1065,7 +1083,7 @@ function QuietTree() {
           <span className="block text-sm font-normal text-muted-foreground">
             {t(
               "Cards, bars, buttons and links take their colour from today's tree: green in spring and summer, amber in autumn, icy blue in winter, greyer the worse the weather. Off: the classic blue.",
-              "Schede, barre, pulsanti e link prendono il colore dall'albero di oggi: verde in primavera ed estate, ambra in autunno, azzurro ghiaccio in inverno, più grigio quanto peggiore è il tempo. Spento: il blu classico.",
+              "Schede, barre, pulsanti e link prendono il colore dall'albero di oggi: verde in primavera ed estate, ambra in autunno, azzurro ghiaccio in inverno, più grigio quanto peggiore è il tempo. Disattivato: il blu classico.",
             )}
           </span>
         </Label>
@@ -1145,7 +1163,7 @@ function GardenSwitch() {
           <span className="block text-sm font-normal text-muted-foreground">
             {t(
               "Other sports grow in the Garden, with a sprout on the tree. Off, for tracking one sport only: the Garden and the sprouts disappear. Nothing is deleted, and your other activities stay in Activities and the Calendar.",
-              "Gli altri sport crescono nell'orto, con un germoglio sull'albero. Spento, per seguire un solo sport: l'orto e i germogli spariscono. Non si cancella nulla, e le altre attività restano in Attività e nel Calendario.",
+              "Gli altri sport crescono nell'orto, con un germoglio sull'albero. Disattivato, per seguire un solo sport: l'orto e i germogli spariscono. Non si cancella nulla, e le altre attività restano in Attività e nel Calendario.",
             )}
           </span>
         </Label>
@@ -1196,14 +1214,14 @@ const GARDEN_GUIDE: GuideItem[] = [
     term: t("Plants", "Piante"),
     text: t(
       "One per session, in its sport's bed, older to the left. Taller for a longer session, lusher for a harder one. A new sport gets a vegetable at random, and you can change it (below); what a session bears depends on the sport:",
-      "Una per sessione, nell'aiuola del suo sport, le più vecchie a sinistra. Più alta per una sessione più lunga, più rigogliosa per una più dura. Un nuovo sport riceve un ortaggio a caso, e puoi cambiarlo (qui sotto); quanto frutta una sessione dipende dallo sport:",
+      "Una per seduta, nell'aiuola del suo sport, le più vecchie a sinistra. Più alta se è più lunga, più rigogliosa se è più dura. Un nuovo sport riceve un ortaggio a caso, e puoi cambiarlo (qui sotto); quanto frutta una seduta dipende dallo sport:",
     ),
     points: [
       byMain(
         t("Running: one per 5 km", "Corsa: uno ogni 5 km"),
         t("Cycling: one per 20 km", "Ciclismo: uno ogni 20 km"),
       ),
-      t("Strength: one, as big as the session", "Forza: uno, grande quanto la sessione"),
+      t("Strength: one, as big as the session", "Forza: uno, grande quanto la seduta"),
       t(
         "Yoga, pilates and stretching: one per 10 minutes",
         "Yoga, pilates e stretching: uno ogni 10 minuti",
@@ -1215,7 +1233,7 @@ const GARDEN_GUIDE: GuideItem[] = [
       t("Swimming: one per 500 m", "Nuoto: uno ogni 500 m"),
       t("Skiing: the plant itself is the crop", "Sci: il raccolto è la pianta stessa"),
       t("Rowing and paddling: one per 3 km", "Canottaggio e pagaia: uno ogni 3 km"),
-      t("Climbing: by the session's load", "Arrampicata: secondo il carico della sessione"),
+      t("Climbing: by the session's load", "Arrampicata: secondo il carico della seduta"),
       t(
         "A sport you named: one per quarter of an hour",
         "Uno sport con il tuo nome: uno ogni quarto d'ora",
@@ -1234,7 +1252,7 @@ const GARDEN_GUIDE: GuideItem[] = [
     term: t("Soil", "Terra"),
     text: t(
       `Dark and moist when you've trained at your garden's sports regularly in the last 4 weeks, pale and resting when not.`,
-      `Scura e umida se nelle ultime 4 settimane ti sei allenato regolarmente negli sport del tuo orto, chiara e a riposo se no.`,
+      "Scura e umida con allenamenti regolari negli sport del tuo orto nelle ultime 4 settimane, altrimenti chiara e a riposo.",
     ),
   },
   {
@@ -1248,7 +1266,7 @@ const GARDEN_GUIDE: GuideItem[] = [
     term: t("Sky", "Cielo"),
     text: t(
       "The real time of day, with the moon at night; the weather is your form, as on the tree. The season is today's readiness.",
-      "L'ora vera del giorno, con la luna di notte; il tempo è la tua forma, come sull'albero. La stagione è la prontezza di oggi.",
+      "L'ora vera del giorno, con la luna di notte; il tempo è la tua forma, come sull'albero. La stagione è la readiness di oggi.",
     ),
   },
   {
@@ -1296,17 +1314,17 @@ function ReadinessCheck() {
   return (
     <div className="mt-4 rounded-lg bg-secondary/60 p-3 text-sm">
       <div className="font-medium">
-        {t("Is readiness right for you?", "La prontezza funziona per te?")}
+        {t("Is readiness right for you?", "La readiness funziona per te?")}
       </div>
       <p className="mt-1 text-muted-foreground">
         {acc.r == null
           ? t(
               `Rate how your rides felt on intervals.icu: after ${ACCURACY_MIN_RIDES} rated rides (${acc.rides} so far) this compares them with that morning's readiness.`,
-              `Valuta come sono andate le uscite su intervals.icu: dopo ${ACCURACY_MIN_RIDES} uscite valutate (finora ${acc.rides}) qui si confrontano con la prontezza di quella mattina.`,
+              `Valuta come sono andate le uscite su intervals.icu: dopo ${ACCURACY_MIN_RIDES} uscite valutate (finora ${acc.rides}) qui si confrontano con la readiness di quella mattina.`,
             )
           : t(
               `Over ${acc.rides} rated rides in the last ${CHECK_DAYS} days, readiness and how the ride felt match with a correlation of ${acc.r.toFixed(2)}: ${verdict}.`,
-              `Su ${acc.rides} uscite valutate negli ultimi ${CHECK_DAYS} giorni, prontezza e sensazioni dell'uscita corrispondono con una correlazione di ${acc.r.toFixed(2)}: ${verdict}.`,
+              `Su ${acc.rides} uscite valutate negli ultimi ${CHECK_DAYS} giorni, readiness e sensazioni dell'uscita corrispondono con una correlazione di ${acc.r.toFixed(2)}: ${verdict}.`,
             )}
       </p>
     </div>
@@ -1339,7 +1357,7 @@ function SegmentAnalysis() {
         <p className="text-muted-foreground">
           {t(
             "Each outdoor ride and run is downloaded once and analysed on this device; after that only new ones are. More history finds more recurring climbs but takes longer the first time (and uses mobile data on the phone).",
-            "Ogni pedalata e corsa all'aperto viene scaricata una volta e analizzata su questo dispositivo; poi solo le nuove. Più storico trova più salite ricorrenti ma la prima volta richiede più tempo (e usa dati mobili sul telefono).",
+            "Ogni uscita e corsa all'aperto viene scaricata una volta e analizzata su questo dispositivo; poi solo le nuove. Più storico trova più salite ricorrenti ma la prima volta richiede più tempo (e usa dati mobili sul telefono).",
           )}
         </p>
         <div className="space-y-1">
@@ -1388,13 +1406,13 @@ function SegmentAnalysis() {
               await segmentEngine.clear();
               toast.success(
                 t(
-                  "Downloaded rides deleted; they'll be fetched again on the next sync",
+                  "Downloaded activities deleted; they'll be fetched again on the next sync",
                   "Attività scaricate eliminate; verranno riscaricate alla prossima sincronizzazione",
                 ),
               );
             }}
           >
-            {t("Delete downloaded rides", "Elimina attività scaricate")}
+            {t("Delete downloaded activities", "Elimina attività scaricate")}
           </Button>
         </div>
       </div>
@@ -1414,8 +1432,8 @@ function Storage() {
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           {t(
-            "The latest data and every ride's streams are kept on this device so the app opens offline.",
-            "Gli ultimi dati e i flussi di ogni attività restano su questo dispositivo, così l'app si apre offline.",
+            "The latest data and every activity's recordings are kept on this device, so the app opens offline.",
+            "Gli ultimi dati e le registrazioni di ogni attività restano su questo dispositivo, così l'app si apre offline.",
           )}
         </p>
         <p>

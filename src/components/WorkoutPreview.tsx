@@ -117,7 +117,7 @@ export function WorkoutPreview({
         </span>
         <span>
           {workoutSport(type) === "run"
-            ? t("line: threshold pace", "linea: ritmo soglia")
+            ? t("line: threshold pace", "linea: passo di soglia")
             : t("line: FTP", "linea: FTP")}
         </span>
       </div>

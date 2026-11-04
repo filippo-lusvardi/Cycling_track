@@ -176,7 +176,7 @@ export function computeReadiness(i: ReadinessInput) {
       score: feel.reduce((a, b) => a + b, 0) / feel.length,
       detail:
         t(`${feel.length} check-in answers`, `${feel.length} risposte al check-in`) +
-        (i.feelUsual ? t(" · vs your usual", " · vs il tuo solito") : ""),
+        (i.feelUsual ? t(" · vs your usual", " · rispetto al solito") : ""),
     });
   }
   const w = comps.reduce((s, c) => s + c.weight, 0);
@@ -198,11 +198,11 @@ export function advice(score: number): {
 } {
   if (score >= 75)
     return {
-      title: t("Ready for intensity", "Pronto per l'intensità"),
+      title: t("Ready for intensity", "Giornata da intensità"),
       text: byMain(
         t(
           "Good day for threshold, VO2max or a hard group ride.",
-          "Buona giornata per lavori a FTP, VO2max o un'attività di gruppo intensa.",
+          "Buona giornata per lavori a FTP, VO2max o un'uscita di gruppo forte.",
         ),
         t(
           "Good day for threshold, intervals or a hard hill session.",
@@ -216,12 +216,12 @@ export function advice(score: number): {
       title: t("Endurance day", "Giornata di fondo"),
       text: byMain(
         t(
-          "Steady Zone 2 riding; keep intensity controlled.",
-          "Pedalata regolare in Zona 2; tieni l'intensità sotto controllo.",
+          "Steady Z2 riding; keep the intensity under control.",
+          "Pedalata regolare in Z2; tieni l'intensità sotto controllo.",
         ),
         t(
-          "Steady Zone 2 running; keep intensity controlled.",
-          "Corsa regolare in Zona 2; tieni l'intensità sotto controllo.",
+          "Steady Z2 running; keep the intensity under control.",
+          "Corsa regolare in Z2; tieni l'intensità sotto controllo.",
         ),
       ),
       tone: "fitness",
@@ -231,12 +231,12 @@ export function advice(score: number): {
       title: t("Go easy", "Vai piano"),
       text: byMain(
         t(
-          "Short recovery spin, under 60 minutes in Zone 1.",
-          "Breve attività di scarico, meno di 60 minuti in Zona 1.",
+          "Short recovery spin, under 60 minutes in Z1.",
+          "Breve pedalata di recupero, meno di 60 minuti in Z1.",
         ),
         t(
-          "Short recovery jog, under 40 minutes in Zone 1.",
-          "Breve corsa di scarico, meno di 40 minuti in Zona 1.",
+          "Short recovery jog, under 40 minutes in Z1.",
+          "Breve corsetta di recupero, meno di 40 minuti in Z1.",
         ),
       ),
       tone: "birch",
@@ -245,7 +245,7 @@ export function advice(score: number): {
     title: t("Rest", "Riposo"),
     text: t(
       "Take the day off or just walk. Recovery comes first.",
-      "Prenditi un giorno libero o fai solo una camminata. Il recupero viene prima.",
+      "Giorno di riposo o solo una camminata. Prima il recupero.",
     ),
     tone: "lingon",
   };
@@ -382,14 +382,14 @@ export function loadCheck(rows: WellnessLike[], date: string, returning = false)
     reasons.push(
       t(
         `Fatigue (${Math.round(now!.atl!)}) is ${ratio!.toFixed(1)}× your fitness (${Math.round(now!.ctl!)}).`,
-        `La fatica (${Math.round(now!.atl!)}) è ${ratio!.toFixed(1)}× la tua forma fisica (${Math.round(now!.ctl!)}).`,
+        `La fatica (${Math.round(now!.atl!)}) è ${ratio!.toFixed(1)}× il tuo fitness (${Math.round(now!.ctl!)}).`,
       ),
     );
   if (lp)
     reasons.push(
       t(
         `Fitness rose ${ramp!.toFixed(0)} points in a week. Up to ${lim.ramp[0] - 1} is safer.`,
-        `La forma fisica è salita di ${ramp!.toFixed(0)} punti in una settimana. Fino a ${lim.ramp[0] - 1} è più sicuro.`,
+        `Il fitness è salito di ${ramp!.toFixed(0)} punti in una settimana. Fino a ${lim.ramp[0] - 1} è più sicuro.`,
       ),
     );
   return { level: Math.max(lr, lp) as LoadCheck["level"], ratio, ramp, returning, reasons };
@@ -445,7 +445,7 @@ export function recommendation(
       intensity: 0.65,
       text: t(
         "Steady endurance. Keep climbs and surges below threshold.",
-        "Fondo regolare. Salite e accelerazioni sotto la soglia.",
+        "Fondo regolare. Salite e accelerazioni sotto soglia.",
       ),
     };
   if (score >= 40)
@@ -457,11 +457,11 @@ export function recommendation(
       text: byMain(
         t(
           "An easy spin at high cadence, or a day off the bike.",
-          "Una pedalata facile ad alta cadenza, oppure un giorno senza bici.",
+          "Pedalata facile e agile, oppure un giorno senza bici.",
         ),
         t(
           "A short easy jog, a walk, or a day off.",
-          "Una breve corsa facile, una camminata, oppure un giorno di riposo.",
+          "Una breve corsa lenta, una camminata o un giorno di riposo.",
         ),
       ),
     };
@@ -475,7 +475,7 @@ export function recommendation(
         "Day off. A walk and an early night help more than any ride.",
         "Day off. A walk and an early night help more than any run.",
       ),
-      "Giorno libero. Una camminata e andare a letto presto aiutano più di qualsiasi attività.",
+      "Giorno di riposo. Una camminata e a letto presto aiutano più di qualsiasi allenamento.",
     ),
   };
 }
@@ -506,7 +506,7 @@ export type Ceiling = { watts: number | null; bpm: number | null; pace?: number 
 export const ceilingText = (c: Ceiling) =>
   c.pace != null
     ? // A pace limit reads the other way round: faster is a smaller number, so "under" would mislead.
-      `${t("Stay slower than", "Resta più lento di")} ${formatPace(c.pace)}/km${c.bpm != null ? ` · ${t("under", "sotto")} ${c.bpm} bpm` : ""}`
+      `${t("Stay slower than", "Non andare più forte di")} ${formatPace(c.pace)}/km${c.bpm != null ? ` · ${t("under", "sotto")} ${c.bpm} bpm` : ""}`
     : `${t("Stay under", "Resta sotto")} ${[c.watts != null && `${c.watts} W`, c.bpm != null && `${c.bpm} bpm`].filter(Boolean).join(" · ")}`;
 
 /** Ranks (1-based, ties averaged), for a Spearman correlation. */

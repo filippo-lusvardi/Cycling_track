@@ -774,7 +774,7 @@ export function GardenScene({
           >
             {t(
               "Your first session plants the first seed",
-              "La tua prima sessione pianta il primo seme",
+              "La tua prima seduta pianta il primo seme",
             )}
           </text>
         ))}

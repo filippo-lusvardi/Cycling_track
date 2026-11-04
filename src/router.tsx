@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
+import { t } from "./lib/i18n";
 import { routeTree } from "./routeTree.gen";
 
 export const getRouter = (queryClient: QueryClient) =>
@@ -9,7 +10,9 @@ export const getRouter = (queryClient: QueryClient) =>
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
     defaultPendingComponent: () => (
-      <p className="py-16 text-center text-sm text-muted-foreground">Loading from intervals.icu…</p>
+      <p className="py-16 text-center text-sm text-muted-foreground">
+        {t("Loading…", "Caricamento…")}
+      </p>
     ),
   });
 

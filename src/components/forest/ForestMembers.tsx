@@ -57,11 +57,13 @@ export function ForestMembers({
                     onClick={() =>
                       void approve(forest.id, r).catch((e) => {
                         console.warn("Couldn't let in", e);
-                        toast.error(t("Couldn't let them in", "Impossibile accoglierlo"));
+                        toast.error(
+                          t("Couldn't accept the request", "Impossibile accettare la richiesta"),
+                        );
                       })
                     }
                   >
-                    {t("Let in", "Accogli")}
+                    {t("Accept", "Accetta")}
                   </Button>
                   <Button
                     size="sm"
@@ -135,8 +137,8 @@ function Invite({ forest }: { forest: Forest }) {
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           {t(
-            "Send this link to friends or teammates. Whoever opens it asks to join, and any member lets them in.",
-            "Manda questo link ad amici o compagni. Chi lo apre chiede di entrare, e qualsiasi membro può accoglierlo.",
+            "Send this link to friends or teammates. Whoever opens it asks to join, and any member can accept.",
+            "Manda questo link ad amici o compagni. Chi lo apre chiede di entrare, e qualsiasi membro può accettare.",
           )}
         </p>
         {link ? (
@@ -177,8 +179,8 @@ function Invite({ forest }: { forest: Forest }) {
             </div>
             <p className="text-xs text-muted-foreground">
               {t(
-                "A new link makes the old one stop working.",
-                "Un nuovo link fa smettere di funzionare il vecchio.",
+                "A new link stops the old one working.",
+                "Il nuovo link disattiva quello vecchio.",
               )}
             </p>
           </>
@@ -229,7 +231,7 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
             <span className="block text-xs text-muted-foreground">
               {t(
                 `Off: new ${w.rides} stay hidden here until you show them from the ${w.ride}'s page.`,
-                `Spento: le nuove ${w.uscite} restano nascoste qui finché non le mostri dalla pagina ${w.dellUscita}.`,
+                `Disattivato: le nuove ${w.uscite} restano nascoste qui finché non le mostri dalla pagina ${w.dellUscita}.`,
               )}
             </span>
           </span>
@@ -252,7 +254,7 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
             <span className="block text-xs text-muted-foreground">
               {t(
                 `${w.Rides} before ${format(me.joinedAt, "d MMM yyyy")}. Off: your tree here starts that day.`,
-                `${w.Uscite} prima del ${format(me.joinedAt, "d MMM yyyy")}. Spento: qui il tuo albero parte da quel giorno.`,
+                `${w.Uscite} prima del ${format(me.joinedAt, "d MMM yyyy")}. Disattivato: qui il tuo albero parte da quel giorno.`,
               )}
             </span>
           </span>

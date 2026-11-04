@@ -27,6 +27,6 @@ describe("i18n", () => {
   it("translates library text too", async () => {
     await load("it");
     const { advice } = await import("./readiness");
-    expect(advice(80).title).toBe("Pronto per l'intensità");
+    expect(advice(80).title).toBe("Giornata da intensità");
   });
 });

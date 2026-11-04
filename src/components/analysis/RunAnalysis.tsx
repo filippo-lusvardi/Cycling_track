@@ -91,7 +91,7 @@ export function RunAnalysis() {
           <p className="text-sm text-muted-foreground">
             {t(
               "No runs with distance data yet: pace, GAP and your bests will appear here after your first one.",
-              "Ancora nessuna corsa con dati di distanza: ritmo, GAP e i tuoi migliori tempi compariranno qui dopo la prima.",
+              "Ancora nessuna corsa con dati di distanza: passo, GAP e i tuoi migliori tempi compariranno qui dopo la prima.",
             )}
           </p>
         </Panel>
@@ -137,13 +137,13 @@ function PaceSection({ data }: { data: RunData }) {
     <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
-          label={t("Threshold pace", "Ritmo di soglia")}
+          label={t("Threshold pace", "Passo di soglia")}
           tone="fitness"
           value={formatPace(data.threshold)}
           unit="/km"
           hint={
             data.manual
-              ? t("set in Settings", "impostato nelle Impostazioni")
+              ? t("set in Settings", "da Impostazioni")
               : t("estimated, 90 days", "stimato, 90 giorni")
           }
         />
@@ -170,8 +170,8 @@ function PaceSection({ data }: { data: RunData }) {
       <Panel
         title={
           kind === "gap"
-            ? t("Grade-adjusted pace curve", "Curva del ritmo corretto per pendenza")
-            : t("Pace curve", "Curva del ritmo")
+            ? t("Grade-adjusted pace curve", "Curva del passo corretto per pendenza")
+            : t("Pace curve", "Curva del passo")
         }
         action={
           <div className="flex gap-1 rounded-lg bg-secondary p-1">
@@ -184,7 +184,7 @@ function PaceSection({ data }: { data: RunData }) {
                   kind === k ? "bg-background text-foreground" : "text-muted-foreground",
                 )}
               >
-                {k === "gap" ? "GAP" : t("Pace", "Ritmo")}
+                {k === "gap" ? "GAP" : t("Pace", "Passo")}
               </button>
             ))}
           </div>
@@ -193,7 +193,7 @@ function PaceSection({ data }: { data: RunData }) {
         <p className="mb-2 text-xs text-muted-foreground">
           {t(
             "GAP is the flat pace that would cost the same effort, so hilly runs compare with flat ones.",
-            "Il GAP è il ritmo in piano che costerebbe lo stesso sforzo, così le corse in salita si confrontano con quelle in piano.",
+            "Il GAP è il passo in piano che costerebbe lo stesso sforzo, così le corse in salita si confrontano con quelle in piano.",
           )}
         </p>
         <div className="h-64">
@@ -338,7 +338,7 @@ function BestsSection({ runs }: { runs: RunEntry[] }) {
       <p className="mt-2 text-xs text-muted-foreground">
         {t(
           "Taken from within any run, stops included.",
-          "Presi da dentro qualsiasi corsa, soste comprese.",
+          "Presi da qualsiasi tratto di ogni corsa, soste comprese.",
         )}
       </p>
     </Panel>
@@ -362,23 +362,17 @@ function FadeSection({ runs }: { runs: RunEntry[] }) {
   const verdict = fadeVerdict(p);
   const VERDICT = {
     strong: {
-      text: t(
-        "Holds pace well late in long runs.",
-        "Tiene bene il ritmo nel finale delle corse lunghe.",
-      ),
+      text: t("Holds pace well late in long runs.", "Tieni bene il passo nel finale dei lunghi."),
       tone: "text-pine",
     },
     average: {
-      text: t(
-        "Loses some pace late in long runs.",
-        "Perde un po' di ritmo nel finale delle corse lunghe.",
-      ),
+      text: t("Loses some pace late in long runs.", "Perdi un po' di passo nel finale dei lunghi."),
       tone: "text-fitness",
     },
     fades: {
       text: t(
         "Fades late in long runs: long easy runs and fuelling build durability.",
-        "Cala nel finale delle corse lunghe: corse lunghe facili e alimentazione costruiscono la resistenza.",
+        "Cali nel finale dei lunghi: lunghi lenti e alimentazione costruiscono la durability.",
       ),
       tone: "text-birch",
     },
@@ -462,7 +456,7 @@ function ThresholdSection({ data }: { data: RunData }) {
     <Panel
       title={t(
         `Threshold pace · ${paceLabel(last.speed)} (${delta >= 0 ? `${delta} s/km faster` : `${-delta} s/km slower`} in a year)`,
-        `Ritmo di soglia · ${paceLabel(last.speed)} (${delta >= 0 ? `${delta} s/km più veloce` : `${-delta} s/km più lento`} in un anno)`,
+        `Passo di soglia · ${paceLabel(last.speed)} (${delta >= 0 ? `${delta} s/km più veloce` : `${-delta} s/km più lento`} in un anno)`,
       )}
     >
       <div className="h-48">
@@ -525,10 +519,7 @@ function DriftSection({ data }: { data: RunData }) {
   const avg = recent.reduce((s, x) => s + x.d, 0) / recent.length;
   return (
     <Panel
-      title={t(
-        "Aerobic drift (Pa:HR) · easy runs ≥ 1 h",
-        "Deriva aerobica (Ri:FC) · corse facili ≥ 1 h",
-      )}
+      title={t("Aerobic drift (Pa:HR) · easy runs ≥ 1 h", "Decoupling (Pa:HR) · corse lente ≥ 1 h")}
     >
       <p className="mb-3 text-sm text-muted-foreground">
         {t(`Average of the last ${recent.length}:`, `Media delle ultime ${recent.length}:`)}{" "}
@@ -560,7 +551,7 @@ function DriftSection({ data }: { data: RunData }) {
               contentStyle={tip}
               formatter={(v, n) =>
                 n === "d"
-                  ? [`${Number(v).toFixed(1)}%`, t("Drift", "Deriva")]
+                  ? [`${Number(v).toFixed(1)}%`, t("Drift", "Decoupling")]
                   : [format(Number(v), "d MMM"), t("Date", "Data")]
               }
             />
@@ -576,8 +567,8 @@ function DriftSection({ data }: { data: RunData }) {
         aria-expanded={show}
       >
         {show
-          ? t(`Hide the ${recent.length} runs`, `Nascondi le ${recent.length} corse`)
-          : t(`Show the ${recent.length} runs`, `Mostra le ${recent.length} corse`)}
+          ? t(`Hide runs (${recent.length})`, `Nascondi corse (${recent.length})`)
+          : t(`Show runs (${recent.length})`, `Mostra corse (${recent.length})`)}
         <ChevronDown className={cn("transition-transform", show && "rotate-180")} />
       </Button>
       {show && (
@@ -630,7 +621,7 @@ function RunZonesSection({ data }: { data: RunData }) {
     kind === "pace"
       ? t(
           "No pace zones yet: set a threshold pace in Settings, or do a hard effort of 20 minutes.",
-          "Ancora nessuna zona di ritmo: imposta il ritmo di soglia nelle Impostazioni, o fai uno sforzo duro di 20 minuti.",
+          "Ancora nessuna zona di passo: imposta il passo di soglia nelle Impostazioni, o fai uno sforzo duro di 20 minuti.",
         )
       : t(
           "No heart-rate zones: set a threshold heart rate, and run with a sensor.",
@@ -697,7 +688,7 @@ function RunZonesSection({ data }: { data: RunData }) {
             tone="fatigue"
           />
           <StatCard
-            label={t("Pattern", "Modello")}
+            label={t("Pattern", "Pattern")}
             value={
               <span className="font-sans text-lg leading-tight">
                 {distributionLabel(f, t("Threshold", "Soglia"))}

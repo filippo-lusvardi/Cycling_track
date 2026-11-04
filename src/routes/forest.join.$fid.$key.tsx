@@ -63,7 +63,7 @@ function JoinForest() {
           )}
         </p>
       ) : member ? (
-        <Panel title={t("You're in", "Ci sei")}>
+        <Panel title={t("You're in", "Sei dentro")}>
           <Button asChild className="w-full">
             <Link to="/forest/$fid" params={{ fid }}>
               {t("Open the forest", "Apri il bosco")}
@@ -74,8 +74,8 @@ function JoinForest() {
         <Panel title={t("Request sent", "Richiesta inviata")}>
           <p className="text-sm text-muted-foreground">
             {t(
-              "A member will let you in soon. The forest will appear on your Forest page.",
-              "Un membro ti accoglierà presto. Il bosco comparirà nella tua pagina Bosco.",
+              "A member will accept you soon. The forest will appear on your Forest page.",
+              "Un membro ti accetterà presto. Il bosco comparirà nella tua pagina Bosco.",
             )}
           </p>
         </Panel>
@@ -141,7 +141,7 @@ function JoinForm({
             <span className="block text-xs text-muted-foreground">
               {t(
                 "Off: your tree here starts from the day you join. You can change it later.",
-                "Spento: qui il tuo albero parte dal giorno in cui entri. Puoi cambiarlo dopo.",
+                "Disattivato: qui il tuo albero parte dal giorno in cui entri. Puoi cambiarlo dopo.",
               )}
             </span>
           </span>
@@ -184,9 +184,9 @@ function JoinForm({
           />
           <span>
             {t(
-              `I agree to share my tree with the members of "${forest}": the ${w.rides} I choose to show (with their maps, heart rate and power if I turn those on above), my fitness, and my crown each day, which reflects my readiness and form (from my check-in, HRV and sleep). I can hide ${w.rides}, and leaving the forest removes my tree from it. See the`,
-              `Acconsento a condividere il mio albero con i membri di "${forest}": le ${w.uscite} che scelgo di mostrare (con mappe, frequenza cardiaca e potenza se le attivo qui sopra), la mia forma fisica e la mia chioma di ogni giorno, che riflette prontezza e forma (da check-in, HRV e sonno). Posso nascondere le ${w.uscite}, e lasciando il bosco il mio albero viene rimosso. Vedi l'`,
-            )}{" "}
+              `I agree to share my tree with the members of "${forest}": the ${w.rides} I choose to show (with their maps, heart rate and power if I turn those on above), my fitness, and my crown each day, which reflects my readiness and form (from my check-in, HRV and sleep). I can hide ${w.rides}, and leaving the forest removes my tree from it. See the `,
+              `Acconsento a condividere il mio albero con i membri di "${forest}": le ${w.uscite} che scelgo di mostrare (con mappe, frequenza cardiaca e potenza se le attivo qui sopra), il mio fitness e la mia chioma di ogni giorno, che riflette readiness e forma (da check-in, HRV e sonno). Posso nascondere le ${w.uscite}, e lasciando il bosco il mio albero viene rimosso. Vedi l'`,
+            )}
             <Link to="/privacy" className="underline">
               {t("privacy notice", "informativa privacy")}
             </Link>

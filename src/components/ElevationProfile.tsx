@@ -39,7 +39,12 @@ export function ElevationProfile({
     }
     return out;
   }, [distance, altitude]);
-  if (data.length < 2) return <p className="text-sm text-muted-foreground">{t("No altitude data for this ride.", "Nessun dato altimetrico per questa attività.")}</p>;
+  if (data.length < 2)
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("No altitude data for this activity.", "Nessun dato altimetrico per questa attività.")}
+      </p>
+    );
 
   return (
     <div className="h-48 sm:h-56">

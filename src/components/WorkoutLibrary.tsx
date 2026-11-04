@@ -127,7 +127,7 @@ export function WorkoutEditor({
       </div>
       <SportToggle sport={sport} onChange={onSport} />
       <div className="space-y-1">
-        <Label htmlFor="workout-text">{t("Steps", "Passaggi")}</Label>
+        <Label htmlFor="workout-text">{t("Steps", "Blocchi")}</Label>
         <Textarea
           id="workout-text"
           rows={8}
@@ -144,14 +144,14 @@ export function WorkoutEditor({
         <p className="text-xs text-muted-foreground">
           {t(
             `One step per line, starting with "-": time, then target (60%, 80-90%, Ramp 50-75%, Z2, 200w, 90% LTHR, 95% Pace, 4:30/km). "5x" on the line above repeats the steps below it, up to the next blank line.`,
-            `Un passaggio per riga, che inizia con "-": tempo, poi obiettivo (60%, 80-90%, Ramp 50-75%, Z2, 200w, 90% LTHR, 95% Pace, 4:30/km). "5x" nella riga sopra ripete i passaggi sotto, fino alla riga vuota successiva.`,
+            'Un blocco per riga, che inizia con "-": tempo, poi obiettivo (60%, 80-90%, Ramp 50-75%, Z2, 200w, 90% LTHR, 95% Pace, 4:30/km). "5x" nella riga sopra ripete i blocchi sotto, fino alla riga vuota successiva.',
           )}
         </p>
       </div>
       <WorkoutPreview text={text} type={type} />
       {parsed.unread.length > 0 && (
         <p className="text-xs text-birch" role="status">
-          {t("Not understood:", "Non capito:")} {parsed.unread.join(" · ")}
+          {t("Not understood:", "Non riconosciuto:")} {parsed.unread.join(" · ")}
         </p>
       )}
       <Button type="submit" className="w-full" disabled={busy || !name.trim()}>

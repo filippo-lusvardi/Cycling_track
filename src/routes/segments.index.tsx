@@ -150,8 +150,14 @@ function Segments() {
         <div>
           <div className="eyebrow">
             {sport === "run"
-              ? t(`${lib.ridesAnalysed} outdoor runs`, `${lib.ridesAnalysed} corse`)
-              : t(`${lib.ridesAnalysed} outdoor rides`, `${lib.ridesAnalysed} pedalate`)}{" "}
+              ? t(
+                  `${lib.ridesAnalysed} outdoor ${lib.ridesAnalysed === 1 ? "run" : "runs"}`,
+                  `${lib.ridesAnalysed} ${lib.ridesAnalysed === 1 ? "corsa" : "corse"} all'aperto`,
+                )
+              : t(
+                  `${lib.ridesAnalysed} outdoor ${lib.ridesAnalysed === 1 ? "ride" : "rides"}`,
+                  `${lib.ridesAnalysed} ${lib.ridesAnalysed === 1 ? "uscita" : "uscite"} all'aperto`,
+                )}{" "}
             ·{" "}
             {historyYears()
               ? historyYears() > 1
@@ -227,7 +233,7 @@ function Segments() {
           ) : (
             <div className="flex h-[30dvh] min-h-40 items-center justify-center rounded-lg bg-background/50 text-sm text-muted-foreground lg:h-auto lg:min-h-0 lg:flex-1">
               {isLoading
-                ? t("Loading rides…", "Caricamento attività…")
+                ? t("Loading activities…", "Caricamento attività…")
                 : t("No segments to show", "Nessun segmento da mostrare")}
             </div>
           )}
@@ -294,8 +300,8 @@ function Segments() {
             {isLoading && (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 {t(
-                  "Looking for recurring climbs in your activities… The first time each one is downloaded once; after that only new ones are.",
-                  "Ricerca delle salite ricorrenti nelle tue attività… La prima volta ogni attività viene scaricata una volta; poi solo le nuove.",
+                  "Looking for recurring climbs in your activities… Each one is downloaded once; after that only new ones are.",
+                  "Ricerca delle salite ricorrenti nelle tue attività… Ognuna viene scaricata una sola volta; poi solo le nuove.",
                 )}
               </p>
             )}
@@ -307,7 +313,7 @@ function Segments() {
                       `Nessun segmento corrisponde a “${query.trim()}”.`,
                     )
                   : t(
-                      "No segments yet. Star a climb or draw a segment on any ride's elevation profile.",
+                      "No segments yet. Star a climb or draw a segment on any activity's elevation profile.",
                       "Ancora nessun segmento. Aggiungi una salita ai preferiti o traccia un segmento sul profilo altimetrico di un'attività.",
                     )}
               </p>
@@ -384,7 +390,10 @@ function Segments() {
                       </div>
                       {s.rides != null && (
                         <div className="stat-num">
-                          {t(`${s.rides} rides`, `${s.rides} attività`)}
+                          {t(
+                            `${s.rides} ${s.rides === 1 ? "activity" : "activities"}`,
+                            `${s.rides} attività`,
+                          )}
                         </div>
                       )}
                     </div>
@@ -401,9 +410,12 @@ function Segments() {
 
 const PHASE: Record<Status["phase"], string> = {
   idle: "",
-  listing: t("Checking intervals.icu for new rides", "Controllo nuove attività su intervals.icu"),
-  downloading: t("Downloading and analysing rides", "Download e analisi delle attività"),
-  analysing: t("Matching segments to rides", "Abbinamento segmenti alle attività"),
+  listing: t(
+    "Checking intervals.icu for new activities",
+    "Controllo nuove attività su intervals.icu",
+  ),
+  downloading: t("Downloading and analysing activities", "Download e analisi delle attività"),
+  analysing: t("Matching segments to activities", "Abbinamento segmenti alle attività"),
   error: "",
 };
 

@@ -29,7 +29,7 @@ export function FitnessSection() {
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">
-          {t("Fitness, fatigue & form", "Forma fisica, fatica e forma")}
+          {t("Fitness, fatigue & form", "Fitness, fatica e forma")}
         </h2>
         <div className="flex gap-1 rounded-lg bg-secondary p-1">
           {RANGES.map((r) => (
@@ -82,7 +82,7 @@ function FormSection({ days }: { days: number }) {
     <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
-          label={t("Fitness", "Forma fisica")}
+          label={t("Fitness", "Fitness")}
           tone="fitness"
           value={today?.fitness ?? "–"}
           hint={
@@ -103,12 +103,12 @@ function FormSection({ days }: { days: number }) {
           }
         />
         <StatCard
-          label={t("Ramp rate", "Ritmo di crescita")}
+          label={t("Ramp rate", "Ramp rate")}
           value={ramp != null ? ramp.toFixed(1) : "–"}
-          hint={t("Fitness change / week", "Variazione forma fisica / settimana")}
+          hint={t("Fitness change / week", "Variazione fitness / settimana")}
         />
       </div>
-      <Panel title={t("Performance management", "Gestione della prestazione")}>
+      <Panel title={t("Performance management", "Gestione della performance")}>
         {/* Fitness and fatigue share a scale; form has its own, with zones. Hovering one shows the same day on both. */}
         <div className="space-y-4">
           <MetricChart
@@ -116,7 +116,7 @@ function FormSection({ days }: { days: number }) {
             lines={[
               {
                 key: "fitness",
-                label: t("Fitness (CTL)", "Forma fisica (CTL)"),
+                label: t("Fitness (CTL)", "Fitness (CTL)"),
                 color: "var(--fitness)",
                 area: true,
               },

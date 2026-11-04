@@ -4,6 +4,7 @@
 // as they arrive; a group's segment is the stretch all its members share. Cells make "which rides can
 // pass this segment?" a set lookup, so new rides and new segments only touch what they overlap.
 import { detectClimbs } from "./climbs";
+import { t } from "./i18n";
 import type { MainSport } from "./sport";
 import { coverage, findAttempts, haversine, samePath, type Attempt, type Path, type Segment, type Trace, type TrackLike } from "./segments";
 
@@ -116,7 +117,7 @@ export function groupSegment(g: Group): Segment {
   const grade = length > 0 ? (gain / length) * 100 : 0;
   return {
     id: g.id,
-    name: `Climb ${(length / 1000).toFixed(1)} km @ ${grade.toFixed(1)}%`,
+    name: `${t("Climb", "Salita")} ${(length / 1000).toFixed(1)} km @ ${grade.toFixed(1)}%`,
     source: "auto",
     lat1: lat[c0]!, lng1: lng[c0]!, lat2: lat[c1]!, lng2: lng[c1]!,
     length, gain, grade,

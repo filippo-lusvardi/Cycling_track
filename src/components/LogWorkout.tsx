@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
 const TYPES: { value: ManualActivity["type"]; label: string }[] = [
-  { value: "Ride", label: t("Ride", "Attività in bici") },
+  { value: "Ride", label: t("Ride", "Bici") },
   { value: "VirtualRide", label: t("Indoor ride", "Rulli") },
   { value: "Run", label: t("Run", "Corsa") },
   { value: "WeightTraining", label: t("Gym", "Palestra") },

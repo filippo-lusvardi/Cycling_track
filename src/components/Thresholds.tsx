@@ -297,7 +297,7 @@ function ZoneEditor({
                 void store(null);
               }}
             >
-              {t("Back to default", "Torna ai valori base")}
+              {t("Back to default", "Ripristina predefiniti")}
             </Button>
           )}
         </div>
@@ -329,7 +329,7 @@ export function ZoneLimits({ runs }: { runs: boolean }) {
             )
           : t(
               "Where each pace zone ends, as a percentage of threshold speed. Only in Cirmolo: intervals.icu keeps its own. Power and heart-rate zones are edited on intervals.icu.",
-              "Dove finisce ogni zona di ritmo, in percentuale della velocità di soglia. Solo in Cirmolo: intervals.icu tiene le sue. Le zone di potenza e frequenza cardiaca si modificano su intervals.icu.",
+              "Dove finisce ogni zona di passo, in percentuale della velocità di soglia. Solo in Cirmolo: intervals.icu tiene le sue. Le zone di potenza e frequenza cardiaca si modificano su intervals.icu.",
             )}
       </p>
       <div className="divide-y divide-border">
@@ -365,7 +365,7 @@ export function ZoneLimits({ runs }: { runs: boolean }) {
         {runs && (
           <ZoneEditor
             kind="pace"
-            title={t("Pace", "Ritmo")}
+            title={t("Pace", "Passo")}
             defaults={PACE_ZONE_PCT}
             names={RUN_ZONE_NAMES}
             amount={(p) => (pace && p > 0 ? `${formatPace((pace * p) / 100)}/km` : null)}

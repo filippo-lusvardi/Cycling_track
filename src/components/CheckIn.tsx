@@ -38,7 +38,7 @@ const SCALES: { key: ScaleKey; label: string; options: [string, string, string, 
   {
     key: "mood",
     label: t("Mood", "Umore"),
-    options: [t("Great", "Ottimo"), t("Good", "Buono"), t("OK", "OK"), t("Grumpy", "Scontroso")],
+    options: [t("Great", "Ottimo"), t("Good", "Buono"), t("OK", "OK"), t("Grumpy", "Basso")],
   },
 ];
 
@@ -136,7 +136,7 @@ export function CheckInForm({
       toast.error(
         t(
           "Couldn't save. Check the values and try again",
-          "Salvataggio non riuscito. Controlla i valori e riprova",
+          "Impossibile salvare. Controlla i valori e riprova",
         ),
       );
     } finally {
@@ -335,7 +335,7 @@ export function DailyCheckIn() {
       title={t("Morning check-in", "Check-in mattutino")}
       description={t(
         "How did you sleep and how do you feel? Feeds today's readiness.",
-        "Come hai dormito e come ti senti? Alimenta la prontezza di oggi.",
+        "Come hai dormito e come ti senti? Serve per la readiness di oggi.",
       )}
     >
       <CheckInForm

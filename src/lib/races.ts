@@ -23,11 +23,11 @@ export const FOCUS_PURPOSE: Record<Focus, string> = {
   base: byMain(
     t(
       "Long steady rides that build the aerobic engine and durability.",
-      "Uscite lunghe e regolari che costruiscono il motore aerobico e la resistenza.",
+      "Uscite lunghe e regolari per costruire il motore aerobico e la durability.",
     ),
     t(
       "Long easy runs that build the aerobic engine and durability.",
-      "Corse lunghe e facili che costruiscono il motore aerobico e la resistenza.",
+      "Lunghi lenti per costruire il motore aerobico e la durability.",
     ),
   ),
   aerobic: byMain(
@@ -37,17 +37,17 @@ export const FOCUS_PURPOSE: Record<Focus, string> = {
     ),
     t(
       "Sustained efforts near threshold: the pace you hold for 20–60 minutes.",
-      "Sforzi prolungati vicino alla soglia: il ritmo che tieni per 20–60 minuti.",
+      "Sforzi prolungati vicino alla soglia: il passo che tieni per 20–60 minuti.",
     ),
   ),
   vo2: t(
     "Hard 3–8 minute efforts that raise your aerobic ceiling.",
-    "Sforzi duri di 3–8 minuti che alzano il tuo tetto aerobico.",
+    "Sforzi duri di 3–8 minuti per alzare il tuo massimale aerobico.",
   ),
   anaerobic: byMain(
     t(
       "Very hard efforts of 30 s–2 min, for attacks and repeated surges.",
-      "Sforzi molto duri da 30 s a 2 min, per scatti e accelerazioni ripetute.",
+      "Sforzi molto duri da 30 s a 2 min, per scatti e cambi di ritmo ripetuti.",
     ),
     t(
       "Fast repeats of 30 s–2 min, for speed and running form.",
@@ -216,7 +216,7 @@ export const KINDS: Record<RaceKind, KindDef> = {
   trailMarathon: {
     discipline: "trail",
     code: "Trail marathon",
-    label: t("Trail marathon", "Trail maratona"),
+    label: t("Trail marathon", "Maratona trail"),
     timed: true,
     profile: null,
     minutes: 330,

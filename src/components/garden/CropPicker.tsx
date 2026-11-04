@@ -321,7 +321,7 @@ function AddSport({
               : ready
                 ? t(
                     `${count} of your activities would grow here.`,
-                    `${count} delle tue attività crescerebbero qui.`,
+                    `${count} ${count === 1 ? "tua attività crescerebbe" : "tue attività crescerebbero"} qui.`,
                   )
                 : ""}
           </p>

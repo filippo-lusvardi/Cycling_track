@@ -346,12 +346,12 @@ export function CrownView({
                 ? checkInOn()
                   ? t(
                       `Readiness ${crown.score} · estimated · check in to refine`,
-                      `Prontezza ${crown.score} · stimata · fai il check-in per affinarla`,
+                      `Readiness ${crown.score} · stimata · fai il check-in per affinarla`,
                     )
-                  : t(`Readiness ${crown.score} · estimated`, `Prontezza ${crown.score} · stimata`)
+                  : t(`Readiness ${crown.score} · estimated`, `Readiness ${crown.score} · stimata`)
                 : t(
                     `Readiness ${crown.score} · tap the crown for today`,
-                    `Prontezza ${crown.score} · tocca la chioma per oggi`,
+                    `Readiness ${crown.score} · tocca la chioma per oggi`,
                   )}
           </div>
         )}
@@ -359,7 +359,7 @@ export function CrownView({
           // Wraps between whole items, never inside one.
           <div className="stat-num mt-1 flex flex-wrap justify-center gap-x-3 text-sm">
             <span className="text-fitness">
-              {t("Fitness", "Forma fisica")} {Math.round(crown.ctl)}
+              {t("Fitness", "Fitness")} {Math.round(crown.ctl)}
             </span>
             {crown.atl != null && (
               <span className="text-fatigue">
@@ -756,9 +756,16 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
               {byMain(
-                t(`${y.count} rides · load`, `${y.count} uscite · carico`),
-                t(`${y.count} runs · load`, `${y.count} corse · carico`),
-              )} {num(Math.round(y.load))}
+                t(
+                  `${y.count} ${y.count === 1 ? "ride" : "rides"} · load`,
+                  `${y.count} ${y.count === 1 ? "uscita" : "uscite"} · carico`,
+                ),
+                t(
+                  `${y.count} ${y.count === 1 ? "run" : "runs"} · load`,
+                  `${y.count} ${y.count === 1 ? "corsa" : "corse"} · carico`,
+                ),
+              )}{" "}
+              {num(Math.round(y.load))}
               {y.crossMinutes >= 60 &&
                 t(
                   ` · ${num(Math.round(y.crossMinutes / 60))} h in the garden`,
@@ -774,7 +781,7 @@ export function Rings({ years, w }: { years: TreeYear[]; w: number }) {
                       style={{ background: SCAR }}
                       aria-hidden
                     />
-                    {t("Injured", "Infortunato")} {weekRange(s.start, s.end)}
+                    {t("Injured", "Infortunio")} {weekRange(s.start, s.end)}
                     <span className="text-muted-foreground">
                       ·{" "}
                       {s.to - s.from + 1 === 1

@@ -3,6 +3,7 @@ import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { z } from "zod";
 import { briochesIn } from "./brioches";
 import { garminAttribution } from "./garmin";
+import { t } from "./i18n";
 import { API_KEY, GARMIN, readSetting, RUN_THRESHOLD_ICU, writeSetting } from "./settings";
 import { runSummary, summaryRunLoad, type RunSummary } from "./run-metrics";
 import type { RideRef } from "./segment-engine";
@@ -31,7 +32,12 @@ async function icu<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 401 || res.status === 403) throw new AuthError();
   if (!res.ok) {
     console.error("intervals.icu error", res.status, await res.text());
-    throw new Error(`Could not reach intervals.icu (${res.status})`);
+    throw new Error(
+      t(
+        `Couldn't reach intervals.icu (${res.status})`,
+        `intervals.icu non è raggiungibile (${res.status})`,
+      ),
+    );
   }
   // Some writes (DELETE) answer with an empty body.
   const text = await res.text();

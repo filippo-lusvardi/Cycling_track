@@ -118,7 +118,7 @@ export function RideCharts({
         [
           {
             key: "speed",
-            label: isRun ? t("Pace", "Ritmo") : t("Speed", "Velocità"),
+            label: isRun ? t("Pace", "Passo") : t("Speed", "Velocità"),
             unit: isRun ? "/km" : "km/h",
             color: "var(--fitness)",
             avg: a.average_speed != null ? a.average_speed * 3.6 : null,
@@ -128,7 +128,7 @@ export function RideCharts({
           },
           {
             key: "gap",
-            label: t("Grade-adjusted pace", "Ritmo corretto per pendenza"),
+            label: t("Grade-adjusted pace", "Passo corretto per pendenza"),
             unit: "/km",
             color: "var(--pine)",
             avg: avgOf(data.map((p) => p.gap ?? null)),
@@ -245,12 +245,12 @@ export function RideCharts({
         <span>
           {t(
             "Drag across a chart to zoom (pinch on a phone); double-click to reset.",
-            "Trascina su un grafico per ingrandire (pizzica sul telefono); doppio clic per tornare.",
+            "Trascina su un grafico per ingrandire (zoom con due dita sul telefono); doppio clic per ripristinare.",
           )}
         </span>
         {zoom.zoomed && (
           <Button size="sm" variant="ghost" onClick={zoom.reset}>
-            {t("Reset zoom", "Annulla zoom")}
+            {t("Reset zoom", "Reimposta zoom")}
           </Button>
         )}
       </div>

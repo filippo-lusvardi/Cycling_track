@@ -107,7 +107,7 @@ function LoginPage() {
           )}
           <Button type="submit" className="w-full" disabled={busy}>
             {busy
-              ? t("Please wait…", "Attendere…")
+              ? t("Please wait…", "Attendi…")
               : mode === "reset"
                 ? t("Send reset link", "Invia link")
                 : title}
@@ -136,15 +136,15 @@ function LoginPage() {
       </Panel>
       <p className="text-xs text-muted-foreground">
         {t(
-          "Your account keeps your intervals.icu key and saved segments, so any device you sign in on is ready to go. Rides and wellness stay on intervals.icu.",
-          "L'account conserva la chiave intervals.icu e i segmenti salvati, così ogni dispositivo su cui accedi è subito pronto. Attività e benessere restano su intervals.icu.",
+          "Your account keeps your intervals.icu key and saved segments, ready on every device. With intervals.icu, rides and wellness stay there.",
+          "L'account conserva la chiave intervals.icu e i segmenti salvati, pronti su ogni dispositivo. Con intervals.icu, attività e benessere restano lì.",
         )}{" "}
         {mode === "signup"
           ? t(
-              "By creating an account you confirm you've read the",
+              "By creating an account you confirm you've read the ",
               "Creando un account confermi di aver letto l'",
             )
-          : t("See the", "Leggi l'")}{" "}
+          : t("See the ", "Leggi l'")}
         <Link to="/privacy" className="underline hover:text-foreground">
           {t("privacy notice", "informativa privacy")}
         </Link>

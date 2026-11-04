@@ -72,8 +72,8 @@ function WorkoutsPage() {
         {isError ? (
           <p className="text-sm text-muted-foreground">
             {t(
-              "The library couldn't be loaded. Check the connection and open this page again.",
-              "Non è stato possibile caricare la libreria. Controlla la connessione e riapri questa pagina.",
+              "Couldn't load the library. Check the connection and open this page again.",
+              "Impossibile caricare la libreria. Controlla la connessione e riapri questa pagina.",
             )}
           </p>
         ) : shown.length === 0 ? (

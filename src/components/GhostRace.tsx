@@ -156,7 +156,7 @@ export function RaceReplay({
   if (!sa || !sb)
     return (
       <p className="py-16 text-center text-sm text-muted-foreground">
-        {tr("Loading the two rides…", "Caricamento delle due attività…")}
+        {tr("Loading the two activities…", "Caricamento delle due attività…")}
       </p>
     );
 

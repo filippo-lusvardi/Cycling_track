@@ -35,7 +35,14 @@ export function WorkoutBlocks({
       i.average_watts != null,
   );
   if (!ivs.length)
-    return <p className="text-sm text-muted-foreground">{t("No interval data for this ride.", "Nessun dato sugli intervalli per questa attività.")}</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t(
+          "No interval data for this activity.",
+          "Nessun dato sugli intervalli per questa attività.",
+        )}
+      </p>
+    );
   const total =
     Math.max(...ivs.map((i) => i.end_time!)) - Math.min(...ivs.map((i) => i.start_time!));
   const t0 = Math.min(...ivs.map((i) => i.start_time!));

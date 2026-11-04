@@ -41,11 +41,11 @@ const DURATIONS: Record<Focus, number[]> = {
   sprint: [5, 10, 15],
 };
 const DURATION_WORD: Record<Focus, string> = {
-  base: t("60-min", "60 min"),
-  aerobic: t("20–40-min", "20–40 min"),
-  vo2: t("3–8-min", "3–8 min"),
-  anaerobic: t("30 s–2 min", "30 s–2 min"),
-  sprint: t("sprint", "sprint"),
+  base: t("60-min", "sui 60 min"),
+  aerobic: t("20–40-min", "sui 20–40 min"),
+  vo2: t("3–8-min", "sui 3–8 min"),
+  anaerobic: t("30 s–2 min", "sui 30 s–2 min"),
+  sprint: t("sprint", "in sprint"),
 };
 /** Zones (1-based, intervals.icu Z1–Z7) for each focus, and the share of riding time below which it's neglected. */
 const ZONES: Record<Focus, [number[], number]> = {
@@ -169,11 +169,11 @@ export function baseGate(
         isRun
           ? t(
               `Aerobic drift on easy runs is ${avg.toFixed(1)}% (over 5%).`,
-              `La deriva aerobica nelle corse facili è ${avg.toFixed(1)}% (oltre il 5%).`,
+              `Il decoupling nelle corse lente è ${avg.toFixed(1)}% (oltre il 5%).`,
             )
           : t(
               `Aerobic decoupling on steady rides is ${avg.toFixed(1)}% (over 5%).`,
-              `Il disaccoppiamento aerobico nelle uscite regolari è ${avg.toFixed(1)}% (oltre il 5%).`,
+              `Il decoupling nelle uscite regolari è ${avg.toFixed(1)}% (oltre il 5%).`,
             ),
       );
   }
@@ -207,7 +207,7 @@ export function baseGate(
     reasons.push(
       t(
         `Fitness ${Math.round(now)} is well below your usual ${Math.round(median(year))}.`,
-        `La forma fisica ${Math.round(now)} è molto sotto il tuo solito ${Math.round(median(year))}.`,
+        `Il fitness (${Math.round(now)}) è molto sotto il tuo solito (${Math.round(median(year))}).`,
       ),
     );
 
@@ -219,7 +219,7 @@ export function baseGate(
       reasons.push(
         t(
           `Your 5 min pace drops ${late.toFixed(0)}% after 25 km of running (over ${DURABILITY_FADE}%).`,
-          `Il tuo ritmo sui 5 min cala del ${late.toFixed(0)}% dopo 25 km di corsa (oltre il ${DURABILITY_FADE}%).`,
+          `Il tuo passo sui 5 min cala del ${late.toFixed(0)}% dopo 25 km di corsa (oltre il ${DURABILITY_FADE}%).`,
         ),
       );
     return reasons;
@@ -349,7 +349,7 @@ const paceRange = (threshold: number | null, lo: number, hi: number) =>
     ? `${formatPace(threshold * lo)}–${formatPace(threshold * hi)}/km`
     : t(
         `${Math.round(lo * 100)}–${Math.round(hi * 100)}% of threshold pace`,
-        `${Math.round(lo * 100)}–${Math.round(hi * 100)}% del ritmo di soglia`,
+        `${Math.round(lo * 100)}–${Math.round(hi * 100)}% del passo di soglia`,
       );
 
 /** The quality session for a runner: running can't take a cyclist's volume, so it's shorter, with strides. */
@@ -380,10 +380,10 @@ function runSession(input: {
     const best = wattsAt(input.c1y, m * 60);
     const at = best
       ? `${formatPace(best * 0.95)}–${formatPace(best)}/km`
-      : t("race pace", "ritmo gara");
+      : t("race pace", "passo gara");
     text = t(
       `Race pace for ${lead.name} (${formatMinutes(m)}): ${reps} at ${at}, easy jog between.`,
-      `Ritmo gara per ${lead.name} (${formatMinutes(m)}): ${reps} a ${at}, corsa facile tra le ripetute.`,
+      `Passo gara per ${lead.name} (${formatMinutes(m)}): ${reps} a ${at}, corsa lenta tra le ripetute.`,
     );
   } else {
     const strides = t(" Finish with 4 strides.", " Chiudi con 4 allunghi.");
@@ -391,28 +391,28 @@ function runSession(input: {
       base:
         t(
           `Long run: 90–150 min easy (${paceRange(threshold, 0.78, 0.88)}), the last 20 min a little quicker.`,
-          `Corsa lunga: 90–150 min facile (${paceRange(threshold, 0.78, 0.88)}), gli ultimi 20 min un po' più veloce.`,
+          `Lungo: 90–150 min lento (${paceRange(threshold, 0.78, 0.88)}), gli ultimi 20 min un po' più veloci.`,
         ) + strides,
       aerobic:
         t(
           `3×10 min at ${paceRange(threshold, 0.97, 1)}, 3 min easy jog between.`,
-          `3×10 min a ${paceRange(threshold, 0.97, 1)}, 3 min di corsa facile tra le ripetute.`,
+          `3×10 min a ${paceRange(threshold, 0.97, 1)}, 3 min di corsa lenta tra le ripetute.`,
         ) + strides,
       vo2: t(
         `5×3 min at ${paceRange(threshold, 1.05, 1.12)}, 3 min easy jog between.`,
-        `5×3 min a ${paceRange(threshold, 1.05, 1.12)}, 3 min di corsa facile tra le ripetute.`,
+        `5×3 min a ${paceRange(threshold, 1.05, 1.12)}, 3 min di corsa lenta tra le ripetute.`,
       ),
       anaerobic: t(
         `8×45 s at ${paceRange(threshold, 1.15, 1.3)}, full recovery walking and jogging.`,
         `8×45 s a ${paceRange(threshold, 1.15, 1.3)}, recupero completo camminando e corricchiando.`,
       ),
-      sprint: t("6 strides inside an easy run.", "6 allunghi dentro una corsa facile."),
+      sprint: t("6 strides inside an easy run.", "6 allunghi dentro una corsa lenta."),
     }[input.focus];
   }
   if (races.some((r) => raceWeight(r, input.today) > 0 && r.info?.discipline === "trail"))
     text += t(
       " Do it on a climb where you can: pace gives way to effort there.",
-      " Falla in salita dove puoi: lì conta lo sforzo più del ritmo.",
+      " Falla in salita dove puoi: lì conta lo sforzo più del passo.",
     );
   return text;
 }
@@ -463,7 +463,7 @@ export function focusSession(input: {
     text = {
       base: t(
         `Long endurance: 3–4 h in Z2 (${z2}), the last hour with 2×20 min tempo.`,
-        `Fondo lungo: 3–4 h in Z2 (${z2}), l'ultima ora con 2×20 min a ritmo tempo.`,
+        `Fondo lungo: 3–4 h in Z2 (${z2}), l'ultima ora con 2×20 min di tempo.`,
       ),
       aerobic: t(
         `3×12 min at ${range(ftp, 0.95, 1.0)}, 5 min easy between.`,
@@ -486,7 +486,7 @@ export function focusSession(input: {
   if (input.focus !== "sprint" && weighted.some((r) => r.info?.sprint))
     text += t(
       " Then 3×15 s sprints in the last 20 min, when tired.",
-      " Poi 3×15 s di sprint negli ultimi 20 min, da stanco.",
+      " Poi 3×15 s di sprint negli ultimi 20 min, a gambe stanche.",
     );
   return text;
 }
@@ -497,7 +497,7 @@ export function roleText(role: DayRole, sport: MainSport = "ride"): string {
   if (sport === "run" && role.role === "sharpen")
     return t(
       `Taper for ${name} (${role.days} days): short easy runs, with 4 strides and 3×1 min at race pace.`,
-      `Scarico per ${name} (${role.days} giorni): corse brevi e facili, con 4 allunghi e 3×1 min a ritmo gara.`,
+      `Scarico per ${name} (${role.days} giorni): corse brevi e lente, con 4 allunghi e 3×1 min a passo gara.`,
     );
   const sprint = role.race.info?.sprint;
   switch (role.role) {
@@ -550,11 +550,11 @@ export function focusWhy(
       : isRun
         ? t(
             "No races ahead: training the complete runner.",
-            "Nessuna gara in arrivo: alleni il corridore completo.",
+            "Nessuna gara in programma: alleni il runner completo.",
           )
         : t(
             "No races ahead: training the complete cyclist.",
-            "Nessuna gara in arrivo: alleni il ciclista completo.",
+            "Nessuna gara in programma: alleni il ciclista completo.",
           ),
   );
   const pct = Math.round(r.ratio[r.focus] * 100);
@@ -563,7 +563,7 @@ export function focusWhy(
       isRun
         ? t(
             `Your ${DURATION_WORD[r.focus]} pace is at ${pct}% of your best this year.`,
-            `Il tuo ritmo ${DURATION_WORD[r.focus]} è al ${pct}% del tuo migliore dell'anno.`,
+            `Il tuo passo ${DURATION_WORD[r.focus]} è al ${pct}% del tuo migliore dell'anno.`,
           )
         : t(
             `Your ${DURATION_WORD[r.focus]} power is at ${pct}% of your best this year.`,

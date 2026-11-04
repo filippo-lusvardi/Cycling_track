@@ -44,10 +44,11 @@ import {
 } from "@/lib/segments";
 import { addDays, formatClock, formatDuration, formatKm, weightFor } from "@/lib/training";
 import { cn } from "@/lib/utils";
+import { activityKind, KINDS } from "@/lib/activity-kind";
 import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/rides/$id")({
-  head: () => ({ meta: [{ title: t("Ride details — Cirmolo", "Dettagli attività — Cirmolo") }] }),
+  head: () => ({ meta: [{ title: t("Activity — Cirmolo", "Attività — Cirmolo") }] }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(activityQuery(params.id)),
   component: RideDetail,
 });
@@ -110,7 +111,7 @@ function RideDetail() {
           {a.start_date_local
             ? format(parseISO(a.start_date_local), "EEEE d MMMM yyyy · HH:mm")
             : ""}{" "}
-          · {a.type}
+          · {activityKind(a) === "other" ? a.type : KINDS[activityKind(a)].label}
         </div>
         <h1 className="on-sky text-3xl font-bold tracking-tight">
           {a.name ?? t("Activity", "Attività")}
@@ -133,7 +134,7 @@ function RideDetail() {
         {isRun ? (
           <>
             <StatCard
-              label={t("Avg pace", "Ritmo medio")}
+              label={t("Avg pace", "Passo medio")}
               value={formatPace(a.average_speed)}
               unit="/km"
             />
@@ -141,7 +142,7 @@ function RideDetail() {
               label={t("GAP", "GAP")}
               value={formatPace(run?.gap)}
               unit="/km"
-              hint={t("grade-adjusted pace", "ritmo corretto per pendenza")}
+              hint={t("grade-adjusted pace", "passo corretto per pendenza")}
             />
           </>
         ) : (
@@ -205,17 +206,17 @@ function RideDetail() {
           <StatCard label={t("Cadence", "Cadenza")} value={r(a.average_cadence)} unit="rpm" />
         )}
         <StatCard
-          label={t("Decoupling", "Disaccoppiamento")}
+          label={t("Decoupling", "Decoupling")}
           value={decouple != null ? decouple.toFixed(1) : "–"}
           unit="%"
           hint={
             decouple != null
               ? decouple < 5
                 ? isRun
-                  ? t("Pa:HR steady (< 5%)", "Ri:FC stabile (< 5%)")
-                  : t("Pw:HR steady (< 5%)", "Pw:FC stabile (< 5%)")
+                  ? t("Pa:HR steady (< 5%)", "Pa:HR stabile (< 5%)")
+                  : t("Pw:HR steady (< 5%)", "Pw:HR stabile (< 5%)")
                 : isRun
-                  ? t("HR drifted vs pace", "FC in deriva rispetto al ritmo")
+                  ? t("HR drifted vs pace", "FC in deriva rispetto al passo")
                   : t("HR drifted vs power", "FC in deriva rispetto alla potenza")
               : undefined
           }
@@ -224,7 +225,7 @@ function RideDetail() {
       </div>
 
       {isRun && runZones?.some((s) => s > 0) ? (
-        <Panel title={t("Time in pace zones (GAP)", "Tempo nelle zone di ritmo (GAP)")}>
+        <Panel title={t("Time in pace zones (GAP)", "Tempo nelle zone di passo (GAP)")}>
           <ZoneBar secs={runZones} names={RUN_ZONE_NAMES} />
         </Panel>
       ) : isRun ? null : a.zoneTimes.some((s) => s > 0) && (
@@ -263,7 +264,7 @@ function RideDetail() {
       ) : (
         <Panel title={t("Elevation & climbs", "Altimetria e salite")}>
           <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("Loading ride streams…", "Caricamento dati attività…")}
+            {t("Loading activity data…", "Caricamento dati attività…")}
           </p>
         </Panel>
       )}
@@ -271,7 +272,7 @@ function RideDetail() {
       <Panel
         title={
           isRun
-            ? t("Pace, GAP & heart rate", "Ritmo, GAP e frequenza cardiaca")
+            ? t("Pace, GAP & heart rate", "Passo, GAP e frequenza cardiaca")
             : t("Speed, power & heart rate", "Velocità, potenza e frequenza cardiaca")
         }
         action={<ShowHide open={showCharts} onToggle={() => setShowCharts((v) => !v)} />}
@@ -282,7 +283,7 @@ function RideDetail() {
             <RideCharts a={a} streams={streams} work={work} cp={isRun ? null : cp} />
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              {t("Loading ride streams…", "Caricamento dati attività…")}
+              {t("Loading activity data…", "Caricamento dati attività…")}
             </p>
           ))}
       </Panel>
@@ -352,13 +353,13 @@ function DeleteRide({ id }: { id: string }) {
           const { deleteRide } = await import("@/lib/native");
           await deleteRide(id);
           await qc.invalidateQueries();
-          toast.success(t("Ride deleted", "Uscita eliminata"));
+          toast.success(t("Activity deleted", "Attività eliminata"));
           navigate({ to: "/rides" });
         }}
       >
         {confirm
           ? t("Delete for good", "Elimina definitivamente")
-          : t("Delete ride", "Elimina uscita")}
+          : t("Delete activity", "Elimina attività")}
       </Button>
     </div>
   );
@@ -427,8 +428,8 @@ function Brioches({ a }: { a: ActivityDetail }) {
           </div>
           <p className="text-center text-sm text-muted-foreground">
             {t(
-              "Each brioche perches as a bird on this ride's branch. Saved in the ride's description on intervals.icu.",
-              "Ogni brioche si posa come un uccellino sul ramo di questa uscita. Salvata nella descrizione dell'uscita su intervals.icu.",
+              "Each brioche perches as a bird on this activity's branch. Saved in its description on intervals.icu.",
+              "Ogni brioche si posa come un uccellino sul ramo di questa attività. Salvata nella sua descrizione su intervals.icu.",
             )}
           </p>
         </div>
@@ -459,7 +460,7 @@ function FuelLine({ a, brioches }: { a: ActivityDetail; brioches: number }) {
     f.verdict === "under" ? "text-birch" : f.verdict === "over" ? "text-fitness" : "text-pine";
   const next =
     f.verdict === "ok" || f.advice === 0
-      ? t("Fuelling on target.", "Alimentazione giusta.")
+      ? t("Fuelling on target.", "Hai mangiato il giusto.")
       : f.advice > 0
         ? t(
             `${f.advice} more brioche${f.advice > 1 ? "s" : ""} next time.`,
@@ -558,7 +559,7 @@ function WorkBar({ work, onClear }: { work: Work; onClear: () => void }) {
         {work.hr != null && ` · ${Math.round(work.hr)} bpm`}
       </span>
       <Button size="sm" variant="ghost" onClick={onClear} className="shrink-0">
-        {t("Whole ride", "Attività intera")}
+        {t("Whole activity", "Attività intera")}
       </Button>
     </div>
   );
@@ -900,7 +901,7 @@ function Climbs({
                     <th className="text-right font-normal">{t("Time", "Tempo")}</th>
                     <th className="text-right font-normal">VAM</th>
                     <th className="text-right font-normal">
-                      {isRun ? t("Pace", "Ritmo") : t("Power", "Potenza")}
+                      {isRun ? t("Pace", "Passo") : t("Power", "Potenza")}
                     </th>
                     {!isRun && <th className="text-right font-normal">W/kg</th>}
                     {track && <th />}
@@ -987,21 +988,21 @@ function Climbs({
       </Panel>
 
       <Panel
-        title={`${t("Segments on this ride", "Segmenti in questa attività")}${onRide.length ? ` · ${onRide.length}` : ""}`}
+        title={`${t("Segments on this activity", "Segmenti in questa attività")}${onRide.length ? ` · ${onRide.length}` : ""}`}
       >
         {onRide.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             {track
               ? store.ridesAnalysed
                 ? t(
-                    "This ride doesn't pass any of your segments.",
+                    "This activity doesn't pass any of your segments.",
                     "Questa attività non passa da nessuno dei tuoi segmenti.",
                   )
                 : t(
-                    "Open Segments once to analyse your rides; recurring climbs will then show up here.",
+                    "Open Segments once to analyse your activities; recurring climbs will then show up here.",
                     "Apri Segmenti una volta per analizzare le attività; le salite ricorrenti appariranno qui.",
                   )
-              : t("No GPS on this ride.", "Nessun GPS in questa attività.")}
+              : t("No GPS on this activity.", "Nessun GPS in questa attività.")}
           </p>
         ) : (
           <>
@@ -1065,7 +1066,7 @@ function Climbs({
                     <th className="text-right font-normal">{t("Time", "Tempo")}</th>
                     <th className="text-right font-normal">{t("Rank", "Pos.")}</th>
                     <th className="text-right font-normal">
-                      {isRun ? t("Pace", "Ritmo") : t("Power", "Potenza")}
+                      {isRun ? t("Pace", "Passo") : t("Power", "Potenza")}
                     </th>
                     {!isRun && <th className="text-right font-normal">W/kg</th>}
                     <th className="text-right font-normal">VAM</th>

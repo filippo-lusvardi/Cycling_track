@@ -168,7 +168,7 @@ function SegmentPage() {
         <BackLink sport={sport} />
         <p className="text-sm text-muted-foreground">
           {isLoading
-            ? t("Loading rides…", "Caricamento attività…")
+            ? t("Loading activities…", "Caricamento attività…")
             : t("This segment no longer exists.", "Questo segmento non esiste più.")}
         </p>
       </div>
@@ -380,7 +380,7 @@ function SegmentPage() {
                   labelFormatter={(d) => format(parseISO(String(d)), "EEE d MMM yyyy")}
                   formatter={(v, name) => {
                     const label = String(name).endsWith("Fit")
-                      ? t("Trend", "Tendenza")
+                      ? t("Trend", "Trend")
                       : metric === "time"
                         ? t("Time", "Tempo")
                         : t("Power", "Potenza");
@@ -425,7 +425,7 @@ function SegmentPage() {
             <span>
               {metric === "time" && `${t("Faster is higher.", "Più in alto = più veloce.")} `}
               {degrees[metric] != null &&
-                `${t("Dashed: trend", "Tratteggio: tendenza")} (${
+                `${t("Dashed: trend", "Tratteggio: trend")} (${
                   degrees[metric] === 1
                     ? t("linear", "lineare")
                     : t(
@@ -435,12 +435,12 @@ function SegmentPage() {
                 }). `}
               {t(
                 "Drag to zoom (pinch on a phone); double-click to reset.",
-                "Trascina per ingrandire (pizzica sul telefono); doppio clic per tornare.",
+                "Trascina per ingrandire (zoom con due dita sul telefono); doppio clic per ripristinare.",
               )}
             </span>
             {zoom.zoomed && (
               <Button size="sm" variant="ghost" onClick={zoom.reset}>
-                {t("Reset zoom", "Annulla zoom")}
+                {t("Reset zoom", "Reimposta zoom")}
               </Button>
             )}
           </div>
@@ -492,12 +492,12 @@ function AllEfforts({
     <Panel title={t("All efforts", "Tutti i passaggi")}>
       {loading ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          {t("Loading rides…", "Caricamento attività…")}
+          {t("Loading activities…", "Caricamento attività…")}
         </p>
       ) : efforts.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
           {t(
-            "No efforts found in the analysed rides.",
+            "No efforts found in the analysed activities.",
             "Nessun passaggio trovato nelle attività analizzate.",
           )}
         </p>
@@ -578,7 +578,7 @@ function AllEfforts({
                   <th className="text-right font-normal">{t("Time", "Tempo")}</th>
                   {!isRun && <th className="text-right font-normal">{t("Power", "Potenza")}</th>}
                   {!isRun && <th className="text-right font-normal">W/kg</th>}
-                  {isRun && <th className="text-right font-normal">{t("Pace", "Ritmo")}</th>}
+                  {isRun && <th className="text-right font-normal">{t("Pace", "Passo")}</th>}
                   <th className="text-right font-normal">VAM</th>
                   <th className="text-right font-normal">{t("HR", "FC")}</th>
                   <th className="text-right font-normal">{isRun ? t("Steps", "Passi") : t("Cad", "Cad")}</th>

@@ -30,10 +30,10 @@ export const INTENSITY_WORD = [
 ];
 /** intervals.icu feel words for levels 1–4 (4 also covers "weak"). */
 export const FEEL_WORD = [
-  t("strong", "forte"),
-  t("good", "bene"),
+  t("strong", "ottima"),
+  t("good", "buona"),
   t("normal", "normale"),
-  t("poor", "male"),
+  t("poor", "scarsa"),
 ];
 
 /** One leaf per this many metres climbed. */
@@ -582,8 +582,8 @@ export function weatherPhase(form: number): number {
 export const WEATHER_WORD: Record<Weather, string> = {
   sun: t("fresh", "fresco"),
   partly: t("neutral", "neutro"),
-  clouds: t("training hard", "carico intenso"),
-  rain: t("overreached", "sovraccarico"),
+  clouds: t("training hard", "sotto carico"),
+  rain: t("overreached", "overreaching"),
 };
 
 /**
@@ -736,7 +736,7 @@ export function offToggle(events: PlannedEvent[], kind: OffKind, today: string):
 
 /** "Sick 4–9 Oct", "Injured 12 Oct". */
 export function offTitle(kind: OffKind, start: string, last: string): string {
-  const word = kind === "SICK" ? t("Sick", "Malato") : t("Injured", "Infortunato");
+  const word = kind === "SICK" ? t("Sick", "Malattia") : t("Injured", "Infortunio");
   return `${word} ${weekRange(start, last)}`;
 }
 

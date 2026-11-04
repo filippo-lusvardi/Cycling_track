@@ -307,7 +307,19 @@ export function createSegmentEngine(deps: EngineDeps) {
       lastSync = Date.now();
       await deps.meta.set("lastSync", lastSync);
       await persist();
-      setStatus(failures >= 3 ? { phase: "error", done, total: queue.length, message: t("Couldn't download some rides; will retry.", "Impossibile scaricare alcune attività; nuovo tentativo più tardi.") } : { phase: "idle", done: 0, total: 0 });
+      setStatus(
+        failures >= 3
+          ? {
+              phase: "error",
+              done,
+              total: queue.length,
+              message: t(
+                "Couldn't download some activities; will retry.",
+                "Impossibile scaricare alcune attività; nuovo tentativo più tardi.",
+              ),
+            }
+          : { phase: "idle", done: 0, total: 0 },
+      );
     } catch (e) {
       await persist().catch(() => {});
       setStatus({ phase: "error", done: 0, total: 0, message: e instanceof Error ? e.message : String(e) });
