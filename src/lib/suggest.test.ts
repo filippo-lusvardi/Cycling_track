@@ -692,3 +692,56 @@ describe("from the evidence", () => {
     });
   });
 });
+
+describe("a week asked for by hours and load", () => {
+  const input = { ...base, acts: weekHistory };
+  const from = "2026-11-09";
+  const to = "2026-11-15";
+  const week = (target = {}, i: SuggestInput = input) => suggestWeek(i, from, to, target);
+
+  it("is unchanged when nothing is asked", () => {
+    expect(week({})).toEqual(suggestWeek(input, from, to));
+  });
+
+  it("grows with the hours asked, up to what the workouts allow", () => {
+    expect(week({ seconds: 12 * 3600 }).seconds).toBeGreaterThan(
+      week({ seconds: 3 * 3600 }).seconds,
+    );
+  });
+
+  it("comes close to the hours asked", () => {
+    for (const hours of [4, 8, 10])
+      expect(Math.abs(week({ seconds: hours * 3600 }).seconds - hours * 3600)).toBeLessThan(3600);
+  });
+
+  it("adds up the load", () => {
+    const w = week({ seconds: 8 * 3600 });
+    const sum = w.days.reduce((s, d) => s + (d.picks[0]?.workout.load ?? 0), 0);
+    expect(w.load).toBe(sum);
+  });
+
+  it("keeps hard days to what hours and load together ask", () => {
+    expect(week({ seconds: 8 * 3600, load: 250 }).hard).toBe(0);
+    expect(week({ seconds: 8 * 3600, load: 400 }).hard).toBe(0);
+    expect(week({ seconds: 8 * 3600, load: 600 }).hard).toBe(2);
+  });
+
+  it("never goes past your own limit of hard days", () => {
+    const own = week().hard;
+    expect(week({ seconds: 8 * 3600, load: 2000 }).hard).toBeLessThanOrEqual(own);
+  });
+
+  it("turns a load alone into time", () => {
+    expect(week({ load: 800 }).seconds).toBeGreaterThan(week({ load: 200 }).seconds);
+  });
+
+  it("stays capped at the usual week when coming back", () => {
+    const back = { ...base, acts: [act(addDays(today, -20), 65, 3600)] };
+    expect(week({ seconds: 20 * 3600 }, back).seconds).toBeLessThanOrEqual(6 * 3600);
+  });
+
+  it("treats your own activity as a hard day, by its missing text", () => {
+    const events = [event(addDays(today, 3), "WORKOUT", { description: null, moving_time: 10800 })];
+    expect(dayAsk({ ...base, events }, addDays(today, 2))).toBe("steady");
+  });
+});

@@ -3,14 +3,19 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { WriteAction } from "./ask-intents";
 import { withBrioches } from "./brioches";
-import type { OffKind } from "./intervals";
+import { readSetting, writeSetting } from "./settings";
+import { isFreeRide, type ManualActivity, type OffKind } from "./intervals";
 import {
   createOffEvent,
   deleteEvent,
   planFreeRide,
+  createManualActivity,
+  deleteActivity,
   getActivity,
   getOffEvents,
   getWellness,
+  movePlanned,
+  scheduleWorkout,
   setActivityDescription,
   setActivityFeel,
   updateOffEvent,
@@ -21,6 +26,36 @@ import { saveWellnessOrQueue } from "./wellness-queue";
 
 export type WriteResult = { queued: boolean; undo: () => Promise<void> };
 
+let last: { label: string; run: () => Promise<void> } | null = null;
+
+/** What typing `annulla` would take back. */
+export const lastSaved = () => last?.label ?? null;
+
+/** Keeps a save's way back for typing, and gives the same way back for its message: either one, once. */
+export function rememberUndo(label: string, undo: () => Promise<void>) {
+  const run = async () => {
+    await undo();
+    if (last?.run === run) last = null;
+  };
+  last = { label, run };
+  return run;
+}
+
+export const undoLast = async () => {
+  await last?.run();
+};
+
+/** The time an activity logged today started, having just ended; other days keep the form's morning. */
+export function loggedNow(entry: ManualActivity, now: Date): ManualActivity {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  if (entry.time || entry.date !== today) return entry;
+  const start = Math.max(0, now.getHours() * 60 + now.getMinutes() - entry.minutes);
+  return { ...entry, time: `${pad(Math.floor(start / 60))}:${pad(start % 60)}` };
+}
+
+const SCALES = new Set(["sleepQuality", "fatigue", "stress", "mood"]);
+
 async function toggleOff(off: OffKind, today: string) {
   const events = await getOffEvents({ oldest: addDays(today, -90), newest: addDays(today, 90) });
   const change = offToggle(events, off, today);
@@ -30,6 +65,7 @@ async function toggleOff(off: OffKind, today: string) {
 }
 
 export async function runWrite(a: WriteAction, qc: QueryClient): Promise<WriteResult> {
+  if (a.kind === "undo") throw new Error("Undoing goes through undoLast");
   if (a.kind === "wellness") {
     const refresh = () => qc.invalidateQueries({ queryKey: ["wellness"] });
     let before: number | null = null;
@@ -40,11 +76,16 @@ export async function runWrite(a: WriteAction, qc: QueryClient): Promise<WriteRe
       /* Offline: nothing to read back, so undoing clears it. */
     }
     const status = await saveWellnessOrQueue({ date: a.date, [a.field]: a.value });
+    // One typed word isn't the morning's check-in: it stays on offer, already holding this answer.
+    const state = `cadence_checkin_${a.date}`;
+    const typed = SCALES.has(a.field) && !readSetting(state);
+    if (typed) writeSetting(state, "typed");
     await refresh();
     return {
       queued: status === "queued",
       undo: async () => {
         await saveWellnessOrQueue({ date: a.date, [a.field]: before });
+        if (typed && readSetting(state) === "typed") writeSetting(state, null);
         await refresh();
       },
     };
@@ -61,13 +102,70 @@ export async function runWrite(a: WriteAction, qc: QueryClient): Promise<WriteRe
     };
   }
   if (a.kind === "ride") {
-    const id = await planFreeRide({ name: a.name, type: a.type, date: a.date });
+    const id = await planFreeRide({
+      name: a.name,
+      type: a.type,
+      date: a.date,
+      seconds: a.seconds,
+      ...(a.load != null ? { load: a.load } : {}),
+    });
     await qc.invalidateQueries({ queryKey: ["events"] });
     return {
       queued: false,
       undo: async () => {
         await deleteEvent(id);
         await qc.invalidateQueries({ queryKey: ["events"] });
+      },
+    };
+  }
+  if (a.kind === "log") {
+    const refresh = () => qc.invalidateQueries({ queryKey: ["activities"] });
+    const { id } = await createManualActivity(loggedNow(a.entry, new Date()));
+    await refresh();
+    return {
+      queued: false,
+      undo: async () => {
+        if (!id) throw new Error("The new activity's id wasn't returned");
+        await deleteActivity(id);
+        await refresh();
+      },
+    };
+  }
+  if (a.kind === "move-plan") {
+    const refresh = () => qc.invalidateQueries({ queryKey: ["events"] });
+    await movePlanned(a.id, a.to);
+    await refresh();
+    return {
+      queued: false,
+      undo: async () => {
+        await movePlanned(a.id, a.from);
+        await refresh();
+      },
+    };
+  }
+  if (a.kind === "remove-plan") {
+    const refresh = () => qc.invalidateQueries({ queryKey: ["events"] });
+    const e = a.event;
+    await deleteEvent(e.id);
+    await refresh();
+    return {
+      queued: false,
+      // Back as it was read: a new event in the same place, since the old one is gone.
+      undo: async () => {
+        if (isFreeRide(e))
+          await planFreeRide({
+            name: a.label,
+            type: e.type === "Run" ? "Run" : "Ride",
+            date: e.date,
+            ...(e.moving_time ? { seconds: e.moving_time } : {}),
+            ...(e.icu_training_load != null ? { load: e.icu_training_load } : {}),
+          });
+        else
+          await scheduleWorkout(
+            { name: a.label, type: e.type ?? "Ride", description: e.description ?? "" },
+            e.date,
+          );
+        await refresh();
       },
     };
   }

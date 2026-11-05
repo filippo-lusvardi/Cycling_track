@@ -205,7 +205,7 @@ describe("segments for both sports", () => {
   const kv = () => {
     const m = new Map<string, unknown>();
     return {
-      get: async <T,>(k: string) => m.get(k) as T | undefined,
+      get: async <T>(k: string) => m.get(k) as T | undefined,
       set: async (k: string, v: unknown) => void m.set(k, v),
       del: async (k: string) => void m.delete(k),
       keys: async () => [...m.keys()],
@@ -274,7 +274,8 @@ describe("segments for both sports", () => {
     const engine = createSegmentEngine({
       meta,
       tracks,
-      listRides: async (from) => (from === "2026-01-01" || from < "2026-08-01" ? refs : refs.filter((r) => r.date >= from)),
+      listRides: async (from) =>
+        from === "2026-01-01" || from < "2026-08-01" ? refs : refs.filter((r) => r.date >= from),
       downloadTrack: async (r) => track(r.id, r.sport === "run" ? 2.5 : 1),
       historyFrom: () => "2026-01-01",
       today: () => "2026-10-20",
@@ -286,7 +287,12 @@ describe("segments for both sports", () => {
   });
 
   it("reads efforts from before runs existed as rides", () => {
-    const rec = { sig: "", upTo: 0, trace: null, attempts: [{ trackId: "old" }] } as unknown as EffortRec;
+    const rec = {
+      sig: "",
+      upTo: 0,
+      trace: null,
+      attempts: [{ trackId: "old" }],
+    } as unknown as EffortRec;
     expect(ridesIn(rec, "ride")).toBe(1);
     expect(ridesIn(rec, "run")).toBe(0);
   });

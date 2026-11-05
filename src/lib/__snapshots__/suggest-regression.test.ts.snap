@@ -1,0 +1,228 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`what gets picked > for a cyclist 1`] = `
+{
+  "aerobic": {
+    "long": [
+      "c-stepped-threshold-5x10",
+      "d-sweet-spot-classic-90",
+    ],
+    "short": [
+      "d-over-under-45",
+      "d-sweet-spot-classic-45",
+      "d-threshold-classic-30",
+    ],
+    "today": [
+      "c-over-under-2x20",
+      "r-tempo",
+      "d-over-under-45",
+    ],
+    "week": [
+      "2026-11-05 quality c-over-under-2x20",
+      "2026-11-06 steady c-upper-endurance-2x25",
+      "2026-11-07 steady d-endurance-flow-90",
+      "2026-11-08 long d-endurance-surges-90",
+      "2026-11-09 rest -",
+      "2026-11-10 quality d-over-under-75",
+      "2026-11-11 rest -",
+    ],
+  },
+  "anaerobic": {
+    "long": [
+      "c-maximal-minutes-4x1",
+    ],
+    "short": [
+      "d-anaerobic-45",
+      "d-cadence-drills-45",
+    ],
+    "today": [
+      "r-anaerobic",
+      "c-spin-ups-6x3",
+      "d-anaerobic-45",
+    ],
+    "week": [
+      "2026-11-05 quality r-anaerobic",
+      "2026-11-06 steady c-upper-endurance-2x25",
+      "2026-11-07 steady d-endurance-flow-90",
+      "2026-11-08 long d-endurance-surges-90",
+      "2026-11-09 rest -",
+      "2026-11-10 quality c-vo2-rising-6x3",
+      "2026-11-11 rest -",
+    ],
+  },
+  "base": {
+    "long": [
+      "d-endurance-flow-150",
+      "c-upper-endurance-2x25",
+    ],
+    "short": [
+      "d-cadence-drills-45",
+      "d-recovery-spin-45",
+      "d-sweet-spot-classic-30",
+    ],
+    "today": [
+      "d-endurance-tempo-75",
+      "d-recovery-spin-60",
+      "d-cadence-drills-45",
+    ],
+    "week": [
+      "2026-11-05 quality d-endurance-tempo-75",
+      "2026-11-06 steady c-upper-endurance-2x25",
+      "2026-11-07 steady d-endurance-flow-90",
+      "2026-11-08 long d-endurance-surges-90",
+      "2026-11-09 steady r-endurance",
+      "2026-11-10 rest -",
+      "2026-11-11 rest -",
+    ],
+  },
+  "sprint": {
+    "long": [
+      "c-maximal-minutes-4x1",
+    ],
+    "short": [
+      "c-standing-starts-6x10s",
+    ],
+    "today": [
+      "r-sprints",
+      "d-cadence-drills-60",
+      "c-standing-starts-6x10s",
+    ],
+    "week": [
+      "2026-11-05 quality r-sprints",
+      "2026-11-06 steady c-upper-endurance-2x25",
+      "2026-11-07 steady d-endurance-flow-90",
+      "2026-11-08 long d-endurance-surges-90",
+      "2026-11-09 rest -",
+      "2026-11-10 quality c-vo2-rising-6x3",
+      "2026-11-11 rest -",
+    ],
+  },
+  "vo2": {
+    "long": [
+      "c-above-threshold-4x8",
+      "c-upper-endurance-2x25",
+    ],
+    "short": [
+      "d-vo2-classic-45",
+      "d-cadence-drills-45",
+      "d-vo2-classic-30",
+    ],
+    "today": [
+      "c-vo2-rising-6x3",
+      "d-endurance-flow-90",
+      "d-vo2-classic-45",
+    ],
+    "week": [
+      "2026-11-05 quality c-vo2-rising-6x3",
+      "2026-11-06 steady c-upper-endurance-2x25",
+      "2026-11-07 steady d-endurance-surges-90",
+      "2026-11-08 long r-endurance",
+      "2026-11-09 rest -",
+      "2026-11-10 quality c-above-threshold-floats",
+      "2026-11-11 rest -",
+    ],
+  },
+}
+`;
+
+exports[`what gets picked > for a runner 1`] = `
+{
+  "aerobic": {
+    "long": [],
+    "short": [
+      "w-tempo",
+      "w-easy",
+    ],
+    "today": [
+      "w-cruise",
+      "w-tempo",
+    ],
+    "week": [
+      "2026-11-05 quality w-cruise",
+      "2026-11-06 steady w-strides",
+      "2026-11-07 steady w-easy",
+      "2026-11-08 long w-long",
+      "2026-11-09 rest -",
+      "2026-11-10 quality w-threshold",
+      "2026-11-11 rest -",
+    ],
+  },
+  "anaerobic": {
+    "long": [],
+    "short": [
+      "w-speed",
+      "w-easy",
+    ],
+    "today": [
+      "w-speed",
+      "w-strides",
+    ],
+    "week": [
+      "2026-11-05 quality w-speed",
+      "2026-11-06 steady w-easy",
+      "2026-11-07 steady w-long",
+      "2026-11-08 long w-strides",
+      "2026-11-09 rest -",
+      "2026-11-10 quality w-vo2",
+      "2026-11-11 rest -",
+    ],
+  },
+  "base": {
+    "long": [
+      "w-long",
+    ],
+    "short": [
+      "w-easy",
+    ],
+    "today": [
+      "w-easy",
+    ],
+    "week": [
+      "2026-11-05 quality w-easy",
+      "2026-11-06 steady w-strides",
+      "2026-11-07 steady w-long",
+      "2026-11-08 long w-strides",
+      "2026-11-09 rest -",
+      "2026-11-10 rest -",
+      "2026-11-11 rest -",
+    ],
+  },
+  "sprint": {
+    "long": [],
+    "short": [
+      "w-speed",
+      "w-easy",
+    ],
+    "today": [
+      "w-speed",
+      "w-strides",
+    ],
+    "week": [
+      "2026-11-05 quality w-speed",
+      "2026-11-06 steady w-easy",
+      "2026-11-07 steady w-long",
+      "2026-11-08 long w-strides",
+      "2026-11-09 rest -",
+      "2026-11-10 quality w-vo2",
+      "2026-11-11 rest -",
+    ],
+  },
+  "vo2": {
+    "long": [],
+    "short": [],
+    "today": [
+      "w-vo2",
+      "w-strides",
+    ],
+    "week": [
+      "2026-11-05 quality w-vo2",
+      "2026-11-06 steady w-easy",
+      "2026-11-07 steady w-long",
+      "2026-11-08 long w-strides",
+      "2026-11-09 rest -",
+      "2026-11-10 quality w-hills",
+      "2026-11-11 rest -",
+    ],
+  },
+}
+`;

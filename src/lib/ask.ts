@@ -4,6 +4,7 @@
 import { parseISO } from "date-fns";
 import type { WriteAction } from "./ask-intents";
 import { paramEntries, type ParamData } from "./ask-params";
+import { near } from "./ask-sentence";
 import { whenCandidates, type Span } from "./ask-when";
 import { GARDEN_GUIDE, TREE_GUIDE, type GuideItem } from "./guides";
 import { format, t } from "./i18n";
@@ -24,6 +25,7 @@ export type Page =
   | "ride"
   | "calendar"
   | "workouts"
+  | "plan"
   | "pantry"
   | "years"
   | "settings"
@@ -75,6 +77,7 @@ export const PAGE_LABEL: Record<Page, () => string> = {
   ride: () => t("Activity", "Attività"),
   calendar: () => t("Calendar", "Calendario"),
   workouts: () => t("Workouts", "Allenamenti"),
+  plan: () => t("Plan", "Piano"),
   pantry: () => t("Pantry", "Dispensa"),
   years: () => t("Years", "Anni"),
   settings: () => t("Settings", "Impostazioni"),
@@ -109,6 +112,7 @@ export const PAGE_DEST: Record<ListPage, Dest> = {
   rides: route("/rides"),
   calendar: route("/calendar"),
   workouts: route("/workouts"),
+  plan: route("/plan"),
   pantry: route("/garden", { zoom: "pantry" }),
   years: route("/", { zoom: "years" }),
   settings: route("/settings"),
@@ -123,7 +127,7 @@ export const INDEX: { when: () => string; pages: ListPage[] }[] = [
     when: () => t("Before", "Prima"),
     pages: ["rides", "years", "pantry", "analysis", "body", "zones", "segments"],
   },
-  { when: () => t("Ahead", "Poi"), pages: ["calendar", "workouts"] },
+  { when: () => t("Ahead", "Poi"), pages: ["plan", "calendar", "workouts"] },
   { when: () => t("More", "Altro"), pages: ["legend", "settings", "forest"] },
 ];
 
@@ -271,6 +275,24 @@ function questions(): Entry[] {
       words: ["add", "session", "file", "fit", "upload", "aggiungi", "seduta", "carica"],
     },
     {
+      id: "plan",
+      q: t("My training plan", "Il mio piano"),
+      also: `${"My training plan"} ${"Il mio piano di allenamento"}`,
+      page: "plan",
+      kind: "plan",
+      dest: PAGE_DEST.plan,
+      words: ["plan", "training", "piano", "allenamento", "programma", "week", "settimana"],
+    },
+    {
+      id: "plan-settings",
+      q: t("Plan settings", "Impostazioni del piano"),
+      also: `${"Plan settings"} ${"Impostazioni del piano"}`,
+      page: "plan",
+      kind: "plan",
+      dest: route("/plan/settings"),
+      words: ["giorni", "days", "obiettivo", "goal"],
+    },
+    {
       id: "workouts",
       q: t("My workouts", "I miei allenamenti"),
       also: `${"My workouts"} ${"I miei allenamenti"}`,
@@ -336,7 +358,17 @@ function questions(): Entry[] {
       page: "legend",
       kind: "place",
       dest: PAGE_DEST.legend,
-      words: ["guida", "guide", "help", "explain", "mean", "aiuto", "spiega", "significa", "istruzioni"],
+      words: [
+        "guida",
+        "guide",
+        "help",
+        "explain",
+        "mean",
+        "aiuto",
+        "spiega",
+        "significa",
+        "istruzioni",
+      ],
     },
     {
       id: "guide-search",
@@ -624,29 +656,6 @@ export const norm = (s: string) =>
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9' ]/g, " ");
 
-/** One slip of the finger at most. */
-function near(a: string, b: string) {
-  if (Math.abs(a.length - b.length) > 1 || a.length < 4) return false;
-  let i = 0;
-  let j = 0;
-  let edits = 0;
-  while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) {
-      i++;
-      j++;
-      continue;
-    }
-    if (++edits > 1) return false;
-    if (a.length > b.length) i++;
-    else if (b.length > a.length) j++;
-    else {
-      i++;
-      j++;
-    }
-  }
-  return edits + (a.length - i) + (b.length - j) <= 1;
-}
-
 function wordScore(token: string, e: Entry): number {
   const phrase = norm(e.q).trim();
   const words = phrase.split(/[ ']/);
@@ -742,7 +751,7 @@ export type Moment = {
   weekday?: number;
 };
 
-/** The day is done: nothing is waiting, and the panel says so rather than offering more. */
+/** The day is done: nothing is waiting, so nothing is offered. */
 export const dayIsDone = (m: Moment) =>
   !m.checkInDue && ((!!m.ride && m.rideSeen) || (!m.ride && !m.planned && m.hour >= 18));
 
@@ -768,7 +777,6 @@ export function nowEntries(m: Moment, entries: Entry[]): Entry[] {
 
 /** The bar's line: the moment's question, or plainly an invitation. */
 export function barText(m: Moment) {
-  if (dayIsDone(m)) return t("That's all for today", "Per oggi è tutto");
   if (m.checkInDue) return t("How am I today?", "Come sto oggi?");
   if (m.ride && !m.rideSeen) return t("How did today go?", "Com'è andata oggi?");
   return t("Ask the tree…", "Chiedi all'albero…");

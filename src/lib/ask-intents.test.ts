@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Activity, PlannedEvent } from "./intervals";
+import type { Activity, ManualActivity, PlannedEvent } from "./intervals";
 import {
+  explainRows,
+  hintRows,
   intentEntries,
   liveEntries,
+  powerPeriodAsked,
   type IntentClimb,
   type IntentData,
   type LiveData,
@@ -706,5 +709,471 @@ describe("suggestions by words", () => {
   it("plans a kind by going to suggestions", () => {
     const r = rows("pianifica sabato soglia", d)[0]!;
     expect(r.dest).toMatchObject({ to: "/suggest", search: { date: "2026-11-07" } });
+  });
+});
+
+describe("search closer to how it's said", () => {
+  const plan = (date: string, extra: Partial<PlannedEvent> = {}) =>
+    ({
+      id: `e-${date}`,
+      date,
+      end: null,
+      category: "WORKOUT",
+      type: "Ride",
+      name: "Fondo",
+      description: "- 1h Z2",
+      moving_time: 3600,
+      icu_training_load: 50,
+      ...extra,
+    }) as PlannedEvent;
+  const curve = (id: string, w: number) => ({
+    id,
+    label: id,
+    secs: [300, 1200],
+    watts: [w, w - 50],
+  });
+  const curves = [curve("42d", 300), curve("1y", 320), curve("all", 360)];
+  const action = (q: string, d: IntentData = data) => {
+    const r = rows(q, d)[0];
+    return r?.dest.kind === "write" ? r.dest.action : null;
+  };
+
+  it("totals a month of any year", () => {
+    const acts = [act("a", "2025-09-10", "Ride", 50), act("b", "2026-09-10", "Ride", 10)];
+    expect(rows("km settembre 2025", { ...data, acts })[0]!.value).toBe("50 km");
+    expect(rows("quanti km ho fatto a settembre 2025", { ...data, acts })[0]!.value).toBe("50 km");
+    expect(rows("km corsa settembre 2025", { ...data, acts })[0]!.value).toBe("0 km");
+  });
+
+  it("counts tentativi as passaggi", () => {
+    for (const q of ["tentativi verdana", "quanti tentativi su verdana", "attempts verdana"])
+      expect(rows(q)[0]!.value).toBe("3");
+    expect(rows("tentativi verdana 2025")[0]!.value).toBe("1");
+  });
+
+  it("gives power ever, however it's said", () => {
+    const d = { ...data, curves };
+    for (const q of [
+      "miglior 5 min",
+      "miglior potenza 5 min",
+      "best power 5 min",
+      "potenza massima 5 min",
+      "record 5 min",
+      "potenza 5 min di sempre",
+      "best 5 min ever",
+    ]) {
+      expect(rows(q, d)[0]!.value).toBe("360 W");
+    }
+    expect(rows("miglior 5 min", d)[0]!.answer).toBe("Di sempre · anno 320 W · 42 giorni 300 W");
+  });
+
+  it("gives a stretch's best power once it's read, and says when it can't", () => {
+    const d = { ...data, curves };
+    const span = { from: "2025-09-01", to: "2025-09-30" };
+    expect(rows("miglior 5 min settembre 2025", d)[0]!.answer).toBe("Caricamento…");
+    expect(
+      rows("miglior 5 min settembre 2025", {
+        ...d,
+        rangeCurve: { ...span, curve: curve("r", 280) },
+      })[0],
+    ).toMatchObject({ value: "280 W", q: "Miglior 5 min · Settembre 2025" });
+    expect(
+      rows("miglior 5 min settembre 2025", {
+        ...d,
+        rangeCurve: { ...span, curve: null, failed: true },
+      })[0]!.answer,
+    ).toBe("Serve la connessione");
+    expect(powerPeriodAsked("qual è il mio miglior 5 min 2025", today)).toEqual({
+      from: "2025-01-01",
+      to: "2025-12-31",
+    });
+    expect(powerPeriodAsked("miglior 5 min", today)).toBeNull();
+    expect(powerPeriodAsked("miglior verdana 2025", today)).toBeNull();
+  });
+
+  it("gives a climb's best in a stretch, unless the words are its name", () => {
+    expect(rows("miglior verdana 2025")[0]).toMatchObject({
+      q: "Passo Verdana · 2025",
+      value: "48:12",
+    });
+    expect(rows("miglior passo verdana")[0]!.q).toBe("Passo Verdana");
+  });
+
+  it("gives a runner's best pace ever", () => {
+    const runs = [
+      { id: "r", bests: [], date: "2024-01-01", curve: Array.from({ length: 40 }, () => 4) },
+    ];
+    const top = rows("miglior 20 min", { ...data, sport: "run", runs })[0]!;
+    expect(top.id).toBe("best-pace");
+    expect(top.answer).toBe("Di sempre");
+  });
+
+  describe("planning your own activity", () => {
+    it("takes the time out of the name", () => {
+      for (const [q, seconds] of [
+        ["plan tomorrow social ride 3h", 10800],
+        ["pianifica domani social ride 3 ore", 10800],
+        ["plan tomorrow 3h social ride", 10800],
+        ["plan social ride tomorrow 1h30", 5400],
+        ["plan tomorrow social ride 90 min", 5400],
+      ] as const)
+        expect(action(q)).toMatchObject({
+          kind: "ride",
+          date: "2026-11-06",
+          name: "Social ride",
+          type: "Ride",
+          seconds,
+        });
+    });
+
+    it("takes a load too", () => {
+      expect(action("plan tomorrow social ride 3h 150load")).toMatchObject({
+        name: "Social ride",
+        seconds: 10800,
+        load: 150,
+      });
+    });
+
+    it("offers lengths when none is typed", () => {
+      const secs = (q: string, d: IntentData = data) =>
+        rows(q, d).map((r) =>
+          r.dest.kind === "write" && r.dest.action.kind === "ride" ? r.dest.action.seconds : null,
+        );
+      expect(secs("plan saturday ride with Marco")).toEqual([3600, 7200, 10800]);
+      expect(secs("pianifica sabato corsa con Anna")).toEqual([1800, 3600, 5400]);
+    });
+
+    it("turns a length with no name into suggestions", () => {
+      const d = { ...data, suggest: suggestInput };
+      expect(rows("plan domani 2h", d).every((r) => r.dest.kind !== "write")).toBe(true);
+      expect(rows("plan domani fondo 2h", d).every((r) => r.dest.kind !== "write")).toBe(true);
+    });
+  });
+
+  it("opens a week sized to what's asked", () => {
+    const d = { ...data, suggest: suggestInput };
+    const week = rows("plan week 8h 400load", d)[0]!;
+    expect(week.id).toBe("suggest-week");
+    expect(week.dest).toMatchObject({
+      to: "/suggest",
+      search: { secs: "28800", load: "400" },
+    });
+    expect(rows("pianifica settimana prossima 8 ore carico 400", d)[0]!.dest).toMatchObject({
+      search: { from: "2026-11-09", to: "2026-11-15", secs: "28800", load: "400" },
+    });
+    expect(rows("plan week", d)[0]!.id).toBe("suggest-week");
+  });
+
+  it("compares two stretches", () => {
+    const acts = [act("a", "2025-09-10", "Ride", 50), act("b", "2026-09-10", "Ride", 80)];
+    for (const q of [
+      "settembre 2025 vs settembre 2026",
+      "settembre 2025 vs 2026",
+      "confronta settembre 2025 con settembre 2026",
+      "settembre 2025 contro 2026",
+    ]) {
+      const [a, b] = rows(q, { ...data, acts });
+      expect(a!.value).toBe("50 km");
+      expect(b!.value).toBe("80 km");
+      expect(a!.answer).toContain("carico 60");
+    }
+    const [, now] = rows("ottobre 2026 vs novembre 2026", { ...data, acts });
+    expect(now!.answer).toContain("finora");
+    expect(rows("verdana vs rosso", { ...data, acts })).toEqual([]);
+  });
+
+  it("changes what's planned, only by a row, and never a race", () => {
+    const events = [
+      plan("2026-11-07"),
+      plan("2026-11-08", { id: "race", category: "RACE_A", name: "Gara" }),
+    ];
+    const d = { ...data, events };
+    expect(action("togli sabato", d)).toMatchObject({ kind: "remove-plan", label: "Fondo" });
+    expect(action("remove saturday", d)).toMatchObject({ kind: "remove-plan" });
+    expect(action("sposta sabato a domenica", d)).toMatchObject({
+      kind: "move-plan",
+      id: "e-2026-11-07",
+      from: "2026-11-07",
+      to: "2026-11-08",
+    });
+    expect(rows("sposta sabato a domenica", d)[0]!.answer).toContain("già: Gara");
+    expect(rows("togli domenica", d)[0]!.dest.kind).toBe("route");
+    expect(action("togli martedì", d)).toBeNull();
+  });
+});
+
+const suggestInput: SuggestInput = {
+  today,
+  sport: "ride",
+  focus: "vo2",
+  races: [],
+  events: [],
+  offEvents: [],
+  acts: [],
+  wellness: [],
+  score: 85,
+  form: 0,
+  th: { ftp: 250 },
+  pool: buildPool([], "ride", { ftp: 250 }),
+};
+
+describe("logging by typing", () => {
+  const entry = (q: string, d: IntentData = data, i = 0) => {
+    const r = rows(q, d)[i];
+    return r?.dest.kind === "write" && r.dest.action.kind === "log" ? r.dest.action.entry : null;
+  };
+
+  it("reads what, how long and when, in any order", () => {
+    for (const q of [
+      "log 15m gym",
+      "log gym 15m",
+      "registra palestra 15 min",
+      "log 15 min di palestra",
+    ])
+      expect(entry(q)).toMatchObject({ date: today, type: "WeightTraining", minutes: 15 });
+    expect(entry("log 15m gym")!.name).toBe("Gym");
+    expect(entry("log ieri 1h palestra")).toMatchObject({ date: "2026-11-04", minutes: 60 });
+    expect(entry("log palestra 1h ieri")).toMatchObject({ date: "2026-11-04", name: "Palestra" });
+  });
+
+  it("says it as a sentence too", () => {
+    expect(entry("ho fatto 45 min di palestra")).toMatchObject({ minutes: 45, name: "Palestra" });
+    expect(entry("ieri ho fatto corsa con Anna 30 min")).toMatchObject({
+      date: "2026-11-04",
+      type: "Run",
+      name: "Corsa con Anna",
+    });
+    expect(entry("i did 1h swim")).toMatchObject({ type: "Swim", minutes: 60 });
+  });
+
+  it("knows the kinds, and keeps a name it doesn't", () => {
+    expect(entry("log giro sui rulli 1h")!.type).toBe("VirtualRide");
+    expect(entry("log uscita con Marco 2h")).toMatchObject({
+      type: "Ride",
+      name: "Uscita con Marco",
+    });
+    expect(entry("log padel 1h")).toMatchObject({ type: "Other", name: "Padel" });
+  });
+
+  it("reads distance, effort and load", () => {
+    expect(entry("log corsa 5 km 30 min rpe 7")).toMatchObject({ distanceKm: 5, rpe: 7 });
+    expect(entry("log corsa 5,5km 30m")).toMatchObject({ distanceKm: 5.5 });
+    expect(entry("log palestra 1h dura")).toMatchObject({ rpe: 8, name: "Palestra" });
+    expect(entry("log palestra 1h carico 70")).toMatchObject({ load: 70 });
+  });
+
+  it("estimates the load like the form, without inventing an effort", () => {
+    const e = entry("log palestra 1h")!;
+    expect(e.rpe).toBeUndefined();
+    expect(e.load).toBeGreaterThan(0);
+    expect(rows("log palestra 1h")[0]!.answer).toContain(`carico stimato ${e.load}`);
+  });
+
+  it("offers lengths for a known kind, and kinds for a length", () => {
+    expect(
+      rows("log palestra").map(
+        (r) => (r.dest as { action: { entry: ManualActivity } }).action.entry.minutes,
+      ),
+    ).toEqual([30, 45, 60]);
+    expect(
+      rows("log 45m").map(
+        (r) => (r.dest as { action: { entry: ManualActivity } }).action.entry.type,
+      ),
+    ).toEqual(["Ride", "WeightTraining", "Walk"]);
+  });
+
+  it("leaves the form to what isn't a log yet", () => {
+    for (const q of [
+      "log",
+      "registra",
+      "registra un",
+      "registra un allenamento",
+      "log pad",
+      "ho fatto 50 km",
+    ])
+      expect(rows(q).filter((r) => r.id.startsWith("save-log"))).toEqual([]);
+  });
+
+  it("can't log what hasn't happened", () => {
+    expect(rows("log domani palestra 1h")).toEqual([]);
+    expect(rows("log palestra 1h rpe 12")).toEqual([]);
+  });
+
+  it("says when that kind is already there", () => {
+    const acts = [act("Mattina", today, "WeightTraining", 0)];
+    expect(rows("log 15m gym", { ...data, acts })[0]!.answer).toContain("già: Mattina");
+  });
+});
+
+describe("round three", () => {
+  const action = (q: string, d: IntentData = data) => {
+    const r = rows(q, d)[0];
+    return r?.dest.kind === "write" ? r.dest.action : null;
+  };
+  const planned = (date: string, extra: Partial<PlannedEvent> = {}) =>
+    ({
+      id: `e-${date}`,
+      date,
+      end: null,
+      category: "WORKOUT",
+      type: "Ride",
+      name: "Fondo",
+      description: "- 1h Z2",
+      moving_time: 3600,
+      icu_training_load: 50,
+      ...extra,
+    }) as PlannedEvent;
+
+  describe("check-in in your own words", () => {
+    it.each([
+      ["dormito bene", "sleepQuality", 2],
+      ["ho dormito male", "sleepQuality", 4],
+      ["slept badly", "sleepQuality", 4],
+      ["stanco", "fatigue", 3],
+      ["stanca oggi", "fatigue", 3],
+      ["sono stanco", "fatigue", 3],
+      ["gambe pesanti", "fatigue", 3],
+      ["ho le gambe pesanti", "fatigue", 3],
+      ["distrutta", "fatigue", 4],
+      ["riposato", "fatigue", 1],
+      ["stressata", "stress", 3],
+      ["molto stressato", "stress", 4],
+      ["di cattivo umore", "mood", 4],
+      ["tired today", "fatigue", 3],
+    ])("%s", (q, field, value) => {
+      expect(action(q)).toMatchObject({ kind: "wellness", field, value, date: today });
+    });
+    it("says it without assuming anyone's gender, and keeps sleep hours", () => {
+      expect(rows("stanca")[0]!.q).toBe("Segna fatica: alta");
+      expect(action("dormito 7h")).toMatchObject({ field: "sleepSecs", value: 25200 });
+    });
+  });
+
+  it("offers what you actually do", () => {
+    const d = {
+      ...data,
+      acts: [
+        act("Palestra", "2026-11-01", "WeightTraining", 0),
+        act("Palestra", "2026-10-20", "WeightTraining", 0),
+        act("Palestra", "2026-10-10", "WeightTraining", 0),
+        act("Giretto", "2026-10-12", "Ride", 20),
+        act("Giretto", "2026-10-13", "Ride", 20),
+        act("Una volta", "2026-10-14", "Ride", 20),
+        act("Antica", "2026-01-14", "Ride", 20),
+        act("Antica", "2026-01-15", "Ride", 20),
+      ],
+    };
+    expect(rows("log", d).map((r) => r.q)).toEqual([
+      "Registra: Palestra · 1h 00m",
+      "Registra: Giretto · 1h 00m",
+    ]);
+    expect(rows("log")).toEqual([]);
+  });
+
+  it("reads the time of day", () => {
+    const entry = (q: string) => {
+      const a = action(q);
+      return a?.kind === "log" ? a.entry : null;
+    };
+    expect(entry("log palestra 1h alle 18")).toMatchObject({ time: "18:00", name: "Palestra" });
+    expect(entry("log palestra 1h alle 18.30")!.time).toBe("18:30");
+    expect(entry("log palestra 1h alle 18:30")!.time).toBe("18:30");
+    expect(entry("log 45 min palestra alle 7")!.time).toBe("07:00");
+    expect(entry("log palestra 1h stamattina")).toMatchObject({ time: "09:00", date: today });
+    expect(entry("log ieri sera palestra 1h")).toMatchObject({ time: "19:00", date: "2026-11-04" });
+    expect(entry("log palestra 1h di sera")).toMatchObject({ time: "19:00", name: "Palestra" });
+    expect(entry("log palestra 1h")!.time).toBeUndefined();
+    expect(entry("log palestra 1h alle 25")).toBeNull();
+    expect(rows("log palestra 1h alle 18")[0]!.answer).toContain("Oggi alle 18:00");
+  });
+
+  it("forgives one slip in a kind, keeping the right word", () => {
+    expect(action("log palesta 1h")).toMatchObject({
+      kind: "log",
+      entry: { type: "WeightTraining", name: "Palestra" },
+    });
+  });
+
+  describe("undo by typing", () => {
+    it("offers the last save, or says there's none", () => {
+      expect(rows("annulla", { ...data, lastSaved: "Registra: Gym · 15m" })[0]).toMatchObject({
+        q: "Annulla: Registra: Gym · 15m",
+        dest: { kind: "write", action: { kind: "undo" } },
+      });
+      expect(rows("undo")[0]).toMatchObject({ q: "Niente da annullare", dest: { kind: "stay" } });
+    });
+  });
+
+  describe("deleting", () => {
+    const dest = (q: string, d: IntentData = data) => rows(q, d).map((r) => r.dest);
+    it("opens the activity to confirm, and saves nothing", () => {
+      for (const q of ["elimina ultima corsa", "delete last run", "elimina la ultima corsa"])
+        expect(dest(q)[0]).toMatchObject({
+          to: "/rides/$id",
+          search: { delete: "1" },
+          params: { id: "corsa" },
+        });
+      expect(rows("elimina vecchia")[0]!.q).toBe("Elimina: vecchia");
+      expect(rows("elimina 1 giugno 2025")[0]!.q).toBe("Elimina: vecchia");
+      expect(rows("elimina oggi")[0]!.q).toBe("Elimina: oggi");
+    });
+    it("says when a past day holds nothing", () => {
+      expect(rows("elimina ieri")[0]).toMatchObject({ dest: { kind: "stay" } });
+    });
+    it("keeps its planned meaning ahead", () => {
+      const d = { ...data, events: [planned("2026-11-07")] };
+      expect(action("elimina sabato", d)).toMatchObject({ kind: "remove-plan" });
+    });
+  });
+
+  describe("when it can't be done", () => {
+    const say = (q: string, d: IntentData = data) => explainRows(q, d).map((r) => r.q);
+    it("offers to plan what's ahead", () => {
+      expect(say("log domani palestra 1h")).toEqual([
+        "Non si può registrare il futuro",
+        "Pianifica: Palestra · 1h 00m",
+      ]);
+    });
+    it("offers to log what's gone", () => {
+      expect(say("pianifica ieri giro 2h")).toEqual([
+        "Non si può pianificare il passato",
+        "Registra: Giro · 2h 00m",
+      ]);
+      const r = explainRows("pianifica ieri giro 2h", data)[1]!;
+      expect(r.dest).toMatchObject({ action: { entry: { date: "2026-11-04" } } });
+    });
+    it("says what's wrong with the rest", () => {
+      expect(say("log palestra 1h rpe 12")).toEqual(["L'RPE va da 1 a 10"]);
+      expect(say("log padel")).toEqual(["Aggiungi quanto è durata"]);
+      expect(say("togli ieri")).toEqual(["I programmi si cambiano da oggi in poi"]);
+      expect(say("togli 3 mesi fa")).toEqual(["I programmi si cambiano da oggi in poi"]);
+      expect(say("sposta sabato a ieri")).toEqual(["I programmi si cambiano da oggi in poi"]);
+      expect(say("best xyz")).toEqual(["Nessuna salita si chiama così"]);
+      expect(say("tentativi xyz")).toEqual(["Nessuna salita si chiama così"]);
+    });
+    it("stays quiet about what isn't a command", () => {
+      expect(say("banana")).toEqual([]);
+      expect(say("log palestra 1h")).toEqual([]);
+    });
+    it("never saves without a row being chosen", () => {
+      for (const r of explainRows("log padel", data)) expect(r.dest.kind).toBe("stay");
+    });
+  });
+
+  it("hints what follows a command word alone, and only then", () => {
+    for (const q of [
+      "log",
+      "registra",
+      "pianifica",
+      "togli",
+      "sposta",
+      "miglior",
+      "confronta",
+      "elimina",
+    ])
+      expect(hintRows(q)).toHaveLength(1);
+    expect(hintRows("log")[0]!.q).toBe("registra + durata + attività");
+    expect(hintRows("log p")).toEqual([]);
+    expect(hintRows("palestra")).toEqual([]);
   });
 });

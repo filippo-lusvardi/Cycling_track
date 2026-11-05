@@ -1,10 +1,11 @@
-// Ride streams reduced to a few hundred points for charting speed, power and heart rate along the distance.
+// Ride streams reduced to a few hundred points for charting speed, power, heart rate and cadence along the distance.
 
 type Streams = {
   time: number[];
   distance: number[];
   watts: (number | null)[];
   heartrate: (number | null)[];
+  cadence?: (number | null)[] | undefined;
   /** W′ balance per sample (% of W′), when CP is known. */
   wbal?: number[] | undefined;
   /** Grade-adjusted speed per sample (m/s), on runs. */
@@ -16,6 +17,8 @@ export type SeriesPoint = {
   speed: number | null;
   watts: number | null;
   hr: number | null;
+  /** Null all along when nothing measured it: a stream of zeros is a missing sensor, not a chart. */
+  cadence: number | null;
   /** Lowest W′ balance in the bucket (% of W′): the deepest point of an effort must not be averaged away. */
   wbal: number | null;
   /** Grade-adjusted speed (km/h), on runs. */
@@ -41,6 +44,7 @@ export function rideSeries(s: Streams, points = 500): SeriesPoint[] {
   const n = Math.min(s.time.length, s.distance.length);
   const step = Math.max(5, Math.ceil(n / points));
   const out: SeriesPoint[] = [];
+  const cadence = s.cadence?.some((c) => c != null && c > 0) ? s.cadence : null;
   for (let i = 0; i + 1 < n; i += step) {
     const j = Math.min(i + step, n - 1);
     const dt = s.time[j]! - s.time[i]!;
@@ -50,6 +54,7 @@ export function rideSeries(s: Streams, points = 500): SeriesPoint[] {
       speed: dt > 0 ? (dd / dt) * 3.6 : null,
       watts: mean(s.watts.slice(i, j)),
       hr: mean(s.heartrate.slice(i, j)),
+      cadence: cadence ? mean(cadence.slice(i, j)) : null,
       wbal: s.wbal?.length ? Math.min(...s.wbal.slice(i, j)) : null,
       ...(s.gap ? { gap: (mean(s.gap.slice(i, j)) ?? 0) * 3.6 } : {}),
     });

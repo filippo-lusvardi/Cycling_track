@@ -8,7 +8,7 @@ import {
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 import { ArrowLeft, ChevronDown, Minus, Plus, Star, Trophy } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CAT_COLOR, ElevationProfile } from "@/components/ElevationProfile";
 import { RideCharts } from "@/components/RideCharts";
@@ -26,13 +26,22 @@ import { useSegmentLibrary } from "@/hooks/use-segments";
 import { curveFit, decoupling } from "@/lib/analysis";
 import { detectClimbs } from "@/lib/climbs";
 import { briochesIn, withBrioches, withoutBrioches } from "@/lib/brioches";
+import { PlanRating } from "@/components/PlanRating";
+import { PlanCompare } from "@/components/PlanVsRide";
+import { withoutRating } from "@/lib/plan/rating";
 import { BRIOCHE_G, rideFuel, runKcal } from "@/lib/fuel";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { LayoutEditor, Sections, TuneButton } from "@/components/layout/Customizable";
 import { useLayout } from "@/hooks/use-layout";
-import { activityLayoutKind, activitySections } from "@/lib/layouts";
+import { activityLayoutKind, activitySections, setNumberHidden } from "@/lib/layouts";
 import { FEEL_LABEL } from "@/lib/felt";
-import { getRunSummary, setActivityDescription, setActivityFeel, sourceKind } from "@/lib/source";
+import {
+  deleteActivity,
+  getRunSummary,
+  setActivityDescription,
+  setActivityFeel,
+  sourceKind,
+} from "@/lib/source";
 import {
   activityQuery,
   athleteQuery,
@@ -59,6 +68,8 @@ import { activityKind, KINDS } from "@/lib/activity-kind";
 import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/rides/$id")({
+  validateSearch: (s: Record<string, unknown>): { delete?: boolean } =>
+    s["delete"] === "1" || s["delete"] === 1 || s["delete"] === true ? { delete: true } : {},
   loader: ({ context, params }) => context.queryClient.ensureQueryData(activityQuery(params.id)),
   component: RideDetail,
 });
@@ -68,6 +79,7 @@ const r = (n: number | null | undefined, suffix = "") =>
 
 function RideDetail() {
   const { id } = Route.useParams();
+  const asked = Route.useSearch();
   const router = useRouter();
   const canGoBack = useCanGoBack();
   const { data: a } = useSuspenseQuery(activityQuery(id));
@@ -96,6 +108,9 @@ function RideDetail() {
   // The selected work: the map, elevation and charts all show just that stretch.
   const [workId, setWorkId] = useState<number | null>(null);
   const work = useMemo(() => workOf(a, streams, workId), [a, streams, workId]);
+  const segments = useRideSegments(a, streams);
+  // A segment's row pointed at: the map shows it, wherever the two sections are placed.
+  const [segHover, setSegHover] = useState<number | null>(null);
   const select = (id: number | null, from: "blocks" | "list") => {
     setWorkId(id);
     if (id == null) return;
@@ -114,122 +129,109 @@ function RideDetail() {
     : (a.decoupling ?? (streams ? decoupling(streams.watts, streams.heartrate) : null));
   const np = a.icu_weighted_avg_watts;
   const statCards: Record<string, ReactNode> = {
-    distance: (
-      <StatCard label={t("Distance", "Distanza")} value={formatKm(a.distance)} />
-    ),
+    distance: <StatCard label={t("Distance", "Distanza")} value={formatKm(a.distance)} />,
     time: (
       <StatCard
-          label={t("Moving time", "Tempo in movimento")}
-          value={formatDuration(a.moving_time)}
-        />
+        label={t("Moving time", "Tempo in movimento")}
+        value={formatDuration(a.moving_time)}
+      />
     ),
     elevation: (
       <StatCard label={t("Elevation", "Dislivello")} value={r(a.total_elevation_gain)} unit="m" />
     ),
-    load: (
-      <StatCard label={t("Load", "Carico")} value={r(a.icu_training_load)} tone="fitness" />
-    ),
+    load: <StatCard label={t("Load", "Carico")} value={r(a.icu_training_load)} tone="fitness" />,
     pace: (
       <StatCard
-              label={t("Avg pace", "Passo medio")}
-              value={formatPace(a.average_speed)}
-              unit="/km"
-            />
+        label={t("Avg pace", "Passo medio")}
+        value={formatPace(a.average_speed)}
+        unit="/km"
+      />
     ),
     gap: (
       <StatCard
-              label={t("GAP", "GAP")}
-              value={formatPace(run?.gap)}
-              unit="/km"
-              hint={t("grade-adjusted pace", "passo corretto per pendenza")}
-            />
+        label={t("GAP", "GAP")}
+        value={formatPace(run?.gap)}
+        unit="/km"
+        hint={t("grade-adjusted pace", "passo corretto per pendenza")}
+      />
     ),
     power: (
-      <StatCard
-              label={t("Avg power", "Potenza media")}
-              value={r(a.icu_average_watts)}
-              unit="W"
-            />
+      <StatCard label={t("Avg power", "Potenza media")} value={r(a.icu_average_watts)} unit="W" />
     ),
     np: (
       <StatCard
-              label={t("Norm. power", "Potenza norm.")}
-              value={r(np)}
-              unit="W"
-              hint={
-                [
-                  a.icu_ftp && `FTP ${a.icu_ftp}W`,
-                  np && weight && `${(np / weight).toFixed(2)} W/kg`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || undefined
-              }
-            />
+        label={t("Norm. power", "Potenza norm.")}
+        value={r(np)}
+        unit="W"
+        hint={
+          [a.icu_ftp && `FTP ${a.icu_ftp}W`, np && weight && `${(np / weight).toFixed(2)} W/kg`]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        }
+      />
     ),
     intensity: (
       <StatCard
-          label={t("Intensity", "Intensità")}
-          value={a.icu_intensity != null ? `${Math.round(a.icu_intensity)}%` : "–"}
-          tone="form"
-        />
+        label={t("Intensity", "Intensità")}
+        value={a.icu_intensity != null ? `${Math.round(a.icu_intensity)}%` : "–"}
+        tone="form"
+      />
     ),
     hr: (
       <StatCard
-          label={t("Avg / max HR", "FC media / max")}
-          value={`${r(a.average_heartrate)} / ${r(a.max_heartrate)}`}
-          unit="bpm"
-          tone="fatigue"
-        />
+        label={t("Avg / max HR", "FC media / max")}
+        value={`${r(a.average_heartrate)} / ${r(a.max_heartrate)}`}
+        unit="bpm"
+        tone="fatigue"
+      />
     ),
     ngp: (
       <StatCard
-            label={t("Normalized GAP", "GAP normalizzato")}
-            value={formatPace(run?.ngp)}
-            unit="/km"
-            hint={
-              run?.ngp && runThreshold
-                ? t(`threshold ${formatPace(runThreshold)}`, `soglia ${formatPace(runThreshold)}`)
-                : undefined
-            }
-          />
+        label={t("Normalized GAP", "GAP normalizzato")}
+        value={formatPace(run?.ngp)}
+        unit="/km"
+        hint={
+          run?.ngp && runThreshold
+            ? t(`threshold ${formatPace(runThreshold)}`, `soglia ${formatPace(runThreshold)}`)
+            : undefined
+        }
+      />
     ),
     speed: (
       <StatCard
-            label={t("Avg speed", "Velocità media")}
-            value={a.average_speed ? (a.average_speed * 3.6).toFixed(1) : "–"}
-            unit="km/h"
-          />
+        label={t("Avg speed", "Velocità media")}
+        value={a.average_speed ? (a.average_speed * 3.6).toFixed(1) : "–"}
+        unit="km/h"
+      />
     ),
     cadence: isRun ? (
       <StatCard
-            label={t("Cadence", "Cadenza")}
-            value={r(stepsPerMinute(a.average_cadence))}
-            unit={t("steps/min", "passi/min")}
-          />
+        label={t("Cadence", "Cadenza")}
+        value={r(stepsPerMinute(a.average_cadence))}
+        unit={t("steps/min", "passi/min")}
+      />
     ) : (
       <StatCard label={t("Cadence", "Cadenza")} value={r(a.average_cadence)} unit="rpm" />
     ),
     decoupling: (
       <StatCard
-          label={t("Decoupling", "Decoupling")}
-          value={decouple != null ? decouple.toFixed(1) : "–"}
-          unit="%"
-          hint={
-            decouple != null
-              ? decouple < 5
-                ? isRun
-                  ? t("Pa:HR steady (< 5%)", "Pa:HR stabile (< 5%)")
-                  : t("Pw:HR steady (< 5%)", "Pw:HR stabile (< 5%)")
-                : isRun
-                  ? t("High decoupling vs pace", "Decoupling alto rispetto al passo")
-                  : t("High decoupling vs power", "Decoupling alto rispetto alla potenza")
-              : undefined
-          }
-        />
+        label={t("Decoupling", "Decoupling")}
+        value={decouple != null ? decouple.toFixed(1) : "–"}
+        unit="%"
+        hint={
+          decouple != null
+            ? decouple < 5
+              ? isRun
+                ? t("Pa:HR steady (< 5%)", "Pa:HR stabile (< 5%)")
+                : t("Pw:HR steady (< 5%)", "Pw:HR stabile (< 5%)")
+              : isRun
+                ? t("High decoupling vs pace", "Decoupling alto rispetto al passo")
+                : t("High decoupling vs power", "Decoupling alto rispetto alla potenza")
+            : undefined
+        }
+      />
     ),
-    calories: (
-      <StatCard label={t("Calories", "Calorie")} value={r(a.calories)} unit="kcal" />
-    ),
+    calories: <StatCard label={t("Calories", "Calorie")} value={r(a.calories)} unit="kcal" />,
   };
 
   return (
@@ -260,9 +262,9 @@ function RideDetail() {
           {a.name ?? t("Activity", "Attività")}
         </h1>
         {a.garmin && <p className="mt-1 text-sm text-muted-foreground">{a.garmin}</p>}
-        {withoutBrioches(a.description) && (
+        {withoutRating(withoutBrioches(a.description)) && (
           <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">
-            {withoutBrioches(a.description)}
+            {withoutRating(withoutBrioches(a.description))}
           </p>
         )}
       </div>
@@ -289,7 +291,12 @@ function RideDetail() {
             render={(sec) => {
               switch (sec.id) {
                 case "feel":
-                  return <FeelPanel id={a.id} feel={a.feel} />;
+                  return (
+                    <div className="space-y-3">
+                      <FeelPanel a={a} />
+                      <PlanCompare a={a} watts={streams?.watts} ftp={a.icu_ftp} />
+                    </div>
+                  );
                 case "numbers": {
                   const cards = sec.numbers.filter((n) => !n.hidden);
                   return cards.length ? (
@@ -303,7 +310,9 @@ function RideDetail() {
                 case "zones":
                   return isRun ? (
                     runZones?.some((v) => v > 0) ? (
-                      <Panel title={t("Time in pace zones (GAP)", "Tempo nelle zone di passo (GAP)")}>
+                      <Panel
+                        title={t("Time in pace zones (GAP)", "Tempo nelle zone di passo (GAP)")}
+                      >
                         <ZoneBar secs={runZones} names={RUN_ZONE_NAMES} />
                       </Panel>
                     ) : null
@@ -340,6 +349,8 @@ function RideDetail() {
                         a={a}
                         streams={streams}
                         weight={weight}
+                        segments={segments}
+                        segHover={segHover}
                         work={work}
                         onClear={() => setWorkId(null)}
                       />
@@ -351,18 +362,30 @@ function RideDetail() {
                       </p>
                     </Panel>
                   );
+                case "segments":
+                  return streams ? (
+                    <RideSegments
+                      segments={segments}
+                      weight={weight}
+                      segHover={segHover}
+                      onHover={setSegHover}
+                    />
+                  ) : null;
                 case "charts":
                   return (
-                    <Panel
-                      title={
-                        isRun
-                          ? t("Pace, GAP & heart rate", "Passo, GAP e frequenza cardiaca")
-                          : t("Speed, power & heart rate", "Velocità, potenza e frequenza cardiaca")
-                      }
-                    >
+                    <Panel title={t("Charts", "Grafici")}>
                       {work && <WorkBar work={work} onClear={() => setWorkId(null)} />}
                       {streams ? (
-                        <RideCharts a={a} streams={streams} work={work} cp={isRun ? null : cp} />
+                        <RideCharts
+                          a={a}
+                          streams={streams}
+                          work={work}
+                          cp={isRun ? null : cp}
+                          chosen={sec.numbers}
+                          onChoose={(chart, hidden) =>
+                            layout.change(setNumberHidden(layout.layout, "charts", chart, hidden))
+                          }
+                        />
                       ) : (
                         <p className="py-6 text-center text-sm text-muted-foreground">
                           {t("Loading activity data…", "Caricamento dati attività…")}
@@ -388,7 +411,9 @@ function RideDetail() {
                             <span className="font-sans">{i.label ?? i.type}</span>
                             <span className="flex gap-4">
                               <span>{formatDuration(i.moving_time)}</span>
-                              {!isRun && <span className="w-14 text-right">{r(i.average_watts, "W")}</span>}
+                              {!isRun && (
+                                <span className="w-14 text-right">{r(i.average_watts, "W")}</span>
+                              )}
                               <span className="w-16 text-right text-fatigue">
                                 {r(i.average_heartrate, " bpm")}
                               </span>
@@ -415,19 +440,23 @@ function RideDetail() {
           />
         </>
       )}
-      {sourceKind() === "native" && <DeleteRide id={a.id} />}
+      <DeleteRide id={a.id} armed={!!asked.delete} />
     </div>
   );
 }
 
-/** Accounts without intervals.icu keep their rides in Cirmolo, so a ride uploaded by mistake is removed here. */
-function DeleteRide({ id }: { id: string }) {
+/** Removed for good, in two steps: a recorded activity doesn't come back. Arrives ready to confirm when typed. */
+function DeleteRide({ id, armed }: { id: string; armed: boolean }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState(armed);
   const [busy, setBusy] = useState(false);
+  const here = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (armed) here.current?.scrollIntoView({ block: "center" });
+  }, [armed]);
   return (
-    <div className="flex justify-end gap-2">
+    <div ref={here} className="flex flex-wrap justify-end gap-2">
       {confirm && (
         <Button variant="ghost" onClick={() => setConfirm(false)}>
           {t("Cancel", "Annulla")}
@@ -439,25 +468,41 @@ function DeleteRide({ id }: { id: string }) {
         onClick={async () => {
           if (!confirm) return setConfirm(true);
           setBusy(true);
-          const { deleteRide } = await import("@/lib/native");
-          await deleteRide(id);
-          await qc.invalidateQueries();
-          toast.success(t("Activity deleted", "Attività eliminata"));
-          navigate({ to: "/rides" });
+          try {
+            await deleteActivity(id);
+            await qc.invalidateQueries();
+            toast.success(t("Activity deleted", "Attività eliminata"));
+            void navigate({ to: "/rides" });
+          } catch {
+            toast.error(t("Couldn't delete the activity", "Impossibile eliminare l'attività"));
+            setBusy(false);
+          }
         }}
       >
         {confirm
-          ? t("Delete for good", "Elimina definitivamente")
+          ? sourceKind() === "native"
+            ? t("Delete for good", "Elimina definitivamente")
+            : t(
+                "Delete for good, on intervals.icu too",
+                "Elimina definitivamente, anche su intervals.icu",
+              )
           : t("Delete activity", "Elimina attività")}
       </Button>
     </div>
   );
 }
 
-const FEEL_TONE = ["var(--pine)", "var(--fitness)", "var(--birch)", "var(--autumn)", "var(--lingon)"];
+const FEEL_TONE = [
+  "var(--pine)",
+  "var(--fitness)",
+  "var(--birch)",
+  "var(--autumn)",
+  "var(--lingon)",
+];
 
 /** How it went: the numbers come after. It counts toward the next days' crown and sky. */
-function FeelPanel({ id, feel }: { id: string; feel: number | null }) {
+function FeelPanel({ a }: { a: ActivityDetail }) {
+  const { id, feel } = a;
   const qc = useQueryClient();
   const saved = feel != null && feel >= 1 ? feel : null;
   const [value, setValue] = useState(saved);
@@ -501,12 +546,16 @@ function FeelPanel({ id, feel }: { id: string; feel: number | null }) {
               )}
               style={on ? { boxShadow: `inset 0 0 0 1.5px ${FEEL_TONE[i]}` } : undefined}
             >
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: FEEL_TONE[i] }} />
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: FEEL_TONE[i] }}
+              />
               {label}
             </button>
           );
         })}
       </div>
+      <PlanRating a={a} />
     </Panel>
   );
 }
@@ -720,45 +769,17 @@ function ShowHide({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   );
 }
 
-function Climbs({
-  a,
-  streams,
-  weight,
-  work,
-  onClear,
-}: {
-  a: ActivityDetail;
-  streams: RideStreams;
-  weight: number | null;
-  work: Work | null;
-  onClear: () => void;
-}) {
-  const [hover, setHover] = useState<number | null>(null);
-  const [hoverKm, setHoverKm] = useState<number | null>(null);
-  const [range, setRange] = useState<[number, number] | null>(null);
-  const [name, setName] = useState("");
+/** The segments an activity passes, read once for the map and for their own section. */
+function useRideSegments(a: ActivityDetail, streams: RideStreams | undefined) {
   // Saved segments as the library sees them (old stars follow their climb's shared stretch); no history sync here.
   // Rank this activity only among its own sport's efforts.
   const sport = sportOfActivity(a) ?? "ride";
   const isRun = sport === "run";
   const store = useSegmentLibrary({ sync: false, sport });
-  const savedList = useMemo(() => store.list.filter((s) => s.saved), [store.list]);
   const nameOf = useSegmentNames(store.list);
-  const [segHover, setSegHover] = useState<number | null>(null);
-  const climbs = useMemo(
-    () =>
-      detectClimbs({
-        distance: streams.distance,
-        altitude: streams.altitude,
-        time: streams.time,
-        watts: streams.watts,
-        heartrate: streams.heartrate,
-      }),
-    [streams],
-  );
   const track = useMemo(
     () =>
-      streams.lat.length
+      streams?.lat.length
         ? trackFromStreams({ id: a.id, name: a.name, date: a.start_date_local }, streams)
         : null,
     [a, streams],
@@ -798,6 +819,44 @@ function Climbs({
         })
         .catch((e) => console.warn("Couldn't add the ride to the segment index", e));
   }, [outdoor, a.id, a.name, a.start_date_local, isRun, sport]);
+  return { sport, isRun, store, nameOf, track, onRide };
+}
+
+function Climbs({
+  a,
+  streams,
+  weight,
+  segments,
+  segHover,
+  work,
+  onClear,
+}: {
+  a: ActivityDetail;
+  streams: RideStreams;
+  weight: number | null;
+  segments: ReturnType<typeof useRideSegments>;
+  segHover: number | null;
+  work: Work | null;
+  onClear: () => void;
+}) {
+  const { store, track, onRide, sport, isRun } = segments;
+  const [hover, setHover] = useState<number | null>(null);
+  const [hoverKm, setHoverKm] = useState<number | null>(null);
+  const [range, setRange] = useState<[number, number] | null>(null);
+  const [name, setName] = useState("");
+  const savedList = useMemo(() => store.list.filter((s) => s.saved), [store.list]);
+  const nameOf = segments.nameOf;
+  const climbs = useMemo(
+    () =>
+      detectClimbs({
+        distance: streams.distance,
+        altitude: streams.altitude,
+        time: streams.time,
+        watts: streams.watts,
+        heartrate: streams.heartrate,
+      }),
+    [streams],
+  );
   const totalKm = (streams.distance.at(-1) ?? 0) / 1000;
 
   // Map: the ride, its climbs by category, and the segment being marked with the slider.
@@ -883,397 +942,408 @@ function Climbs({
   }
 
   return (
-    <>
-      <Panel
-        title={`${track ? t("Map, elevation & climbs", "Mappa, altimetria e salite") : t("Elevation & climbs", "Altimetria e salite")}${climbs.length ? ` · ${climbs.length}` : ""}`}
-        action={
-          track && !range ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
-                setRange([Math.min(1, totalKm / 3), Math.min(totalKm, Math.max(2, totalKm / 2))])
-              }
-            >
-              <Plus /> {t("Segment", "Segmento")}
-            </Button>
-          ) : undefined
-        }
-      >
-        {work && <WorkBar work={work} onClear={onClear} />}
-        {track && (
-          <RouteMap
-            fitKey={a.id}
-            lines={mapLines}
-            pins={mapPins}
-            cursor={cursor}
-            focus={work ? { key: `work-${work.id}`, ...cut(work.startKm, work.endKm) } : null}
-            className="mb-4"
-          />
-        )}
-        <ElevationProfile
-          distance={streams.distance}
-          altitude={streams.altitude}
-          climbs={climbs}
-          highlight={hover}
-          selection={range ?? (work ? [work.startKm, work.endKm] : null)}
-          onHoverKm={setHoverKm}
+    <Panel
+      title={`${track ? t("Map, elevation & climbs", "Mappa, altimetria e salite") : t("Elevation & climbs", "Altimetria e salite")}${climbs.length ? ` · ${climbs.length}` : ""}`}
+      action={
+        track && !range ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              setRange([Math.min(1, totalKm / 3), Math.min(totalKm, Math.max(2, totalKm / 2))])
+            }
+          >
+            <Plus /> {t("Segment", "Segmento")}
+          </Button>
+        ) : undefined
+      }
+    >
+      {work && <WorkBar work={work} onClear={onClear} />}
+      {track && (
+        <RouteMap
+          fitKey={a.id}
+          lines={mapLines}
+          pins={mapPins}
+          cursor={cursor}
+          focus={work ? { key: `work-${work.id}`, ...cut(work.startKm, work.endKm) } : null}
+          className="mb-4"
         />
+      )}
+      <ElevationProfile
+        distance={streams.distance}
+        altitude={streams.altitude}
+        climbs={climbs}
+        highlight={hover}
+        selection={range ?? (work ? [work.startKm, work.endKm] : null)}
+        onHoverKm={setHoverKm}
+      />
 
-        {range && (
-          <div className="mt-4 space-y-3 rounded-lg bg-background/50 p-3">
-            <div className="stat-num flex justify-between text-xs text-muted-foreground">
-              <span>
-                {t("Start", "Inizio")} {range[0].toFixed(2)} km
-              </span>
-              <span>{((range[1] - range[0]) * 1000).toFixed(0)} m</span>
-              <span>
-                {t("Finish", "Fine")} {range[1].toFixed(2)} km
-              </span>
-            </div>
-            <Slider
-              min={0}
-              max={totalKm}
-              step={0.01}
-              minStepsBetweenThumbs={20}
-              value={range}
-              onValueChange={(v) => setRange([v[0]!, v[1]!])}
-            />
-            <div className="flex gap-2">
-              <Input
-                placeholder={t("Segment name (optional)", "Nome segmento (facoltativo)")}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <Button onClick={saveRange}>{t("Save", "Salva")}</Button>
-              <Button variant="ghost" onClick={() => setRange(null)}>
-                {t("Cancel", "Annulla")}
-              </Button>
-            </div>
+      {range && (
+        <div className="mt-4 space-y-3 rounded-lg bg-background/50 p-3">
+          <div className="stat-num flex justify-between text-xs text-muted-foreground">
+            <span>
+              {t("Start", "Inizio")} {range[0].toFixed(2)} km
+            </span>
+            <span>{((range[1] - range[0]) * 1000).toFixed(0)} m</span>
+            <span>
+              {t("Finish", "Fine")} {range[1].toFixed(2)} km
+            </span>
           </div>
-        )}
+          <Slider
+            min={0}
+            max={totalKm}
+            step={0.01}
+            minStepsBetweenThumbs={20}
+            value={range}
+            onValueChange={(v) => setRange([v[0]!, v[1]!])}
+          />
+          <div className="flex gap-2">
+            <Input
+              placeholder={t("Segment name (optional)", "Nome segmento (facoltativo)")}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Button onClick={saveRange}>{t("Save", "Salva")}</Button>
+            <Button variant="ghost" onClick={() => setRange(null)}>
+              {t("Cancel", "Annulla")}
+            </Button>
+          </div>
+        </div>
+      )}
 
-        {climbs.length > 0 && (
-          <>
-            {/* Phone: one compact row per climb instead of a table wider than the screen. */}
-            <div className="-mx-4 mt-4 divide-y divide-border md:hidden">
-              {climbs.map((c, i) => {
-                const saved = savedFor(c.startKm, c.endKm);
-                // Two short lines that fit a phone: shape (length, grades), then effort (VAM, power).
-                const effort = [
-                  c.vam != null && `VAM ${Math.round(c.vam)}`,
-                  isRun && c.duration > 0 && paceLabel(c.length / c.duration),
-                  !isRun && c.avgWatts != null && `${Math.round(c.avgWatts)} W`,
-                  !isRun && c.avgWatts && weight && `${(c.avgWatts / weight).toFixed(2)} W/kg`,
-                ].filter(Boolean);
-                return (
-                  <div
-                    key={i}
-                    className={cn(
-                      "flex items-center gap-1 pr-2 transition-colors",
-                      hover === i && "bg-secondary/60",
-                    )}
+      {climbs.length > 0 && (
+        <>
+          {/* Phone: one compact row per climb instead of a table wider than the screen. */}
+          <div className="-mx-4 mt-4 divide-y divide-border md:hidden">
+            {climbs.map((c, i) => {
+              const saved = savedFor(c.startKm, c.endKm);
+              // Two short lines that fit a phone: shape (length, grades), then effort (VAM, power).
+              const effort = [
+                c.vam != null && `VAM ${Math.round(c.vam)}`,
+                isRun && c.duration > 0 && paceLabel(c.length / c.duration),
+                !isRun && c.avgWatts != null && `${Math.round(c.avgWatts)} W`,
+                !isRun && c.avgWatts && weight && `${(c.avgWatts / weight).toFixed(2)} W/kg`,
+              ].filter(Boolean);
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "flex items-center gap-1 pr-2 transition-colors",
+                    hover === i && "bg-secondary/60",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setHover(hover === i ? null : i)}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 text-left active:bg-secondary/40"
                   >
-                    <button
-                      type="button"
-                      onClick={() => setHover(hover === i ? null : i)}
-                      className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 text-left active:bg-secondary/40"
-                    >
-                      <span className="stat-num w-5 shrink-0 text-sm text-muted-foreground">
-                        {i + 1}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="stat-num flex items-center gap-2 text-sm">
-                          <span
-                            className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
-                            style={{ background: CAT_COLOR[c.category] }}
-                          >
-                            {isRun
-                              ? `${Math.round(c.gain)} m`
-                              : c.category === "Uncat"
-                                ? "–"
-                                : c.category === "HC"
-                                  ? "HC"
-                                  : `Cat ${c.category}`}
-                          </span>
-                          {(c.length / 1000).toFixed(1)} km · {c.avgGrade.toFixed(1)}%
-                        </span>
-                        <span className="stat-num block text-xs text-muted-foreground">
-                          Max {c.maxGrade.toFixed(1)}%
-                          {effort.length > 0 && ` · ${effort.join(" · ")}`}
-                        </span>
-                      </span>
-                      <span className="stat-num shrink-0 text-right text-base font-semibold">
-                        {formatClock(c.duration)}
-                      </span>
-                    </button>
-                    {track ? (
-                      <button
-                        aria-label={
-                          saved?.starred
-                            ? t("Unstar climb", "Togli dai preferiti")
-                            : t("Star climb", "Aggiungi ai preferiti")
-                        }
-                        onClick={() =>
-                          store.toggleStar(
-                            saved ?? segmentFromRange(track, c.startKm, c.endKm, "auto"),
-                          )
-                        }
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg active:bg-secondary/60"
-                      >
-                        <Star
-                          className={cn(
-                            "h-5 w-5",
-                            saved?.starred ? "fill-birch text-birch" : "text-muted-foreground",
-                          )}
-                        />
-                      </button>
-                    ) : (
-                      <span className="w-11 shrink-0" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="-mx-4 mt-4 hidden overflow-x-auto px-4 md:block">
-              <table className="stat-num w-full min-w-[560px] text-sm">
-                <thead>
-                  <tr className="eyebrow text-left">
-                    <th className="py-2 font-normal">#</th>
-                    <th className="font-normal">{isRun ? t("Up", "D+") : "Cat"}</th>
-                    <th className="text-right font-normal">Km</th>
-                    <th className="text-right font-normal">{t("Avg", "Media")}</th>
-                    <th className="text-right font-normal">Max</th>
-                    <th className="text-right font-normal">{t("Time", "Tempo")}</th>
-                    <th className="text-right font-normal">VAM</th>
-                    <th className="text-right font-normal">
-                      {isRun ? t("Pace", "Passo") : t("Power", "Potenza")}
-                    </th>
-                    {!isRun && <th className="text-right font-normal">W/kg</th>}
-                    {track && <th />}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {climbs.map((c, i) => {
-                    const saved = savedFor(c.startKm, c.endKm);
-                    return (
-                      <tr
-                        key={i}
-                        onMouseEnter={() => setHover(i)}
-                        onMouseLeave={() => setHover(null)}
-                        onClick={() => setHover(hover === i ? null : i)}
-                        className={cn("transition-colors", hover === i && "bg-secondary/60")}
-                      >
-                        <td className="py-2 text-muted-foreground">{i + 1}</td>
-                        <td>
-                          <span
-                            className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
-                            style={{ background: CAT_COLOR[c.category] }}
-                          >
-                            {isRun
-                              ? `${Math.round(c.gain)} m`
-                              : c.category === "Uncat"
-                                ? "–"
-                                : c.category === "HC"
-                                  ? "HC"
-                                  : `Cat ${c.category}`}
-                          </span>
-                        </td>
-                        <td className="text-right">{(c.length / 1000).toFixed(1)}</td>
-                        <td className="text-right">{c.avgGrade.toFixed(1)}%</td>
-                        <td className="text-right">{c.maxGrade.toFixed(1)}%</td>
-                        <td className="text-right">{formatClock(c.duration)}</td>
-                        <td className="text-right">{r(c.vam)}</td>
-                        <td className="text-right">
-                          {isRun
-                            ? c.duration > 0
-                              ? formatPace(c.length / c.duration)
-                              : "–"
-                            : r(c.avgWatts, "W")}
-                        </td>
-                        {!isRun && (
-                          <td className="text-right">
-                            {c.avgWatts && weight ? (c.avgWatts / weight).toFixed(2) : "–"}
-                          </td>
-                        )}
-                        {track && (
-                          <td className="text-right">
-                            <button
-                              aria-label={
-                                saved?.starred
-                                  ? t("Unstar climb", "Togli dai preferiti")
-                                  : t("Star climb", "Aggiungi ai preferiti")
-                              }
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                store.toggleStar(
-                                  saved ?? segmentFromRange(track, c.startKm, c.endKm, "auto"),
-                                );
-                              }}
-                              className="p-1"
-                            >
-                              <Star
-                                className={cn(
-                                  "h-4 w-4",
-                                  saved?.starred
-                                    ? "fill-birch text-birch"
-                                    : "text-muted-foreground",
-                                )}
-                              />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </Panel>
-
-      <Panel
-        title={`${t("Segments on this activity", "Segmenti in questa attività")}${onRide.length ? ` · ${onRide.length}` : ""}`}
-      >
-        {onRide.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            {track
-              ? store.ridesAnalysed
-                ? t(
-                    "This activity doesn't pass any of your segments.",
-                    "Questa attività non passa da nessuno dei tuoi segmenti.",
-                  )
-                : t(
-                    "Open Segments once to analyse your activities; recurring climbs will then show up here.",
-                    "Apri Segmenti una volta per analizzare le attività; le salite ricorrenti appariranno qui.",
-                  )
-              : t("No GPS on this activity.", "Nessun GPS in questa attività.")}
-          </p>
-        ) : (
-          <>
-            {/* Phone: one compact row per segment instead of a table wider than the screen. */}
-            <div className="-mx-4 divide-y divide-border md:hidden">
-              {onRide.map(({ seg, at, rank, of }) => {
-                const effort = [
-                  isRun && paceLabel(at.speed / 3.6),
-                  !isRun && at.avgWatts != null && `${Math.round(at.avgWatts)} W`,
-                  !isRun && at.avgWatts && weight && `${(at.avgWatts / weight).toFixed(2)} W/kg`,
-                  at.vam != null && `VAM ${Math.round(at.vam)}`,
-                  at.avgHr != null && `${Math.round(at.avgHr)} bpm`,
-                ].filter(Boolean);
-                return (
-                  <Link
-                    key={`${seg.id}-${at.i0}`}
-                    to="/segments/$id"
-                    params={{ id: seg.id }}
-                    search={{ sport }}
-                    className="flex items-center gap-3 px-4 py-3 active:bg-secondary/40"
-                  >
+                    <span className="stat-num w-5 shrink-0 text-sm text-muted-foreground">
+                      {i + 1}
+                    </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">
+                      <span className="stat-num flex items-center gap-2 text-sm">
+                        <span
+                          className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
+                          style={{ background: CAT_COLOR[c.category] }}
+                        >
+                          {isRun
+                            ? `${Math.round(c.gain)} m`
+                            : c.category === "Uncat"
+                              ? "–"
+                              : c.category === "HC"
+                                ? "HC"
+                                : `Cat ${c.category}`}
+                        </span>
+                        {(c.length / 1000).toFixed(1)} km · {c.avgGrade.toFixed(1)}%
+                      </span>
+                      <span className="stat-num block text-xs text-muted-foreground">
+                        Max {c.maxGrade.toFixed(1)}%
+                        {effort.length > 0 && ` · ${effort.join(" · ")}`}
+                      </span>
+                    </span>
+                    <span className="stat-num shrink-0 text-right text-base font-semibold">
+                      {formatClock(c.duration)}
+                    </span>
+                  </button>
+                  {track ? (
+                    <button
+                      aria-label={
+                        saved?.starred
+                          ? t("Unstar climb", "Togli dai preferiti")
+                          : t("Star climb", "Aggiungi ai preferiti")
+                      }
+                      onClick={() =>
+                        store.toggleStar(
+                          saved ?? segmentFromRange(track, c.startKm, c.endKm, "auto"),
+                        )
+                      }
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg active:bg-secondary/60"
+                    >
+                      <Star
+                        className={cn(
+                          "h-5 w-5",
+                          saved?.starred ? "fill-birch text-birch" : "text-muted-foreground",
+                        )}
+                      />
+                    </button>
+                  ) : (
+                    <span className="w-11 shrink-0" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="-mx-4 mt-4 hidden overflow-x-auto px-4 md:block">
+            <table className="stat-num w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="eyebrow text-left">
+                  <th className="py-2 font-normal">#</th>
+                  <th className="font-normal">{isRun ? t("Up", "D+") : "Cat"}</th>
+                  <th className="text-right font-normal">Km</th>
+                  <th className="text-right font-normal">{t("Avg", "Media")}</th>
+                  <th className="text-right font-normal">Max</th>
+                  <th className="text-right font-normal">{t("Time", "Tempo")}</th>
+                  <th className="text-right font-normal">VAM</th>
+                  <th className="text-right font-normal">
+                    {isRun ? t("Pace", "Passo") : t("Power", "Potenza")}
+                  </th>
+                  {!isRun && <th className="text-right font-normal">W/kg</th>}
+                  {track && <th />}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {climbs.map((c, i) => {
+                  const saved = savedFor(c.startKm, c.endKm);
+                  return (
+                    <tr
+                      key={i}
+                      onMouseEnter={() => setHover(i)}
+                      onMouseLeave={() => setHover(null)}
+                      onClick={() => setHover(hover === i ? null : i)}
+                      className={cn("transition-colors", hover === i && "bg-secondary/60")}
+                    >
+                      <td className="py-2 text-muted-foreground">{i + 1}</td>
+                      <td>
+                        <span
+                          className="rounded px-1.5 py-0.5 text-xs font-semibold text-background"
+                          style={{ background: CAT_COLOR[c.category] }}
+                        >
+                          {isRun
+                            ? `${Math.round(c.gain)} m`
+                            : c.category === "Uncat"
+                              ? "–"
+                              : c.category === "HC"
+                                ? "HC"
+                                : `Cat ${c.category}`}
+                        </span>
+                      </td>
+                      <td className="text-right">{(c.length / 1000).toFixed(1)}</td>
+                      <td className="text-right">{c.avgGrade.toFixed(1)}%</td>
+                      <td className="text-right">{c.maxGrade.toFixed(1)}%</td>
+                      <td className="text-right">{formatClock(c.duration)}</td>
+                      <td className="text-right">{r(c.vam)}</td>
+                      <td className="text-right">
+                        {isRun
+                          ? c.duration > 0
+                            ? formatPace(c.length / c.duration)
+                            : "–"
+                          : r(c.avgWatts, "W")}
+                      </td>
+                      {!isRun && (
+                        <td className="text-right">
+                          {c.avgWatts && weight ? (c.avgWatts / weight).toFixed(2) : "–"}
+                        </td>
+                      )}
+                      {track && (
+                        <td className="text-right">
+                          <button
+                            aria-label={
+                              saved?.starred
+                                ? t("Unstar climb", "Togli dai preferiti")
+                                : t("Star climb", "Aggiungi ai preferiti")
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              store.toggleStar(
+                                saved ?? segmentFromRange(track, c.startKm, c.endKm, "auto"),
+                              );
+                            }}
+                            className="p-1"
+                          >
+                            <Star
+                              className={cn(
+                                "h-4 w-4",
+                                saved?.starred ? "fill-birch text-birch" : "text-muted-foreground",
+                              )}
+                            />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function RideSegments({
+  segments,
+  weight,
+  segHover,
+  onHover,
+}: {
+  segments: ReturnType<typeof useRideSegments>;
+  weight: number | null;
+  segHover: number | null;
+  onHover: (i: number | null) => void;
+}) {
+  const { store, track, onRide, nameOf, sport, isRun } = segments;
+  return (
+    <Panel
+      title={`${t("Segments on this activity", "Segmenti in questa attività")}${onRide.length ? ` · ${onRide.length}` : ""}`}
+    >
+      {onRide.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          {track
+            ? store.ridesAnalysed
+              ? t(
+                  "This activity doesn't pass any of your segments.",
+                  "Questa attività non passa da nessuno dei tuoi segmenti.",
+                )
+              : t(
+                  "Open Segments once to analyse your activities; recurring climbs will then show up here.",
+                  "Apri Segmenti una volta per analizzare le attività; le salite ricorrenti appariranno qui.",
+                )
+            : t("No GPS on this activity.", "Nessun GPS in questa attività.")}
+        </p>
+      ) : (
+        <>
+          {/* Phone: one compact row per segment instead of a table wider than the screen. */}
+          <div className="-mx-4 divide-y divide-border md:hidden">
+            {onRide.map(({ seg, at, rank, of }) => {
+              const effort = [
+                isRun && paceLabel(at.speed / 3.6),
+                !isRun && at.avgWatts != null && `${Math.round(at.avgWatts)} W`,
+                !isRun && at.avgWatts && weight && `${(at.avgWatts / weight).toFixed(2)} W/kg`,
+                at.vam != null && `VAM ${Math.round(at.vam)}`,
+                at.avgHr != null && `${Math.round(at.avgHr)} bpm`,
+              ].filter(Boolean);
+              return (
+                <Link
+                  key={`${seg.id}-${at.i0}`}
+                  to="/segments/$id"
+                  params={{ id: seg.id }}
+                  search={{ sport }}
+                  className="flex items-center gap-3 px-4 py-3 active:bg-secondary/40"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {seg.starred && (
+                        <Star className="mr-1 inline h-3.5 w-3.5 fill-birch text-birch" />
+                      )}
+                      {nameOf(seg)}
+                    </span>
+                    <span className="stat-num block truncate text-xs text-muted-foreground">
+                      {segmentSummary(seg, sport)}
+                    </span>
+                    {effort.length > 0 && (
+                      <span className="stat-num block truncate text-xs text-muted-foreground">
+                        {effort.join(" · ")}
+                      </span>
+                    )}
+                  </span>
+                  <span className="stat-num shrink-0 text-right">
+                    <span className="block text-base font-semibold">
+                      {formatClock(at.duration)}
+                    </span>
+                    {rank === 1 && of > 1 ? (
+                      <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
+                        <Trophy className="h-3 w-3" /> {t("PR", "Record")}
+                      </span>
+                    ) : (
+                      <span className="block text-xs text-muted-foreground">
+                        {rank}/{of}
+                      </span>
+                    )}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+          <div className="-mx-4 hidden overflow-x-auto px-4 md:block">
+            <table className="stat-num w-full min-w-[600px] text-sm">
+              <thead>
+                <tr className="eyebrow text-left">
+                  <th className="py-2 font-normal">{t("Segment", "Segmento")}</th>
+                  <th className="text-right font-normal">{t("Time", "Tempo")}</th>
+                  <th className="text-right font-normal">{t("Rank", "Pos.")}</th>
+                  <th className="text-right font-normal">
+                    {isRun ? t("Pace", "Passo") : t("Power", "Potenza")}
+                  </th>
+                  {!isRun && <th className="text-right font-normal">W/kg</th>}
+                  <th className="text-right font-normal">VAM</th>
+                  <th className="text-right font-normal">{t("HR", "FC")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {onRide.map(({ seg, at, rank, of }, i) => (
+                  <tr
+                    key={`${seg.id}-${at.i0}`}
+                    onMouseEnter={() => onHover(i)}
+                    onMouseLeave={() => onHover(null)}
+                    className={cn("transition-colors", segHover === i && "bg-secondary/60")}
+                  >
+                    <td className="max-w-0 py-2 pr-3 font-sans">
+                      <Link
+                        to="/segments/$id"
+                        params={{ id: seg.id }}
+                        search={{ sport }}
+                        className="block truncate font-medium hover:text-primary"
+                      >
                         {seg.starred && (
                           <Star className="mr-1 inline h-3.5 w-3.5 fill-birch text-birch" />
                         )}
                         {nameOf(seg)}
-                      </span>
-                      <span className="stat-num block truncate text-xs text-muted-foreground">
+                      </Link>
+                      <div className="stat-num truncate text-xs text-muted-foreground">
                         {segmentSummary(seg, sport)}
-                      </span>
-                      {effort.length > 0 && (
-                        <span className="stat-num block truncate text-xs text-muted-foreground">
-                          {effort.join(" · ")}
-                        </span>
-                      )}
-                    </span>
-                    <span className="stat-num shrink-0 text-right">
-                      <span className="block text-base font-semibold">
-                        {formatClock(at.duration)}
-                      </span>
+                      </div>
+                    </td>
+                    <td className="text-right">{formatClock(at.duration)}</td>
+                    <td className="text-right">
                       {rank === 1 && of > 1 ? (
                         <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
                           <Trophy className="h-3 w-3" /> {t("PR", "Record")}
                         </span>
                       ) : (
-                        <span className="block text-xs text-muted-foreground">
-                          {rank}/{of}
+                        <span className="text-muted-foreground">
+                          {rank}
+                          <span className="text-[10px]">/{of}</span>
                         </span>
                       )}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-            <div className="-mx-4 hidden overflow-x-auto px-4 md:block">
-              <table className="stat-num w-full min-w-[600px] text-sm">
-                <thead>
-                  <tr className="eyebrow text-left">
-                    <th className="py-2 font-normal">{t("Segment", "Segmento")}</th>
-                    <th className="text-right font-normal">{t("Time", "Tempo")}</th>
-                    <th className="text-right font-normal">{t("Rank", "Pos.")}</th>
-                    <th className="text-right font-normal">
-                      {isRun ? t("Pace", "Passo") : t("Power", "Potenza")}
-                    </th>
-                    {!isRun && <th className="text-right font-normal">W/kg</th>}
-                    <th className="text-right font-normal">VAM</th>
-                    <th className="text-right font-normal">{t("HR", "FC")}</th>
+                    </td>
+                    <td className="text-right">
+                      {isRun ? formatPace(at.speed / 3.6) : r(at.avgWatts, "W")}
+                    </td>
+                    {!isRun && (
+                      <td className="text-right">
+                        {at.avgWatts && weight ? (at.avgWatts / weight).toFixed(2) : "–"}
+                      </td>
+                    )}
+                    <td className="text-right">{r(at.vam)}</td>
+                    <td className="text-right text-fatigue">{r(at.avgHr)}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {onRide.map(({ seg, at, rank, of }, i) => (
-                    <tr
-                      key={`${seg.id}-${at.i0}`}
-                      onMouseEnter={() => setSegHover(i)}
-                      onMouseLeave={() => setSegHover(null)}
-                      className={cn("transition-colors", segHover === i && "bg-secondary/60")}
-                    >
-                      <td className="max-w-0 py-2 pr-3 font-sans">
-                        <Link
-                          to="/segments/$id"
-                          params={{ id: seg.id }}
-                          search={{ sport }}
-                          className="block truncate font-medium hover:text-primary"
-                        >
-                          {seg.starred && (
-                            <Star className="mr-1 inline h-3.5 w-3.5 fill-birch text-birch" />
-                          )}
-                          {nameOf(seg)}
-                        </Link>
-                        <div className="stat-num truncate text-xs text-muted-foreground">
-                          {segmentSummary(seg, sport)}
-                        </div>
-                      </td>
-                      <td className="text-right">{formatClock(at.duration)}</td>
-                      <td className="text-right">
-                        {rank === 1 && of > 1 ? (
-                          <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                            <Trophy className="h-3 w-3" /> {t("PR", "Record")}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            {rank}
-                            <span className="text-[10px]">/{of}</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-right">
-                        {isRun ? formatPace(at.speed / 3.6) : r(at.avgWatts, "W")}
-                      </td>
-                      {!isRun && (
-                        <td className="text-right">
-                          {at.avgWatts && weight ? (at.avgWatts / weight).toFixed(2) : "–"}
-                        </td>
-                      )}
-                      <td className="text-right">{r(at.vam)}</td>
-                      <td className="text-right text-fatigue">{r(at.avgHr)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </Panel>
-    </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Panel>
   );
 }

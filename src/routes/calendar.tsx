@@ -23,7 +23,13 @@ import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { weeklyTotals, type WeekRow } from "@/lib/analysis";
-import { isFreeRide, isPlanned, type Activity, type PlannedEvent, type Wellness } from "@/lib/intervals";
+import {
+  isFreeRide,
+  isPlanned,
+  type Activity,
+  type PlannedEvent,
+  type Wellness,
+} from "@/lib/intervals";
 import { deleteEvent, sourceKind } from "@/lib/source";
 import { UploadRides } from "@/components/UploadRides";
 import { activitiesRangeQuery, eventsQuery, wellnessRangeQuery } from "@/lib/queries";
@@ -609,9 +615,15 @@ function DayDetail({ d, startOnPlan = false }: { d: DayData; startOnPlan?: boole
                     {race
                       ? raceSummary(race)
                       : isFreeRide(e)
-                        ? e.type === "Run"
-                          ? t("Run", "Corsa")
-                          : t("Ride", "Uscita")
+                        ? [
+                            e.type === "Run" ? t("Run", "Corsa") : t("Ride", "Uscita"),
+                            e.moving_time ? formatDuration(e.moving_time) : null,
+                            e.icu_training_load
+                              ? `${t("load", "carico")} ${e.icu_training_load}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
                         : `${formatDuration(e.moving_time)} · ${t("load", "carico")} ${e.icu_training_load ?? "–"}`}
                   </div>
                   {!race && e.category === "WORKOUT" && (
@@ -637,7 +649,9 @@ function DayDetail({ d, startOnPlan = false }: { d: DayData; startOnPlan?: boole
                         : t("Set the race kind", "Imposta il tipo di gara")}
                     </Button>
                   )}
-                  {!race && (e.category === "WORKOUT" || isFreeRide(e)) && <RemovePlanned id={e.id} />}
+                  {!race && (e.category === "WORKOUT" || isFreeRide(e)) && (
+                    <RemovePlanned id={e.id} />
+                  )}
                 </div>
               );
             })}
@@ -653,7 +667,8 @@ function DayDetail({ d, startOnPlan = false }: { d: DayData; startOnPlan?: boole
         </Button>
       )}
       {tab === "plan" && <WorkoutPicker date={d.date} onDone={() => setTab("day")} />}
-      {tab === "wellness" && (        <CheckInForm key={d.date} date={d.date} row={d.well} onSaved={() => setTab("day")} />
+      {tab === "wellness" && (
+        <CheckInForm key={d.date} date={d.date} row={d.well} onSaved={() => setTab("day")} />
       )}
       {tab === "log" && <LogWorkoutForm date={d.date} onSaved={() => setTab("day")} />}
       {tab === "race" && (

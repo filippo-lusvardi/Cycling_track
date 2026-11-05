@@ -27,6 +27,7 @@ import {
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { DUR } from "../analysis";
 import { briochesIn } from "../brioches";
+import { ratingIn } from "../plan/rating";
 import { readProfile, saveProfile } from "../cloud";
 import { auth, uid } from "../firebase";
 import { db } from "../db";
@@ -162,7 +163,7 @@ const inRange = (d: string, r: Range) => d >= r.oldest && d <= r.newest;
 
 function toDetail(s: Stored): ActivityDetail {
   const { curve: _c, origin: _o, outdoor: _d, hasStreams: _h, totals: _t, parser: _p, ...a } = s;
-  return { ...a, brioches: briochesIn(a.description) };
+  return { ...a, brioches: briochesIn(a.description), planRating: ratingIn(a.description) };
 }
 
 function toActivity(s: Stored): Activity {
@@ -240,8 +241,7 @@ async function readRunThresholds() {
 }
 
 export async function getRideZones(sport: MainSport = "ride"): Promise<RideZones> {
-  if (sport === "run")
-  {
+  if (sport === "run") {
     const run = await runThresholds();
     return { ftp: null, power: [], hr: hrZoneTops(run.lthr, run.hrPct) };
   }
@@ -284,14 +284,14 @@ export async function createManualActivity(input: ManualActivity) {
   const d = manualSchema.parse(input);
   const id = `manual-${Date.now()}`;
   await putRide({
-    ...emptyRide(id, d.name, d.type, `${d.date}T09:00:00`),
+    ...emptyRide(id, d.name, d.type, `${d.date}T${d.time ?? "09:00"}:00`),
     moving_time: d.minutes * 60,
     distance: d.distanceKm ? d.distanceKm * 1000 : null,
     icu_training_load: d.load ?? null,
     origin: "manual",
   });
   forget();
-  return { ok: true as const };
+  return { ok: true as const, id: id as string | null };
 }
 
 /**
@@ -322,6 +322,8 @@ export async function deleteRide(id: string) {
   await deleteStreams(id);
   forget();
 }
+
+export const deleteActivity = deleteRide;
 
 // --- Streams ---
 
@@ -491,7 +493,25 @@ export async function getPowerCurves(): Promise<PowerCurve[]> {
   return [
     { id: "42d", label: t("Last 42 days", "Ultimi 42 giorni"), secs: DUR, watts: curve(42) },
     { id: "1y", label: t("Last year", "Ultimo anno"), secs: DUR, watts: curve(365) },
+    {
+      id: "all",
+      label: t("All time", "Di sempre"),
+      secs: DUR,
+      watts: bestCurve(rides.map((a) => a.curve)).map((w) => w ?? 0),
+    },
   ];
+}
+
+export async function getPowerCurveRange(from: string, to: string): Promise<PowerCurve | null> {
+  const rides = (await allRides()).filter(
+    (a) => isSport(a, "ride") && dayOf(a) >= day.parse(from) && dayOf(a) <= day.parse(to),
+  );
+  return {
+    id: `r.${from}.${to}`,
+    label: `${from} – ${to}`,
+    secs: DUR,
+    watts: bestCurve(rides.map((a) => a.curve)).map((w) => w ?? 0),
+  };
 }
 
 type Entry = Partial<Omit<Wellness, "id">> & { date: string };
@@ -621,8 +641,22 @@ export async function updateRace(id: string, r: RaceEntry) {
 export async function getThresholds(sport: MainSport): Promise<AthleteThresholds> {
   const p = await readProfile();
   return sport === "run"
-    ? { exists: true, paceSynced: true, ftp: null, lthr: p.runLthr ?? null, maxHr: p.runMaxHr ?? null, pace: p.runThreshold ?? null }
-    : { exists: true, paceSynced: true, ftp: p.ftp ?? null, lthr: p.lthr ?? null, maxHr: p.maxHr ?? null, pace: null };
+    ? {
+        exists: true,
+        paceSynced: true,
+        ftp: null,
+        lthr: p.runLthr ?? null,
+        maxHr: p.runMaxHr ?? null,
+        pace: p.runThreshold ?? null,
+      }
+    : {
+        exists: true,
+        paceSynced: true,
+        ftp: p.ftp ?? null,
+        lthr: p.lthr ?? null,
+        maxHr: p.maxHr ?? null,
+        pace: null,
+      };
 }
 
 export async function saveThresholds(sport: MainSport, patch: ThresholdPatch) {
@@ -682,9 +716,36 @@ export async function planFreeRide(r: FreeRide): Promise<string> {
   const v = freeRideSchema.parse(r);
   const made = await addDoc(
     col("events"),
-    event({ date: v.date, category: "NOTE", type: v.type, name: v.name }),
+    event({
+      date: v.date,
+      category: "WORKOUT",
+      type: v.type,
+      name: v.name,
+      moving_time: v.seconds ?? null,
+      icu_training_load: v.load ?? null,
+    }),
   );
   return made.id;
+}
+
+export async function replacePlanned(id: string, w: WorkoutEntry) {
+  const { folder: _, ...v } = workoutDoc(w);
+  await updateDoc(doc(col("events"), id), v);
+}
+
+export async function createNote(name: string, description: string, date: string): Promise<string> {
+  const made = await addDoc(
+    col("events"),
+    event({ date: day.parse(date), category: "NOTE", name, description }),
+  );
+  return made.id;
+}
+
+export const updateNote = (id: string, description: string, date: string) =>
+  updateDoc(doc(col("events"), id), { description, date: day.parse(date) });
+
+export async function movePlanned(id: string, date: string) {
+  await updateDoc(doc(col("events"), id), { date: day.parse(date) });
 }
 
 /**

@@ -20,6 +20,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SuggestRouteImport } from './routes/suggest'
 import { Route as WorkoutsRouteImport } from './routes/workouts'
 import { Route as ForestIndexRouteImport } from './routes/forest.index'
+import { Route as PlanIndexRouteImport } from './routes/plan.index'
+import { Route as PlanSettingsRouteImport } from './routes/plan.settings'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
 import { Route as RidesIdRouteImport } from './routes/rides.$id'
 import { Route as SegmentsIndexRouteImport } from './routes/segments.index'
@@ -85,6 +87,16 @@ const ForestIndexRoute = ForestIndexRouteImport.update({
   path: '/forest/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlanIndexRoute = PlanIndexRouteImport.update({
+  id: '/plan/',
+  path: '/plan/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanSettingsRoute = PlanSettingsRouteImport.update({
+  id: '/plan/settings',
+  path: '/plan/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RidesIndexRoute = RidesIndexRouteImport.update({
   id: '/rides/',
   path: '/rides/',
@@ -142,9 +154,11 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
+  '/plan/settings': typeof PlanSettingsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/forest/': typeof ForestIndexRoute
+  '/plan/': typeof PlanIndexRoute
   '/rides/': typeof RidesIndexRoute
   '/segments/': typeof SegmentsIndexRoute
   '/forest/$fid/': typeof ForestFidIndexRoute
@@ -164,9 +178,11 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
+  '/plan/settings': typeof PlanSettingsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/forest': typeof ForestIndexRoute
+  '/plan': typeof PlanIndexRoute
   '/rides': typeof RidesIndexRoute
   '/segments': typeof SegmentsIndexRoute
   '/forest/$fid': typeof ForestFidIndexRoute
@@ -187,9 +203,11 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
+  '/plan/settings': typeof PlanSettingsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
   '/forest/': typeof ForestIndexRoute
+  '/plan/': typeof PlanIndexRoute
   '/rides/': typeof RidesIndexRoute
   '/segments/': typeof SegmentsIndexRoute
   '/forest/$fid/': typeof ForestFidIndexRoute
@@ -211,9 +229,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/suggest'
     | '/workouts'
+    | '/plan/settings'
     | '/rides/$id'
     | '/segments/$id'
     | '/forest/'
+    | '/plan/'
     | '/rides/'
     | '/segments/'
     | '/forest/$fid/'
@@ -233,9 +253,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/suggest'
     | '/workouts'
+    | '/plan/settings'
     | '/rides/$id'
     | '/segments/$id'
     | '/forest'
+    | '/plan'
     | '/rides'
     | '/segments'
     | '/forest/$fid'
@@ -255,9 +277,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/suggest'
     | '/workouts'
+    | '/plan/settings'
     | '/rides/$id'
     | '/segments/$id'
     | '/forest/'
+    | '/plan/'
     | '/rides/'
     | '/segments/'
     | '/forest/$fid/'
@@ -278,9 +302,11 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SuggestRoute: typeof SuggestRoute
   WorkoutsRoute: typeof WorkoutsRoute
+  PlanSettingsRoute: typeof PlanSettingsRoute
   RidesIdRoute: typeof RidesIdRoute
   SegmentsIdRoute: typeof SegmentsIdRoute
   ForestIndexRoute: typeof ForestIndexRoute
+  PlanIndexRoute: typeof PlanIndexRoute
   RidesIndexRoute: typeof RidesIndexRoute
   SegmentsIndexRoute: typeof SegmentsIndexRoute
   ForestFidIndexRoute: typeof ForestFidIndexRoute
@@ -369,6 +395,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForestIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plan/': {
+      id: '/plan/'
+      path: '/plan'
+      fullPath: '/plan/'
+      preLoaderRoute: typeof PlanIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plan/settings': {
+      id: '/plan/settings'
+      path: '/plan/settings'
+      fullPath: '/plan/settings'
+      preLoaderRoute: typeof PlanSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rides/': {
       id: '/rides/'
       path: '/rides'
@@ -446,9 +486,11 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SuggestRoute: SuggestRoute,
   WorkoutsRoute: WorkoutsRoute,
+  PlanSettingsRoute: PlanSettingsRoute,
   RidesIdRoute: RidesIdRoute,
   SegmentsIdRoute: SegmentsIdRoute,
   ForestIndexRoute: ForestIndexRoute,
+  PlanIndexRoute: PlanIndexRoute,
   RidesIndexRoute: RidesIndexRoute,
   SegmentsIndexRoute: SegmentsIndexRoute,
   ForestFidIndexRoute: ForestFidIndexRoute,

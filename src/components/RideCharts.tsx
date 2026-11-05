@@ -15,13 +15,14 @@ import { useXZoom, ZOOM_AREA } from "@/hooks/use-x-zoom";
 import { wbal } from "@/lib/analysis";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { gapStreams } from "@/lib/gap";
-import { formatPace } from "@/lib/pace";
+import { formatPace, stepsPerMinute } from "@/lib/pace";
 import { rideSeries, type SeriesPoint } from "@/lib/ride-series";
 import { isSport } from "@/lib/sport";
 import { t } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 type Metric = {
-  key: "speed" | "gap" | "watts" | "hr" | "wbal";
+  key: "speed" | "gap" | "watts" | "hr" | "cadence" | "wbal";
   /** How a value reads, when not as a plain number. */
   format?: (v: number) => string;
   label: string;
@@ -45,7 +46,7 @@ const avgOf = (xs: (number | null)[]) => {
 };
 
 /**
- * Speed, power and heart rate along the ride, stacked on one distance axis; hovering one shows the same spot on all.
+ * Speed, power, heart rate and cadence along the ride, stacked on one distance axis; hovering one shows the same spot on all.
  * With a `work` selected, the charts zoom to that stretch and the averages are the work's own.
  * They also zoom along distance together (drag, or pinch on a phone), and the y axes fit what's shown.
  * With `cp` (critical power and W′ from the power curve), a fourth chart shows W′ balance: the anaerobic reserve left.
@@ -55,11 +56,16 @@ export function RideCharts({
   streams,
   work,
   cp,
+  chosen,
+  onChoose,
 }: {
   a: ActivityDetail;
   streams: RideStreams;
   work?: { startKm: number; endKm: number } | null;
   cp?: { cp: number; wPrime: number } | null;
+  /** Which charts to show, in this order; all of them when missing. */
+  chosen?: { id: string; hidden: boolean }[] | undefined;
+  onChoose?: ((id: string, hidden: boolean) => void) | undefined;
 }) {
   const balance = useMemo(
     () =>
@@ -70,13 +76,18 @@ export function RideCharts({
     [streams, cp],
   );
   const isRun = isSport(a, "run");
+  // Runs count steps a minute, however the device reports them, as the number on the page does.
+  const cadence = useMemo(
+    () => (isRun ? streams.cadence.map((c) => stepsPerMinute(c)) : streams.cadence),
+    [streams, isRun],
+  );
   const all = useMemo(
     () =>
       isRun
         ? // Running power isn't charted; pace and grade-adjusted pace are.
-          rideSeries({ ...streams, watts: [], gap: gapStreams(streams).gap })
+          rideSeries({ ...streams, cadence, watts: [], gap: gapStreams(streams).gap })
         : rideSeries({ ...streams, wbal: balance }),
-    [streams, balance, isRun],
+    [streams, balance, isRun, cadence],
   );
   const data = useMemo(
     () => (work ? all.filter((p) => p.km >= work.startKm && p.km <= work.endKm) : all),
@@ -155,6 +166,15 @@ export function RideCharts({
             digits: 0,
           },
           {
+            key: "cadence",
+            label: t("Cadence", "Cadenza"),
+            unit: isRun ? t("steps/min", "passi/min") : "rpm",
+            color: "var(--spring)",
+            avg: isRun ? stepsPerMinute(a.average_cadence) : a.average_cadence,
+            max: peak(cadence),
+            digits: 0,
+          },
+          {
             key: "wbal",
             label: t("W′ balance", "Bilancio W′"),
             unit: "%",
@@ -191,70 +211,106 @@ export function RideCharts({
             yDomain: [Math.min(0, Math.floor(low / 10) * 10), 100] as [number, number],
           };
         }),
-    [a, streams, data, work, cp, isRun],
+    [a, streams, data, work, cp, isRun, cadence],
   );
+
+  const place = (key: string) => {
+    const i = chosen?.findIndex((c) => c.id === key) ?? -1;
+    return i < 0 ? Infinity : i;
+  };
+  // What this activity has, chosen or not, so a hidden chart can always come back.
+  const inOrder = [...metrics].sort((x, y) => place(x.key) - place(y.key));
+  const isHidden = (key: string) => !!chosen?.find((c) => c.id === key)?.hidden;
+  const shownMetrics = inOrder.filter((m) => !isHidden(m.key));
 
   if (!metrics.length)
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
         {t(
-          "No speed, power or heart rate recorded.",
-          "Nessuna velocità, potenza o frequenza cardiaca registrata.",
+          "No speed, power, heart rate or cadence recorded.",
+          "Nessuna velocità, potenza, frequenza cardiaca o cadenza registrata.",
         )}
       </p>
     );
   return (
-    <div className="space-y-4 select-none md:cursor-crosshair" {...zoom.wrapper}>
-      {metrics.map((m, i) => (
-        <div key={m.key}>
-          <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
-            <span className="flex items-center gap-2 font-medium">
-              <span className="h-1 w-4 rounded-full" style={{ background: m.color }} />
-              {m.label}
-            </span>
-            {/* The value under your finger or pointer replaces the summary, instead of tooltips covering the charts. */}
-            <span className="stat-num text-muted-foreground">
-              {at ? (
-                <>
-                  {at.km.toFixed(1)} km ·{" "}
-                  <span className="font-semibold" style={{ color: m.color }}>
-                    {m.format && at[m.key] != null ? m.format(at[m.key]!) : fmt(at[m.key], m.digits)}
-                  </span>{" "}
-                  {m.unit}
-                </>
-              ) : (
-                (m.summary ??
-                (m.format
-                  ? `${t("avg", "media")} ${m.avg != null ? m.format(m.avg) : "–"}${m.max != null ? ` · max ${m.format(m.max)}` : ""} ${m.unit}`
-                  : `${t("avg", "media")} ${fmt(m.avg, m.digits)} · max ${fmt(m.max, m.digits)} ${m.unit}`))
+    <>
+      {onChoose && (
+        <div className="-mx-1 mb-3 flex flex-wrap gap-1">
+          {inOrder.map((m) => {
+            const on = !isHidden(m.key);
+            return (
+              <button
+                key={m.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => onChoose(m.key, on)}
+                className={cn(
+                  "min-h-8 rounded-full px-3 text-xs",
+                  on ? "bg-secondary text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {shownMetrics.length > 0 && (
+        <div className="space-y-4 select-none md:cursor-crosshair" {...zoom.wrapper}>
+          {shownMetrics.map((m, i) => (
+            <div key={m.key}>
+              <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
+                <span className="flex items-center gap-2 font-medium">
+                  <span className="h-1 w-4 rounded-full" style={{ background: m.color }} />
+                  {m.label}
+                </span>
+                {/* The value under your finger or pointer replaces the summary, instead of tooltips covering the charts. */}
+                <span className="stat-num text-muted-foreground">
+                  {at ? (
+                    <>
+                      {at.km.toFixed(1)} km ·{" "}
+                      <span className="font-semibold" style={{ color: m.color }}>
+                        {m.format && at[m.key] != null
+                          ? m.format(at[m.key]!)
+                          : fmt(at[m.key], m.digits)}
+                      </span>{" "}
+                      {m.unit}
+                    </>
+                  ) : (
+                    (m.summary ??
+                    (m.format
+                      ? `${t("avg", "media")} ${m.avg != null ? m.format(m.avg) : "–"}${m.max != null ? ` · max ${m.format(m.max)}` : ""} ${m.unit}`
+                      : `${t("avg", "media")} ${fmt(m.avg, m.digits)} · max ${fmt(m.max, m.digits)} ${m.unit}`))
+                  )}
+                </span>
+              </div>
+              <Chart
+                data={shown}
+                m={m}
+                xAxis={i === shownMetrics.length - 1}
+                domain={domain}
+                fit={zoom.zoomed}
+                selection={sel}
+                handlers={handlers}
+              />
+            </div>
+          ))}
+          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>
+              {t(
+                "Drag across a chart to zoom (pinch on a phone); double-click to reset.",
+                "Trascina su un grafico per ingrandire (zoom con due dita sul telefono); doppio clic per ripristinare.",
               )}
             </span>
+            {zoom.zoomed && (
+              <Button size="sm" variant="ghost" onClick={zoom.reset}>
+                {t("Reset zoom", "Reimposta zoom")}
+              </Button>
+            )}
           </div>
-          <Chart
-            data={shown}
-            m={m}
-            xAxis={i === metrics.length - 1}
-            domain={domain}
-            fit={zoom.zoomed}
-            selection={sel}
-            handlers={handlers}
-          />
         </div>
-      ))}
-      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>
-          {t(
-            "Drag across a chart to zoom (pinch on a phone); double-click to reset.",
-            "Trascina su un grafico per ingrandire (zoom con due dita sul telefono); doppio clic per ripristinare.",
-          )}
-        </span>
-        {zoom.zoomed && (
-          <Button size="sm" variant="ghost" onClick={zoom.reset}>
-            {t("Reset zoom", "Reimposta zoom")}
-          </Button>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   );
 }
 

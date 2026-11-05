@@ -376,8 +376,8 @@ export const ASK_GUIDE: GuideItem[] = [
       "Il riepilogo di com'è andata, e cosa c'è in programma.",
     ),
     points: t(
-      "tomorrow|saturday|last 10 days|last month|october|2025",
-      "domani|sabato|ultimi 10 giorni|mese scorso|ottobre|2025",
+      "tomorrow|saturday|last 10 days|3 days ago|last weekend|october|september 2025|summer 2025|from march to june 2025|2025",
+      "domani|sabato|ultimi 10 giorni|3 giorni fa|weekend scorso|ottobre|settembre 2025|estate 2025|da marzo a giugno 2025|2025",
     ).split("|"),
   },
   {
@@ -389,9 +389,14 @@ export const ASK_GUIDE: GuideItem[] = [
         "best + climb|last + climb|how many times + climb",
         "miglior + salita|ultima + salita|quante volte + salita",
       ).split("|"),
-      ...byMain([t("best 20 min", "miglior 20 min")], []),
+      ...byMain(
+        [t("best 20 min", "miglior 20 min"), t("best 5 min 2025", "miglior 5 min 2025")],
+        [t("best pace 20 min", "miglior passo 20 min")],
+      ),
       t("best 10 km", "miglior 10 km"),
       t("km this year", "km quest'anno"),
+      t("how many km in september 2025", "quanti km ho fatto a settembre 2025"),
+      t("september 2025 vs 2026", "settembre 2025 vs 2026"),
       byMain(t("longest ride", "pedalata più lunga"), t("longest run", "corsa più lunga")),
     ],
   },
@@ -430,20 +435,20 @@ export const ASK_GUIDE: GuideItem[] = [
       "Una riga dice cosa verrà salvato; sceglierla salva, e il messaggio che segue ha Annulla.",
     ),
     points: t(
-      "weight 70|fat 15|sleep 7h 30|sick today|not sick|2 brioches|feel good",
-      "peso 70|grasso 15|sonno 7h 30|malattia oggi|fine malattia|2 brioche|sensazione buona",
+      "log 15m gym|log run 5 km 30 min at 18|tired today|slept badly|undo|weight 70|fat 15|sleep 7h 30|sick today|not sick|2 brioches|feel good",
+      "registra palestra 15 min|ieri ho fatto corsa 5 km 30 min alle 18|stanco oggi|dormito male|annulla|peso 70|grasso 15|sonno 7h 30|malattia oggi|fine malattia|2 brioche|sensazione buona",
     ).split("|"),
   },
   {
     id: "plan",
     term: t("Plan", "Pianificare"),
     text: t(
-      "Opens the Calendar on that day, ready to choose a workout. With a name it marks a ride that isn't training, and doesn't touch your load.",
-      "Apre il Calendario su quel giorno, pronto per scegliere un allenamento. Con un nome segna un'uscita che non è un allenamento, e non tocca il carico.",
+      "Opens the Calendar on that day, ready to choose a workout. With a name and a length it puts your own activity on the calendar. A week with hours and load opens a proposal.",
+      "Apre il Calendario su quel giorno, pronto per scegliere un allenamento. Con un nome e una durata mette in calendario un'attività tua. Una settimana con ore e carico apre una proposta.",
     ),
     points: t(
-      "plan tomorrow|plan saturday|plan 12 november|plan saturday ride with Marco",
-      "pianifica domani|pianifica sabato|pianifica 12 novembre|pianifica sabato giro con Marco",
+      "plan tomorrow|plan 12 november|plan saturday ride with Marco 3h|plan week 8h 400 load|remove saturday|move saturday to sunday|delete last activity",
+      "pianifica domani|pianifica 12 novembre|pianifica sabato giro con Marco 3h|pianifica settimana 8h 400 carico|togli sabato|sposta sabato a domenica|elimina ultima attività",
     ).split("|"),
   },
   {

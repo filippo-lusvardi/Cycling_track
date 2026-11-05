@@ -74,12 +74,12 @@ function readTarget(text: string, ramp: boolean, th: Thresholds): Target | null 
     return ramp ? { from: a, to: b, power: null } : { from: mid, to: mid, power: null };
   };
   const inPower = (a: number, b: number): Target => ({ ...span(a, b), power: [a, b] });
-  const hr = /(\d+)(?:\s*-\s*(\d+))?\s*%\s*(LTHR|HR)\b/i.exec(text);
+  const hr = /(\d+)%?(?:\s*-\s*(\d+))?\s*%\s*(LTHR|HR)\b/i.exec(text);
   if (hr) {
     const k = hr[3]!.toUpperCase() === "HR" ? 1 / LTHR_OF_MAX : 1;
     return span(fromLthr(Number(hr[1]) * k), fromLthr(Number(hr[2] ?? hr[1]) * k));
   }
-  const pacePct = /(\d+)(?:\s*-\s*(\d+))?\s*%\s*pace\b/i.exec(text);
+  const pacePct = /(\d+)%?(?:\s*-\s*(\d+))?\s*%\s*pace\b/i.exec(text);
   if (pacePct) return span(Number(pacePct[1]) / 100, Number(pacePct[2] ?? pacePct[1]) / 100);
   const pace = /(\d+):(\d\d)(?:\s*-\s*(\d+):(\d\d))?\s*(?:\/\s*(km|mi)|pace\b)/i.exec(text);
   if (pace) {
@@ -106,7 +106,7 @@ function readTarget(text: string, ramp: boolean, th: Thresholds): Target | null 
       power: ramp ? [drawn.from, drawn.to] : [ZONE_TOP[low - 1] ?? 0, ZONE_TOP[high]!],
     };
   }
-  const pct = /(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?\s*%/.exec(text);
+  const pct = /(\d+(?:\.\d+)?)%?(?:\s*-\s*(\d+(?:\.\d+)?))?\s*%/.exec(text);
   if (pct) return inPower(Number(pct[1]) / 100, Number(pct[2] ?? pct[1]) / 100);
   return null;
 }

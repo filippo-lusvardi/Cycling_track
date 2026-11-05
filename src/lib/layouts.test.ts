@@ -109,6 +109,7 @@ describe("kinds", () => {
       "zones",
       "blocks",
       "climbs",
+      "segments",
       "charts",
       "intervals",
       "brioche",
@@ -134,5 +135,31 @@ describe("kinds", () => {
       .numbers!.map((n) => n.id);
     expect(run).toContain("gap");
     expect(run).not.toContain("power");
+  });
+});
+
+describe("segments on an activity", () => {
+  it("a page arranged before they had their own section gets it after the map", () => {
+    const ids = resolveLayout(
+      { order: ["climbs", "feel", "numbers"] },
+      activitySections("activity-ride"),
+    ).map((s) => s.id);
+    expect(ids.indexOf("segments")).toBe(ids.indexOf("climbs") + 1);
+  });
+});
+
+describe("charts on an activity", () => {
+  it("cadence is among them, all shown until someone hides one", () => {
+    const charts = (kind: "activity-ride" | "activity-run") =>
+      resolveLayout(undefined, activitySections(kind)).find((s) => s.id === "charts")!.numbers;
+    expect(charts("activity-ride").map((n) => n.id)).toEqual([
+      "speed",
+      "watts",
+      "hr",
+      "cadence",
+      "wbal",
+    ]);
+    expect(charts("activity-run").map((n) => n.id)).toEqual(["speed", "gap", "hr", "cadence"]);
+    expect(charts("activity-ride").every((n) => !n.hidden)).toBe(true);
   });
 });

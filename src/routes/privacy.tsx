@@ -95,8 +95,8 @@ function PrivacyPage() {
       <Section title={t("Accounts without intervals.icu", "Account senza intervals.icu")}>
         <p>
           {t(
-            "If you use Cirmolo without intervals.icu, Cirmolo itself stores your training data in your account: your activities (GPS track, power, heart rate, cadence, from the files you upload), the numbers computed from them, your check-ins (sleep, HRV, fatigue, stress, mood), weight and body fat, races and sick or injured days. Heart rate, HRV, sleep and weight are health data: Cirmolo stores them only with your explicit consent, given when you choose this option, and you can withdraw it at any time by deleting your account.",
-            "Se usi Cirmolo senza intervals.icu, è Cirmolo a conservare i tuoi dati di allenamento nel tuo account: le attività (traccia GPS, potenza, frequenza cardiaca, cadenza, dai file che carichi), i valori calcolati, i check-in (sonno, HRV, fatica, stress, umore), peso e massa grassa, gare e giorni di malattia o infortunio. Frequenza cardiaca, HRV, sonno e peso sono dati relativi alla salute: Cirmolo li conserva solo con il tuo consenso esplicito, dato quando scegli questa opzione, e puoi revocarlo in qualsiasi momento eliminando l'account.",
+            "If you use Cirmolo without intervals.icu, Cirmolo itself stores your training data in your account: your activities (GPS track, power, heart rate, cadence, from the files you upload), the numbers computed from them, your check-ins (sleep, HRV, fatigue, stress, mood), weight and body fat, races, sick or injured days and your training plan. Heart rate, HRV, sleep and weight are health data: Cirmolo stores them only with your explicit consent, given when you choose this option, and you can withdraw it at any time by deleting your account.",
+            "Se usi Cirmolo senza intervals.icu, è Cirmolo a conservare i tuoi dati di allenamento nel tuo account: le attività (traccia GPS, potenza, frequenza cardiaca, cadenza, dai file che carichi), i valori calcolati, i check-in (sonno, HRV, fatica, stress, umore), peso e massa grassa, gare, giorni di malattia o infortunio e il piano di allenamento. Frequenza cardiaca, HRV, sonno e peso sono dati relativi alla salute: Cirmolo li conserva solo con il tuo consenso esplicito, dato quando scegli questa opzione, e puoi revocarlo in qualsiasi momento eliminando l'account.",
           )}
         </p>
       </Section>
@@ -109,8 +109,8 @@ function PrivacyPage() {
       >
         <p>
           {t(
-            "Your activities, wellness, check-ins, weight and other training data stay on intervals.icu. Your browser fetches them directly from intervals.icu with your key; they never pass through Cirmolo's servers. A copy is kept in your browser's storage on each device so the app works offline, and it is erased when you sign out.",
-            "Attività, benessere, check-in, peso e gli altri dati di allenamento restano su intervals.icu. Il tuo browser li scarica direttamente da intervals.icu con la tua chiave: non passano mai dai server di Cirmolo. Una copia resta nell'archivio del browser di ogni dispositivo, così l'app funziona offline, e viene cancellata quando esci dall'account.",
+            "Your activities, wellness, check-ins, weight, training plan and other training data stay on intervals.icu. Your browser fetches them directly from intervals.icu with your key; they never pass through Cirmolo's servers. A copy is kept in your browser's storage on each device so the app works offline, and it is erased when you sign out.",
+            "Attività, benessere, check-in, peso, piano di allenamento e gli altri dati di allenamento restano su intervals.icu. Il tuo browser li scarica direttamente da intervals.icu con la tua chiave: non passano mai dai server di Cirmolo. Una copia resta nell'archivio del browser di ogni dispositivo, così l'app funziona offline, e viene cancellata quando esci dall'account.",
           )}
         </p>
         <p>

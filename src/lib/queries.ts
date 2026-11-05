@@ -8,6 +8,7 @@ import {
   getRideZones,
   getThresholds,
   getWorkouts,
+  getPowerCurveRange,
   getPowerCurves,
   getStreams,
   getWellness,
@@ -140,8 +141,17 @@ export const streamsQuery = (id: string) =>
 
 export const powerCurvesQuery = () =>
   queryOptions({
-    queryKey: ["power-curves"],
+    // Versioned: the offline cache keeps results across releases, and this one has gained the all-time curve.
+    queryKey: ["power-curves", 2],
     queryFn: () => getPowerCurves(),
+    staleTime: 30 * 60_000,
+  });
+
+/** One stretch's best power, read only when a phrase asks for it. */
+export const powerCurveRangeQuery = (from: string, to: string) =>
+  queryOptions({
+    queryKey: ["power-curve-range", from, to],
+    queryFn: () => getPowerCurveRange(from, to),
     staleTime: 30 * 60_000,
   });
 

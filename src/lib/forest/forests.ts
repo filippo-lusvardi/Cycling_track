@@ -116,6 +116,13 @@ export const watchMembers = (fid: string, cb: (m: Member[]) => void) =>
     (e) => console.warn("Members unavailable", e),
   );
 
+/** A forest's members once, for looking someone up by name without keeping a listener open. */
+export const readMembers = async (fid: string): Promise<Member[]> =>
+  (await getDocs(sub(fid, "members"))).docs.map((d) => ({
+    uid: d.id,
+    ...(d.data() as Omit<Member, "uid">),
+  }));
+
 export const watchRequests = (fid: string, cb: (r: JoinRequest[]) => void) =>
   onSnapshot(
     sub(fid, "requests"),

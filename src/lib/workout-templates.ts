@@ -121,7 +121,7 @@ const RIDE: WorkoutTemplate[] = [
     name: () => t("Sprints 8 x 15 s", "Sprint 8 x 15 s"),
     focus: "sprint",
     text: () =>
-      "Warmup\n- 15m Ramp 50-70%\n\nMain set 8x\n- 15s 200%\n- 4m45 50%\n\nCooldown\n- 10m 50%",
+      "Warmup\n- 15m Ramp 50-70%\n\nMain set 8x\n- 15s 200%\n- 4m45s 50%\n\nCooldown\n- 10m 50%",
   },
 ];
 
@@ -146,7 +146,7 @@ const RUN: WorkoutTemplate[] = [
     name: () => t("Easy with strides", "Lento con allunghi"),
     focus: "base",
     text: () =>
-      "Main set\n- 35m 75% Pace\n\nStrides 6x\n- 20s 110% Pace\n- 1m40 65% Pace\n\nCooldown\n- 5m 70% Pace",
+      "Main set\n- 35m 75% Pace\n\nStrides 6x\n- 20s 110% Pace\n- 1m40s 65% Pace\n\nCooldown\n- 5m 70% Pace",
   },
   {
     id: "w-tempo",
@@ -185,7 +185,7 @@ const RUN: WorkoutTemplate[] = [
     name: () => t("Hills 8 x 90 s", "Ripetute in salita 8 x 90 s"),
     focus: "vo2",
     text: () =>
-      "Warmup\n- 15m 75% Pace\n\nUphill 8x\n- 1m30 Z5 Pace\n- 2m30 Z1 Pace\n\nCooldown\n- 10m 70% Pace",
+      "Warmup\n- 15m 75% Pace\n\nUphill 8x\n- 1m30s Z5 Pace\n- 2m30s Z1 Pace\n\nCooldown\n- 10m 70% Pace",
   },
   {
     id: "w-speed",
@@ -193,7 +193,7 @@ const RUN: WorkoutTemplate[] = [
     name: () => t("Speed 10 x 200 m", "Velocità 10 x 200 m"),
     focus: "anaerobic",
     text: () =>
-      "Warmup\n- 15m 75% Pace\n\nMain set 10x\n- 200mtr 125% Pace\n- 1m30 60% Pace\n\nCooldown\n- 10m 70% Pace",
+      "Warmup\n- 15m 75% Pace\n\nMain set 10x\n- 200mtr 125% Pace\n- 1m30s 60% Pace\n\nCooldown\n- 10m 70% Pace",
   },
 ];
 

@@ -43,4 +43,11 @@ describe("ride series", () => {
     const pts = rideSeries(r, 20);
     expect(pts.at(-1)!.speed).toBe(0);
   });
+  it("averages cadence, and leaves it out when a sensor only ever said zero", () => {
+    const base = ride(600, 10, () => 200, 140);
+    const pedalled = rideSeries({ ...base, cadence: base.time.map((i) => (i % 2 ? 80 : 90)) }, 60);
+    expect(pedalled[3]!.cadence).toBeCloseTo(85);
+    expect(rideSeries({ ...base, cadence: base.time.map(() => 0) }, 60)[3]!.cadence).toBeNull();
+    expect(rideSeries(base, 60)[3]!.cadence).toBeNull();
+  });
 });

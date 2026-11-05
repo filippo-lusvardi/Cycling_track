@@ -2,7 +2,7 @@
 // the keyboard up; typing narrows things down to a few alternatives to choose from. Drawn with what the app already has:
 // the floating switch's pill, the Activities rows, the More sheet.
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
@@ -23,6 +23,7 @@ import {
   X,
   Zap,
   type LucideIcon,
+  CalendarRange,
 } from "lucide-react";
 import {
   useEffect,
@@ -49,7 +50,6 @@ import {
   barText,
   spanAnswer,
   whenEntries,
-  dayIsDone,
   gardenPage,
   INDEX,
   norm,
@@ -64,8 +64,26 @@ import {
   type Moment,
   type Page,
 } from "@/lib/ask";
-import { intentEntries, liveEntries, type IntentData, type WriteAction } from "@/lib/ask-intents";
-import { runWrite } from "@/lib/ask-write";
+import {
+  explainRows,
+  hintRows,
+  intentEntries,
+  liveEntries,
+  powerPeriodAsked,
+  type IntentData,
+  type WriteAction,
+} from "@/lib/ask-intents";
+import {
+  memberRows,
+  membersAsked,
+  treeKey,
+  type AskMember,
+  type MemberTree,
+  type MemberTrees,
+} from "@/lib/ask-members";
+import { pastAsked, pastRows, pastWindow } from "@/lib/ask-past";
+import { correctCommand, simplify } from "@/lib/ask-sentence";
+import { lastSaved, rememberUndo, runWrite, undoLast } from "@/lib/ask-write";
 import { t } from "@/lib/i18n";
 import { isPlanned, type Wellness } from "@/lib/intervals";
 import type { RunData } from "@/lib/run-data";
@@ -76,12 +94,14 @@ import {
   allActivitiesQuery,
   eventsQuery,
   offEventsQuery,
+  powerCurveRangeQuery,
   powerCurvesQuery,
   racesQuery,
   rideZonesQuery,
   runDataQuery,
   thresholdsQuery,
   wellnessQuery,
+  wellnessRangeQuery,
 } from "@/lib/queries";
 import {
   CHECK_IN,
@@ -124,6 +144,7 @@ const ICON: Record<Page, LucideIcon | typeof WorkoutProfile> = {
   ride: ActivityIcon,
   calendar: CalendarDays,
   workouts: WorkoutProfile,
+  plan: CalendarRange,
   pantry: Archive,
   years: CircleDot,
   settings: Settings,
@@ -180,7 +201,7 @@ function useMoment(): Moment {
     checkInDue:
       wanted &&
       !!wellness &&
-      !isCheckedIn(wellness.find((w) => w.id === today)) &&
+      (!isCheckedIn(wellness.find((w) => w.id === today)) || state === "typed") &&
       state !== "done" &&
       state !== "dismissed",
     ride,
@@ -345,18 +366,25 @@ function useKeyboardInset(on: boolean) {
 }
 
 /** The forests you're in: the last ones this device saw at once, then live. Firestore loads only when someone asks. */
-function useForestNames() {
-  const [forests, setForests] = useState<{ id: string; name: string; trees: number }[]>([]);
+function useForestNames(typed: boolean) {
+  const [list, setList] = useState<{ id: string; name: string; members: string[] }[]>([]);
+  const [names, setNames] = useState<Record<string, { uid: string; name: string }[]>>({});
   useEffect(() => {
     let stop: (() => void) | undefined;
     let gone = false;
-    const show = (list: { id: string; name: string; members: string[] }[]) =>
-      setForests(list.map((f) => ({ id: f.id, name: f.name, trees: f.members.length })));
-    void idbGet<{ forests?: { id: string; name: string; members: string[] }[] }>(
-      `forest-view:${uid()}`,
-    )
+    void idbGet<{
+      forests?: { id: string; name: string; members: string[] }[];
+      live?: Record<string, { members?: { uid: string; name: string }[] }>;
+    }>(`forest-view:${uid()}`)
       .then((v) => {
-        if (!gone && v?.forests) show(v.forests);
+        if (gone) return;
+        if (v?.forests) setList(v.forests);
+        if (v?.live)
+          setNames(
+            Object.fromEntries(
+              Object.entries(v.live).flatMap(([fid, l]) => (l.members ? [[fid, l.members]] : [])),
+            ),
+          );
       })
       .catch(() => {});
     void import("@/lib/forest/forests")
@@ -364,7 +392,7 @@ function useForestNames() {
         // Offline, Firestore can report "none" from an empty cache: that mustn't wipe what this device last saw.
         if (!gone)
           stop = m.watchMyForests(
-            (list) => void (list.length && show(list)),
+            (found) => void (found.length && setList(found)),
             () => {},
           );
       })
@@ -374,7 +402,30 @@ function useForestNames() {
       stop?.();
     };
   }, []);
-  return forests;
+  // Who's in them is read once, and only for someone typing a name.
+  const asked = useRef(new Set<string>());
+  useEffect(() => {
+    if (!typed) return;
+    for (const f of list) {
+      if (asked.current.has(f.id)) continue;
+      asked.current.add(f.id);
+      void import("@/lib/forest/forests")
+        .then((m) => m.readMembers(f.id))
+        .then((found) => setNames((n) => ({ ...n, [f.id]: found })))
+        .catch(() => {});
+    }
+  }, [typed, list]);
+  return useMemo(() => {
+    const me = uid();
+    return {
+      forests: list.map((f) => ({ id: f.id, name: f.name, trees: f.members.length })),
+      members: list.flatMap((f): AskMember[] =>
+        (names[f.id] ?? []).flatMap((m) =>
+          m.uid !== me && m.name ? [{ fid: f.id, forest: f.name, uid: m.uid, name: m.name }] : [],
+        ),
+      ),
+    };
+  }, [list, names]);
 }
 
 /** Only exists while the panel is open, so everything it loads is loaded only for someone asking. */
@@ -416,13 +467,28 @@ function AskBody({
     ...offEventsQuery({ oldest: addDays(today, -90), newest: today }),
     enabled,
   });
+  const period = useMemo(
+    () => (sport === "run" ? null : powerPeriodAsked(q, today)),
+    [q, today, sport],
+  );
+  const range = useQuery({
+    ...powerCurveRangeQuery(period?.from ?? "", period?.to ?? ""),
+    enabled: enabled && !!period,
+  });
+  const rangeCurve = useMemo(
+    () =>
+      period && (range.data !== undefined || range.isError)
+        ? { ...period, curve: range.data ?? null, ...(range.isError ? { failed: true } : {}) }
+        : undefined,
+    [period, range.data, range.isError],
+  );
   const qc = useQueryClient();
   const suggest = useSuggestInput();
   const zones = sport === "run" ? runZones : rideZones;
   const [checkIn] = useLocalStore(CHECK_IN, true);
   const lib = useSegmentLibrary({ sync: false });
   const nameOf = useSegmentNames(lib.list);
-  const forests = useForestNames();
+  const { forests, members } = useForestNames(q.trim().length >= 3);
   const data: AskData = useMemo(
     () => ({
       today,
@@ -503,6 +569,7 @@ function AskBody({
       native: sourceKind() === "native",
       acts,
       curves,
+      rangeCurve,
       offEvents,
       events,
       suggest,
@@ -525,6 +592,7 @@ function AskBody({
       sport,
       acts,
       curves,
+      rangeCurve,
       offEvents,
       events,
       qc,
@@ -537,20 +605,79 @@ function AskBody({
     ],
   );
   const typed = q.trim().length > 0;
-  const found = useMemo(
-    () =>
-      alternatives(q, moment.season, [
-        ...intentEntries(q, intentData),
-        ...whenEntries(q, today).filter((e) => e.exact),
+  // A value as it was: the days it needs are read when the question is complete.
+  const pastAsk = useMemo(() => {
+    const d = { today, acts, climbs: intentData.climbs };
+    return pastAsked(q, d) ?? pastAsked(simplify(q), d);
+  }, [q, today, acts, intentData.climbs]);
+  const pastSpan = pastAsk ? pastWindow(pastAsk) : null;
+  const pastDays = useQuery({
+    ...wellnessRangeQuery({ oldest: pastSpan?.from ?? "", newest: pastSpan?.to ?? "" }),
+    enabled: enabled && !!pastSpan,
+  });
+  const past = useMemo(
+    () => ({
+      today,
+      acts,
+      climbs: intentData.climbs,
+      wellness: pastDays.data,
+      failed: pastDays.isError,
+    }),
+    [today, acts, intentData.climbs, pastDays.data, pastDays.isError],
+  );
+  // Someone's tree is read when a name comes with a word for what's wanted, not while the name is being typed.
+  const askedMembers = useMemo(() => membersAsked(q, members), [q, members]);
+  const memberTrees = useQueries({
+    queries: askedMembers.map((m) => ({
+      // The same entry their tree's page reads and keeps.
+      queryKey: ["forest-tree", m.fid, m.uid],
+      queryFn: async () => (await import("@/lib/forest/trees")).readTree(m.fid, m.uid),
+      staleTime: 15 * 60_000,
+    })),
+  });
+  const trees: MemberTrees = Object.fromEntries(
+    askedMembers.map((m, i) => [
+      treeKey(m),
+      memberTrees[i]?.isError ? null : (memberTrees[i]?.data as MemberTree | null | undefined),
+    ]),
+  );
+  const treesKey = memberTrees.map((r) => r.dataUpdatedAt).join();
+  const found = useMemo(() => {
+    const among = (text: string) =>
+      alternatives(text, moment.season, [
+        ...hintRows(text),
+        ...pastRows(text, past),
+        ...memberRows(text, members, trees, today),
+        ...intentEntries(text, { ...intentData, lastSaved: lastSaved() }),
+        ...whenEntries(text, today).filter((e) => e.exact),
         ...(moment.ride ? [todayRideEntry(moment.ride)] : []),
         ...entries,
-      ]),
-    [q, today, moment.season, moment.ride, entries, intentData],
-  );
+      ]);
+    const literal = among(q);
+    if (literal.length) return literal;
+    // A sentence gets a second reading, for what it comes down to.
+    const said = simplify(q);
+    const reading =
+      said && said !== q.trim().toLowerCase()
+        ? among(said)
+            // Only reading: nothing is ever saved from a sentence.
+            .filter((e) => e.dest.kind !== "write")
+            .map((e) => ({ ...e, ghost: null }))
+        : literal;
+    if (reading.length) return reading;
+    // Then one slip on the command word; only here, so a word that means something else keeps its meaning.
+    const fixed = correctCommand(q);
+    return fixed ? among(fixed).map((e) => ({ ...e, ghost: null })) : reading;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `trees` changes with `treesKey`.
+  }, [q, today, moment.season, moment.ride, entries, intentData, past, members, treesKey]);
   const now = useMemo(() => nowEntries(moment, entries), [moment, entries]);
   const nothing = typed && !found.length;
+  const explained = useMemo(
+    () => (nothing ? explainRows(q, intentData) : []),
+    [nothing, q, intentData],
+  );
   const maybe = nothing ? entries.filter((e) => e.id === "planned" || e.id === "today") : [];
-  const list: Entry[] = typed ? (nothing ? maybe : found) : now;
+  const list: Entry[] = typed ? (nothing ? (explained.length ? explained : maybe) : found) : now;
   const ghost = typed ? (found[0]?.ghost ?? null) : null;
 
   useEffect(() => setActive(0), [q]);
@@ -618,13 +745,13 @@ function AskBody({
           {t("All", "Tutto")}
         </button>
       </div>
-      <div className="rounded-xl border border-border bg-card p-1 shadow-lg">
-        {!typed && dayIsDone(moment) && (
-          <div role="status" className="px-3 py-4 text-center font-semibold">
-            {t("That's all for today", "Per oggi è tutto")}
-          </div>
+      <div
+        className={cn(
+          "rounded-xl border border-border bg-card p-1 shadow-lg",
+          !list.length && "hidden",
         )}
-        {nothing && (
+      >
+        {nothing && !explained.length && (
           <div role="status" className="px-3 pb-1 pt-2 text-sm text-muted-foreground">
             {t("I don't know that yet. Maybe:", "Non lo so ancora. Forse:")}
           </div>
@@ -657,7 +784,7 @@ function AskBody({
                     </span>
                   )}
                 </span>
-                {e.value ? (
+                {e.id.startsWith("note-") ? null : e.value ? (
                   <span className="stat-num shrink-0 text-sm font-semibold">{e.value}</span>
                 ) : (
                   <span className={cn("eyebrow shrink-0", e.page === "save" && "text-primary")}>
@@ -678,8 +805,18 @@ const latestWeight = (rows: Wellness[] | undefined) =>
 
 /** Runs what a row said it would, then says so with a way back. */
 async function saveAndOfferUndo(action: WriteAction, what: string, qc: QueryClient) {
+  if (action.kind === "undo") {
+    try {
+      await undoLast();
+      toast.success(t("Undone", "Annullato"));
+    } catch {
+      toast.error(t("Couldn't undo", "Impossibile annullare"));
+    }
+    return;
+  }
   try {
     const done = await runWrite(action, qc);
+    const undo = rememberUndo(what, done.undo);
     toast.success(
       done.queued
         ? t(`${what}: sent when back online`, `${what}: partirà appena torni online`)
@@ -688,7 +825,7 @@ async function saveAndOfferUndo(action: WriteAction, what: string, qc: QueryClie
         action: {
           label: t("Undo", "Annulla"),
           onClick: () =>
-            void done.undo().catch(() => toast.error(t("Couldn't undo", "Impossibile annullare"))),
+            void undo().catch(() => toast.error(t("Couldn't undo", "Impossibile annullare"))),
         },
       },
     );
@@ -786,7 +923,6 @@ export function AskNav({ desktop = false }: { desktop?: boolean }) {
     shown && shown.path === path && shown.search === JSON.stringify(location.search)
       ? shown.q
       : null;
-  const quiet = !here && dayIsDone(moment);
 
   // On a desktop, "/" starts typing from anywhere but a field.
   useEffect(() => {
@@ -821,11 +957,7 @@ export function AskNav({ desktop = false }: { desktop?: boolean }) {
           className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-2 text-left"
         >
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span
-            className={cn("truncate text-sm", quiet ? "text-muted-foreground" : "text-foreground")}
-          >
-            {here ?? barText(moment)}
-          </span>
+          <span className="truncate text-sm text-foreground">{here ?? barText(moment)}</span>
         </button>
         {garden && (
           <Door

@@ -144,6 +144,7 @@ const TYPE_OF: Record<MainSport, string> = { ride: "Ride", run: "Run" };
 const dayOf = (a: Activity) => a.start_date_local.slice(0, 10);
 
 const OPENER = /opener/;
+const TRI_BIKE = /aero-builder/;
 
 /** The kind of a workout that doesn't say: from its hardest real step, else from its time and load. */
 function inferKind(parsed: ParsedWorkout, seconds: number, load: number): WorkoutKind {
@@ -199,6 +200,8 @@ export function buildPool(
   const starter = workoutTemplates(sport).flatMap((w): SuggestWorkout[] => {
     // Warm-ups aren't sessions, except the one a taper ends on.
     if (!LADDER.includes(w.kind) && !OPENER.test(w.id)) return [];
+    // They ask for a tri bike, which most people don't have: there to choose, never suggested.
+    if (TRI_BIKE.test(w.id)) return [];
     const description = workoutText(w);
     const parsed = parseWorkout(description, sport, th);
     if (!parsed.totalSeconds) return [];
@@ -292,7 +295,7 @@ function overLongest(input: SuggestInput, w: SuggestWorkout) {
 }
 
 /** I/C: work and distance count as well as intensity, and for either sport: legs don't know which one tired them. */
-function hardActivity(input: SuggestInput, a: Activity) {
+export function hardActivity(input: SuggestInput, a: Activity) {
   if (!sportOfActivity(a)) return false;
   if ((a.icu_intensity ?? 0) >= HARD_INTENSITY) return true;
   if (isSport(a, "ride"))
@@ -301,7 +304,7 @@ function hardActivity(input: SuggestInput, a: Activity) {
   return (a.moving_time ?? 0) >= 75 * 60 && near > 0 && (a.distance ?? 0) >= near * 0.9;
 }
 
-function hardEvent(e: PlannedEvent, pool: SuggestWorkout[]) {
+export function hardEvent(e: PlannedEvent, pool: SuggestWorkout[]) {
   if (e.category.startsWith("RACE") || isFreeRide(e)) return true;
   if (e.category !== "WORKOUT") return false;
   const known = pool.find((w) => w.name === e.name);
@@ -341,7 +344,7 @@ function hardAround(input: SuggestInput, date: string, extra: Set<string> = new 
 const racesOf = (input: SuggestInput) => input.races.filter((r) => raceSport(r) === input.sport);
 
 /** C: only the form and the ramp. E: the load ratio stays out, having no causal support as a gate. */
-function strained(input: SuggestInput) {
+export function strained(input: SuggestInput) {
   const ramp = loadCheck(input.wellness, input.today).ramp ?? 0;
   return ramp >= RAMP_SOFT || (input.form != null && input.form < DEEP_FORM);
 }
@@ -362,7 +365,7 @@ function lastBreak(input: SuggestInput) {
 }
 
 /** C: just back from a break or time off: gently, whatever the numbers say. */
-function comingBack(input: SuggestInput) {
+export function comingBack(input: SuggestInput) {
   const since = addDays(input.today, -BACK_DAYS);
   if (input.offEvents.some((e) => (e.end ?? e.date) >= since && e.date <= input.today)) return true;
   const back = lastBreak(input);
@@ -372,7 +375,7 @@ function comingBack(input: SuggestInput) {
 const hardLimit = (input: SuggestInput) => (comingBack(input) || strained(input) ? 1 : HARD_LIMIT);
 
 /** E/I: a week under your usual HRV. A high one is never a bonus: it can also mean overreaching. */
-function hrvLowWeek(input: SuggestInput) {
+export function hrvLowWeek(input: SuggestInput) {
   const logs = (from: string, to: string) =>
     input.wellness.flatMap((w) => (w.hrv && w.id >= from && w.id <= to ? [Math.log(w.hrv)] : []));
   const week = logs(addDays(input.today, -6), input.today);
@@ -392,7 +395,7 @@ const STEP_DOWN: Partial<Record<DayAsk, DayAsk>> = {
 };
 
 /** E/I: how you feel and how you slept get their own say, since an average can hide them. */
-function morningGate(input: SuggestInput, ask: DayAsk): DayAsk {
+export function morningGate(input: SuggestInput, ask: DayAsk): DayAsk {
   const hardAsk = ask === "quality" || ask === "tempo" || ask === "sharp";
   const lowFeel = input.feel != null && input.feel < FEEL_LOW;
   const shortSleep = input.sleep != null && input.sleep < SLEEP_LOW;
@@ -533,6 +536,9 @@ type RankBy = {
   used?: Set<string> | undefined;
 };
 
+/** I: a hard session with time for more builds more, so one that only keeps what's there gives way when another fits. */
+const KEEPS_ONLY_COST = 0.3;
+
 /** Lower is better. Your own workouts win close calls; a name planned lately gives way to another. */
 function rank(input: SuggestInput, list: SuggestWorkout[], seconds: number, by: RankBy = {}) {
   // E: aerobic formats are interchangeable, so what you did lately decides among them.
@@ -551,6 +557,7 @@ function rank(input: SuggestInput, list: SuggestWorkout[], seconds: number, by: 
     (LOW_CADENCE.test(w.id) ? 1 : 0) +
     (by.kinds?.includes("threshold") && SWEET_SPOT.test(w.id) ? 0.6 : 0) +
     (by.focus && w.focus && w.focus !== by.focus ? 0.3 : 0) +
+    (keepsOnly(input, w) ? KEEPS_ONLY_COST : 0) +
     Math.max(0, by.kinds?.indexOf(w.kind) ?? 0) * 0.25;
   return [...list].sort((a, b) => cost(a) - cost(b) || a.id.localeCompare(b.id));
 }
@@ -707,11 +714,59 @@ export type WeekSuggestion = {
   days: WeekDay[];
   sessions: number;
   seconds: number;
+  load: number;
   hard: number;
+  /** Why a week asked for is smaller than asked, when it's the body's doing and not the workouts'. */
+  heldBack: "coming-back" | "taper" | null;
 };
 
+/** What a week was asked to come to, by typing. */
+export type WeekTarget = { seconds?: number | undefined; load?: number | undefined };
+
+/** C: a steady hour's load and a hard one's, when there are no workouts to read them from. */
+const STEADY_LOAD_HOUR = 50;
+const HARD_LOAD_HOUR = 85;
+/** C: a day shorter than this isn't worth adding just to reach a week's hours. */
+const SHORTEST_ADDED_DAY = 45 * 60;
+/** C: about how long a hard day's hard part lasts. */
+const HARD_SESSION_HOURS = 1.2;
+
+/** Your own load per hour lately, to turn a load into time. */
+function loadPerHour(input: SuggestInput) {
+  const since = addDays(input.today, -28);
+  const recent = input.acts.filter(
+    (a) => dayOf(a) >= since && dayOf(a) < input.today && isSport(a, input.sport),
+  );
+  const secs = recent.reduce((s, a) => s + (a.moving_time ?? 0), 0);
+  const load = recent.reduce((s, a) => s + (a.icu_training_load ?? 0), 0);
+  return secs >= 3600 && load > 0 ? load / (secs / 3600) : STEADY_LOAD_HOUR;
+}
+
+/** A kind of workouts' load per hour, as this pool has them. */
+function poolLoadPerHour(pool: SuggestWorkout[], hard: boolean, fallback: number) {
+  const some = pool.filter((w) => HARD_KINDS.has(w.kind) === hard && w.seconds > 0);
+  const secs = some.reduce((s, w) => s + w.seconds, 0);
+  return secs ? some.reduce((s, w) => s + w.load, 0) / (secs / 3600) : fallback;
+}
+
+/** How many hard days hours and a load together ask for: what steady hours leave of the load. */
+function hardDaysAsked(pool: SuggestWorkout[], seconds: number, load: number) {
+  const steady = poolLoadPerHour(pool, false, STEADY_LOAD_HOUR);
+  const hard = poolLoadPerHour(pool, true, HARD_LOAD_HOUR);
+  if (hard <= steady) return 0;
+  return Math.max(
+    0,
+    Math.round((load - (steady * seconds) / 3600) / (hard - steady) / HARD_SESSION_HOURS),
+  );
+}
+
 /** A week from `from` to `to`: what's planned stays, the rest is spread out. A guide: nothing here is kept up to date. */
-export function suggestWeek(input: SuggestInput, from: string, to: string): WeekSuggestion {
+export function suggestWeek(
+  input: SuggestInput,
+  from: string,
+  to: string,
+  target: WeekTarget = {},
+): WeekSuggestion {
   const start = from < input.today ? input.today : from;
   const dates: string[] = [];
   for (let d = start; d <= to; d = addDays(d, 1)) dates.push(d);
@@ -733,13 +788,28 @@ export function suggestWeek(input: SuggestInput, from: string, to: string): Week
   const chosen = new Map<string, DayAsk>();
   // E: a taper takes the week's volume down; C: coming back, it doesn't climb past what you've been doing.
   const scale = Math.min(...dates.map((d) => taperScale(input, d)));
+  const usualRoom = Math.max(usualWeekSeconds(input), 3 * 3600);
+  const longestSteady = Math.max(
+    0,
+    ...input.pool.filter((w) => !HARD_KINDS.has(w.kind)).map((w) => w.seconds),
+  );
+  const askedSeconds =
+    target.seconds ?? (target.load ? (target.load / loadPerHour(input)) * 3600 : null);
+  // A week you ask for sets its own size. Coming back it still doesn't climb past what you've been doing.
   const room =
-    Math.max(usualWeekSeconds(input), 3 * 3600) * (comingBack(input) ? 1 : WEEK_ROOM) * scale;
+    askedSeconds == null
+      ? usualRoom * (comingBack(input) ? 1 : WEEK_ROOM) * scale
+      : (comingBack(input) ? Math.min(askedSeconds, usualRoom) : askedSeconds) * scale;
   // No one day takes more than its share of a week that size.
-  const sized = (a: DayAsk) =>
-    a === "sharp" || a === "opener"
-      ? askSeconds(input, a)
-      : Math.min(askSeconds(input, a), room * (a === "long" ? LONG_SHARE : DAY_SHARE));
+  const sized = (a: DayAsk) => {
+    if (a === "sharp" || a === "opener") return askSeconds(input, a);
+    const share = room * (a === "long" ? LONG_SHARE : DAY_SHARE);
+    // The long and steady days grow with a week asked for, as far as there are workouts that long;
+    // a hard day and an easy one stay what they are.
+    if (askedSeconds != null && (a === "long" || a === "steady"))
+      return Math.min(share, longestSteady || share);
+    return Math.min(askSeconds(input, a), share);
+  };
 
   // A taper's sessions are the point of its days, and stay.
   for (const d of dates) {
@@ -756,7 +826,12 @@ export function suggestWeek(input: SuggestInput, from: string, to: string): Week
   if (longDay) chosen.set(longDay, "long");
 
   // Hard days, never side by side, nor next to the long day.
-  const limit = input.focus === "base" ? 1 : hardLimit(input);
+  const ownLimit = input.focus === "base" ? 1 : hardLimit(input);
+  // Hours and a load together say how hard the week is, never past what your own limit allows.
+  const limit =
+    target.seconds && target.load
+      ? Math.min(ownLimit, hardDaysAsked(input.pool, target.seconds, target.load))
+      : ownLimit;
   const picked = new Set<string>();
   for (const d of dates) {
     if (asks.get(d) !== "quality" || chosen.has(d) || taken(d)) continue;
@@ -767,6 +842,7 @@ export function suggestWeek(input: SuggestInput, from: string, to: string): Week
     picked.add(d);
   }
 
+  const fitted = new Map<string, number>();
   // Then steady days while there's room, leaving at least one day free.
   const plannedSecs = dates
     .flatMap((d) => plannedOn(input, d))
@@ -780,8 +856,14 @@ export function suggestWeek(input: SuggestInput, from: string, to: string): Week
     const a = asks.get(d)!;
     if (a === "off" || a === "race" || a === "rest") continue;
     const next = a === "easy" ? "easy" : "steady";
-    const cost = sized(next);
+    // A week asked for is filled to its hours: the last day added takes what's left.
+    const left = room - used;
+    const cost =
+      askedSeconds != null && left >= SHORTEST_ADDED_DAY
+        ? Math.min(sized(next), left)
+        : sized(next);
     if (used + cost > room || free() <= 1) continue;
+    if (cost !== sized(next)) fitted.set(d, cost);
     chosen.set(d, next);
     used += cost;
   }
@@ -797,7 +879,7 @@ export function suggestWeek(input: SuggestInput, from: string, to: string): Week
       const planned = dates.filter(taken).length;
       if (chosen.size + planned <= 2) continue;
       chosen.delete(d);
-      used -= sized(a);
+      used -= fitted.get(d) ?? sized(a);
     }
   }
 
@@ -817,7 +899,9 @@ export function suggestWeek(input: SuggestInput, from: string, to: string): Week
       a,
       {},
       {
-        seconds: sized(a) * (a === "sharp" || a === "opener" ? 1 : taperScale(input, date) / scale),
+        seconds:
+          (fitted.get(date) ?? sized(a)) *
+          (a === "sharp" || a === "opener" ? 1 : taperScale(input, date) / scale),
         used: seen,
         ...(a === "quality" && anaerobic ? { kinds: AEROBIC_HARD } : {}),
       },
@@ -835,6 +919,19 @@ export function suggestWeek(input: SuggestInput, from: string, to: string): Week
     days,
     sessions: withPick.length + days.filter((d) => d.planned.length).length,
     seconds,
+    heldBack:
+      askedSeconds == null
+        ? null
+        : comingBack(input) && askedSeconds > usualRoom
+          ? "coming-back"
+          : scale < 1
+            ? "taper"
+            : null,
+    load:
+      dates
+        .flatMap((d) => plannedOn(input, d))
+        .reduce((s, e) => s + (e.icu_training_load ?? 0), 0) +
+      withPick.reduce((s, d) => s + (d.picks[0]?.workout.load ?? 0), 0),
     hard:
       withPick.filter((d) => d.ask === "quality" || d.ask === "sharp").length +
       days.filter((d) => d.planned.some((e) => hardEvent(e, input.pool))).length,

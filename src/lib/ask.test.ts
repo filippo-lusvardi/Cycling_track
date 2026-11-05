@@ -330,6 +330,11 @@ describe("the moment", () => {
     }
   });
 
+  it("says nothing special when the day is done", () => {
+    expect(barText({ ...moment, hour: 19 })).toBe("Chiedi all'albero…");
+    expect(now({ hour: 19 })).toEqual([]);
+  });
+
   it("finishes on an evening with nothing waiting, but not with a plan", () => {
     expect(dayIsDone({ ...moment, hour: 19 })).toBe(true);
     expect(dayIsDone({ ...moment, hour: 10 })).toBe(false);

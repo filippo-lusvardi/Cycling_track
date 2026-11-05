@@ -14,6 +14,7 @@ import { CloudOff } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { DailyCheckIn } from "@/components/CheckIn";
 import { PwaUpdater } from "@/components/PwaUpdater";
+import { PlanKeeper } from "@/components/PlanKeeper";
 import { useLastSynced, useOnline } from "@/hooks/use-online";
 import { sessionReady } from "@/lib/account";
 import { auth, authReady } from "@/lib/firebase";
@@ -199,6 +200,7 @@ function RootComponent() {
 
   return (
     <>
+      <PlanKeeper />
       {/* One sky behind the whole window, from its very top. */}
       {skyPage && <PageSky bodies={sunPage} own={!sunPage && !forestPage && !memberTree} />}
       {skyPage && !sunPage && !forestPage && <SkyLand high />}

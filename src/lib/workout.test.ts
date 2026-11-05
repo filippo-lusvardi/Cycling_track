@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildPool } from "./suggest";
 import { WORKOUT_LIBRARY } from "./workout-library-data";
 import { WORKOUT_KINDS, workoutTemplates, workoutText } from "./workout-templates";
 import { estimateLoad, hasBlocks, parseWorkout, powerZone, stepWatts } from "./workout";
@@ -20,7 +21,7 @@ describe("the starter workouts", () => {
       }
   });
   it("last as long as the files they came from", () => {
-    expect(WORKOUT_LIBRARY).toHaveLength(72);
+    expect(WORKOUT_LIBRARY).toHaveLength(108);
     for (const w of WORKOUT_LIBRARY) {
       const p = parseWorkout(w.steps.replace(/\{\w+\} /g, ""), "ride");
       expect(p.totalSeconds, w.id).toBe(w.seconds);
@@ -43,6 +44,14 @@ describe("the starter workouts", () => {
   });
 });
 
+describe("suggestions", () => {
+  it("never offer what needs a tri bike, but the library keeps them", () => {
+    const pool = buildPool([], "ride", { ftp: 250 });
+    expect(pool.some((w) => w.id.includes("aero-builder"))).toBe(false);
+    expect(workoutTemplates("ride").some((w) => w.id.includes("aero-builder"))).toBe(true);
+  });
+});
+
 describe("reading a workout", () => {
   it("reads durations in every form", () => {
     expect(one("- 10m 60%").seconds).toBe(600);
@@ -59,6 +68,10 @@ describe("reading a workout", () => {
     expect(one("- 10m 80-90%").zone).toBe(3);
     expect(one("- 10m Ramp 50-75%")).toMatchObject({ from: 0.5, to: 0.75 });
     expect(one("- Ramp 10m 50-75%")).toMatchObject({ from: 0.5, to: 0.75, label: null });
+    expect(one("- 10m ramp 50%-75%")).toMatchObject({ from: 0.5, to: 0.75, ramp: true });
+    expect(one("- 10m 80%-90%").from).toBeCloseTo(0.85);
+    expect(one("- 10m 70%-80% HR").from).toBeCloseTo(one("- 10m 70-80% HR").from);
+    expect(one("- 10m 70%-80% Pace", {}, "run").from).toBeCloseTo(0.75);
   });
   it("keeps the words before the duration as the label, and ignores cadence", () => {
     const b = one("- Recovery 30s 50% 90rpm");

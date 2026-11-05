@@ -255,7 +255,21 @@ export function activitySections(kind: LayoutKind): SectionDef[] {
       label: () => t("Map, elevation & climbs", "Mappa, altimetria e salite"),
       plain: true,
     },
-    { id: "charts", label: () => t("Charts", "Grafici"), closed: true },
+    { id: "segments", label: () => t("Segments", "Segmenti") },
+    {
+      id: "charts",
+      label: () => t("Charts", "Grafici"),
+      closed: true,
+      numbers: [
+        { id: "speed", label: () => (run ? t("Pace", "Passo") : t("Speed", "Velocità")) },
+        ...(run
+          ? [{ id: "gap", label: () => t("Grade-adjusted pace", "Passo corretto per pendenza") }]
+          : [{ id: "watts", label: () => t("Power", "Potenza") }]),
+        { id: "hr", label: () => t("Heart rate", "Frequenza cardiaca") },
+        { id: "cadence", label: () => t("Cadence", "Cadenza") },
+        ...(run ? [] : [{ id: "wbal", label: () => t("W′ balance", "Bilancio W′") }]),
+      ],
+    },
     { id: "intervals", label: () => t("Intervals", "Intervalli"), closed: true },
     { id: "brioche", label: () => t("Brioches", "Brioche") },
     { id: "visibility", label: () => t("Visible in forests", "Visibile nei boschi"), fixed: true },

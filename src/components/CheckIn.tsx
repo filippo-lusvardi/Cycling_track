@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Minus, Plus } from "lucide-react";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
+import { Stepper } from "@/components/ui/stepper";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLocalStore } from "@/hooks/use-local-store";
@@ -47,7 +47,8 @@ const LEVEL_TONE = ["var(--pine)", "var(--fitness)", "var(--birch)", "var(--ling
 export const isCheckedIn = (row: Wellness | undefined) =>
   !!row && (row.sleepQuality ?? row.fatigue ?? row.stress ?? row.mood) != null;
 
-type CheckInState = "" | "open" | "dismissed" | "done";
+/** "typed": one answer came from the search bar; the check-in itself is still on offer, but doesn't open by itself. */
+type CheckInState = "" | "open" | "dismissed" | "done" | "typed";
 
 /** Per-device memory of today's check-in prompt (the answers themselves live in intervals.icu). */
 export function useCheckInState(date: string) {
@@ -158,7 +159,9 @@ export function CheckInForm({
       </div>
       {askHrv && (
         <div className="space-y-1">
-          <Label htmlFor="checkin-hrv">{t("HRV (ms, from your watch or app)", "HRV (ms, da orologio o app)")}</Label>
+          <Label htmlFor="checkin-hrv">
+            {t("HRV (ms, from your watch or app)", "HRV (ms, da orologio o app)")}
+          </Label>
           <Input
             id="checkin-hrv"
             inputMode="decimal"
@@ -260,18 +263,14 @@ function SleepStepper({
     onChange(Math.min(MAX_HALVES, Math.max(MIN_HALVES, (halves ?? 14) + (halves == null ? 0 : d))));
   const h = halves != null ? Math.floor(halves / 2) : null;
   return (
-    <div className="flex items-center gap-3">
-      <Button
-        type="button"
-        variant="secondary"
-        size="icon"
-        className="h-11 w-11"
-        aria-label={t("30 minutes less", "30 minuti in meno")}
-        disabled={halves != null && halves <= MIN_HALVES}
-        onClick={() => step(-1)}
-      >
-        <Minus />
-      </Button>
+    <Stepper
+      less={t("30 minutes less", "30 minuti in meno")}
+      more={t("30 minutes more", "30 minuti in più")}
+      canLess={halves == null || halves > MIN_HALVES}
+      canMore={halves == null || halves < MAX_HALVES}
+      onLess={() => step(-1)}
+      onMore={() => step(1)}
+    >
       <button
         type="button"
         onClick={() => halves == null && step(0)}
@@ -284,18 +283,7 @@ function SleepStepper({
           ? t("tap to set", "tocca per impostare")
           : `${h} h ${halves % 2 ? "30" : "00"}`}
       </button>
-      <Button
-        type="button"
-        variant="secondary"
-        size="icon"
-        className="h-11 w-11"
-        aria-label={t("30 minutes more", "30 minuti in più")}
-        disabled={halves != null && halves >= MAX_HALVES}
-        onClick={() => step(1)}
-      >
-        <Plus />
-      </Button>
-    </div>
+    </Stepper>
   );
 }
 

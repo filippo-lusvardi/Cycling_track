@@ -24,7 +24,19 @@ import { kindLabel } from "@/lib/workout-templates";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isDate = (v: unknown): v is string => typeof v === "string" && DATE.test(v);
 
-type Search = { date?: string; id?: string; from?: string; to?: string };
+type Search = {
+  date?: string;
+  id?: string;
+  from?: string;
+  to?: string;
+  secs?: number;
+  load?: number;
+};
+
+const positive = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
 
 export const Route = createFileRoute("/suggest")({
   validateSearch: (s: Record<string, unknown>): Search => ({
@@ -33,6 +45,8 @@ export const Route = createFileRoute("/suggest")({
     ...(isDate(s["from"]) && isDate(s["to"]) && s["from"] <= s["to"]
       ? { from: s["from"], to: s["to"] }
       : {}),
+    ...(positive(s["secs"]) ? { secs: positive(s["secs"])! } : {}),
+    ...(positive(s["load"]) ? { load: positive(s["load"])! } : {}),
   }),
   component: SuggestPage,
 });
@@ -113,7 +127,16 @@ function SuggestPage() {
         <p className="on-sky text-sm text-foreground/85">{t("Loading…", "Caricamento…")}</p>
       </div>
     );
-  if (search.from && search.to) return <Week input={input} from={search.from} to={search.to} />;
+  if (search.from && search.to)
+    return (
+      <Week
+        input={input}
+        from={search.from}
+        to={search.to}
+        seconds={search.secs}
+        load={search.load}
+      />
+    );
   return <Day input={input} date={search.date ?? today} id={search.id} />;
 }
 
@@ -211,9 +234,21 @@ function Day({ input, date, id }: { input: SuggestInput; date: string; id: strin
   );
 }
 
-function Week({ input, from, to }: { input: SuggestInput; from: string; to: string }) {
+function Week({
+  input,
+  from,
+  to,
+  seconds,
+  load: askedLoad,
+}: {
+  input: SuggestInput;
+  from: string;
+  to: string;
+  seconds: number | undefined;
+  load: number | undefined;
+}) {
   const { busy, plan } = usePlan();
-  const week = suggestWeek(input, from, to);
+  const week = suggestWeek(input, from, to, { seconds, load: askedLoad });
   const [left, setLeft] = useState<Set<string>>(() => new Set());
   const [swapped, setSwapped] = useState<Record<string, number>>({});
   const pickOn = (d: (typeof week.days)[number]) =>
@@ -227,6 +262,13 @@ function Week({ input, from, to }: { input: SuggestInput; from: string; to: stri
     chosen.reduce((s, c) => s + c.w.seconds, 0) +
     plannedDays.flatMap((d) => d.planned).reduce((s, e) => s + (e.moving_time ?? 0), 0);
   const count = chosen.length + plannedDays.length;
+  const load =
+    chosen.reduce((s, c) => s + c.w.load, 0) +
+    plannedDays.flatMap((d) => d.planned).reduce((s, e) => s + (e.icu_training_load ?? 0), 0);
+  const asked = [
+    seconds ? formatDuration(seconds) : null,
+    askedLoad ? `${t("load", "carico")} ${askedLoad}` : null,
+  ].filter(Boolean);
   const toggle = (date: string) =>
     setLeft((was) => {
       const next = new Set(was);
@@ -239,8 +281,23 @@ function Week({ input, from, to }: { input: SuggestInput; from: string; to: stri
       <div>
         <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Week", "Settimana")}</h1>
         <p className="on-sky text-sm text-foreground/85">
-          {sessions(count)} · {formatDuration(secs)}
+          {sessions(count)} · {formatDuration(secs)} · {t("load", "carico")} {load}
         </p>
+        {asked.length > 0 && (
+          <p className="on-sky text-xs text-foreground/85">
+            {t(`Asked: ${asked.join(" · ")}`, `Chieste: ${asked.join(" · ")}`)}
+            {week.heldBack === "coming-back" &&
+              t(
+                ". You're coming back, so it stays near your usual week.",
+                ". Stai riprendendo, quindi resta vicina alla tua settimana abituale.",
+              )}
+            {week.heldBack === "taper" &&
+              t(
+                ". A race is coming, so the volume comes down.",
+                ". C'è una gara vicina, quindi il volume scende.",
+              )}
+          </p>
+        )}
       </div>
       <div className="rounded-xl border border-border bg-card p-1">
         {week.days.map((d) => {

@@ -1,5 +1,6 @@
 // intervals.icu API, called straight from the browser (the API allows CORS).
 import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
+import { toast } from "sonner";
 import { z } from "zod";
 import { briochesIn } from "./brioches";
 import { garminAttribution } from "./garmin";
@@ -9,6 +10,9 @@ import { runSummary, summaryRunLoad, type RunSummary } from "./run-metrics";
 import type { RideRef } from "./segment-engine";
 import { trackFromStreams, type TrackLike } from "./segments";
 import { isOutdoorActivity, isSport, knownRunThreshold, type MainSport } from "./sport";
+import { parseWorkout } from "./workout";
+import { ratingIn } from "./plan/rating";
+import type { Rating } from "./plan/types";
 
 /** Missing or rejected API key: the UI sends the user to Settings. */
 export class AuthError extends Error {
@@ -92,6 +96,8 @@ export type Activity = {
   feel: number | null;
   /** Brioches eaten on the way, from the "Brioches: n" line in the description: birds on its branch. */
   brioches: number;
+  /** How a planned session went against the plan, from the "Plan: harder" line in the description. */
+  planRating?: Rating | null;
   /** "Garmin <device>" when recorded on a Garmin, shown with the activity's data (see lib/garmin). */
   garmin: string | null;
 };
@@ -150,7 +156,8 @@ function fillRunNumbers(a: Activity): Activity {
   if (!threshold || !a.average_speed) return a;
   return {
     ...a,
-    icu_training_load: a.icu_training_load ?? summaryRunLoad(a.moving_time, a.average_speed, threshold),
+    icu_training_load:
+      a.icu_training_load ?? summaryRunLoad(a.moving_time, a.average_speed, threshold),
     icu_intensity: a.icu_intensity ?? Math.round((a.average_speed / threshold) * 1000) / 10,
   };
 }
@@ -180,6 +187,7 @@ const pickRawActivity = (a: Record<string, unknown>): Activity => ({
   trainer: !!a["trainer"],
   feel: (a["feel"] as number) ?? null,
   brioches: briochesIn((a["description"] as string) ?? null),
+  planRating: ratingIn((a["description"] as string) ?? null),
   garmin: garminAttribution(a["source"], a["device_name"]),
 });
 
@@ -308,7 +316,11 @@ export async function getRideZones(sport: MainSport = "ride"): Promise<RideZones
   const ride = settingsFor(all, sport);
   // A run's zones are its heart rate here; pace zones follow Cirmolo's threshold pace (see run-metrics).
   if (sport === "run")
-    return { ftp: null, power: [], hr: Array.isArray(ride?.["hr_zones"]) ? (ride["hr_zones"] as number[]) : [] };
+    return {
+      ftp: null,
+      power: [],
+      hr: Array.isArray(ride?.["hr_zones"]) ? (ride["hr_zones"] as number[]) : [],
+    };
   const ftp = (ride?.["ftp"] as number) ?? null;
   const pct = Array.isArray(ride?.["power_zones"]) ? (ride["power_zones"] as number[]) : [];
   const hr = Array.isArray(ride?.["hr_zones"]) ? (ride["hr_zones"] as number[]) : [];
@@ -370,11 +382,12 @@ export const entrySchema = z.object({
   sleepSecs: z.number().int().min(0).max(86400).nullable().optional(),
   /** rMSSD in ms, typed in by accounts without intervals.icu (which gets it from the watch). */
   hrv: z.number().min(5).max(300).nullable().optional(),
-  sleepQuality: z.number().int().min(1).max(4).optional(),
+  // Null clears an answer: undoing one typed into the bar.
+  sleepQuality: z.number().int().min(1).max(4).nullable().optional(),
   soreness: z.number().int().min(1).max(4).optional(),
-  fatigue: z.number().int().min(1).max(4).optional(),
-  stress: z.number().int().min(1).max(4).optional(),
-  mood: z.number().int().min(1).max(4).optional(),
+  fatigue: z.number().int().min(1).max(4).nullable().optional(),
+  stress: z.number().int().min(1).max(4).nullable().optional(),
+  mood: z.number().int().min(1).max(4).nullable().optional(),
   motivation: z.number().int().min(1).max(4).optional(),
   comments: z.string().max(1000).nullable().optional(),
 });
@@ -503,9 +516,9 @@ export async function downloadRideTrack(ref: RideRef): Promise<Track | null> {
 
 export type PowerCurve = { id: string; label: string; secs: number[]; watts: number[] };
 
-export async function getPowerCurves() {
+async function powerCurves(curves: string) {
   const r = await icu<{ list: Record<string, unknown>[] }>(
-    `/athlete/0/power-curves.json?curves=42d,1y&type=Ride`,
+    `/athlete/0/power-curves.json?curves=${curves}&type=Ride`,
   );
   return r.list.map((c) => ({
     id: String(c["id"]),
@@ -515,8 +528,21 @@ export async function getPowerCurves() {
   })) as PowerCurve[];
 }
 
+export const getPowerCurves = () => powerCurves("42d,1y,all");
+
+/** The best power of one stretch of days. */
+export async function getPowerCurveRange(from: string, to: string): Promise<PowerCurve | null> {
+  const [curve] = await powerCurves(`r.${day.parse(from)}.${day.parse(to)}`);
+  return curve ?? null;
+}
+
 export const manualSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** When it started, "18:30"; without it, the morning. */
+  time: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .optional(),
   type: z.enum(["Ride", "VirtualRide", "Run", "Walk", "WeightTraining", "Swim", "Other"]),
   name: z.string().min(1).max(120),
   minutes: z.number().int().min(1).max(1440),
@@ -529,10 +555,10 @@ export type ManualActivity = z.infer<typeof manualSchema>;
 
 export async function createManualActivity(input: ManualActivity) {
   const data = manualSchema.parse(input);
-  await icu(`/athlete/0/activities/manual`, {
+  const made = await icu<{ id?: string | number } | null>(`/athlete/0/activities/manual`, {
     method: "POST",
     body: JSON.stringify({
-      start_date_local: `${data.date}T09:00:00`,
+      start_date_local: `${data.date}T${data.time ?? "09:00"}:00`,
       type: data.type,
       name: data.name,
       moving_time: data.minutes * 60,
@@ -542,7 +568,11 @@ export async function createManualActivity(input: ManualActivity) {
       icu_rpe: data.rpe,
     }),
   });
-  return { ok: true as const };
+  return { ok: true as const, id: made?.id != null ? String(made.id) : null };
+}
+
+export async function deleteActivity(id: string) {
+  await icu(`/activity/${idSchema.parse(id)}`, { method: "DELETE" });
 }
 
 export type PlannedEvent = {
@@ -556,14 +586,22 @@ export type PlannedEvent = {
   description: string | null;
   moving_time: number | null;
   icu_training_load: number | null;
+  /** The activity intervals.icu paired with this event, when it did. */
+  pairedActivityId?: string | null;
 };
 
-/** A ride or run with nothing to follow, marked by its sport among intervals.icu's notes: not training, just planned. */
-export const isFreeRide = (e: Pick<PlannedEvent, "category" | "type">) =>
-  e.category === "NOTE" && (e.type === "Ride" || e.type === "Run");
+type PlanMark = Pick<PlannedEvent, "category" | "type"> & { description?: string | null };
+
+/**
+ * An activity of your own with nothing to follow: a workout with no text. Those saved earlier are notes marked by their
+ * sport, and still count.
+ */
+export const isFreeRide = (e: PlanMark) =>
+  (e.type === "Ride" || e.type === "Run") &&
+  (e.category === "NOTE" || (e.category === "WORKOUT" && !e.description?.trim()));
 
 /** What counts as planned for a day: a workout, a race, a free ride. A note of your own doesn't. */
-export const isPlanned = (e: Pick<PlannedEvent, "category" | "type">) =>
+export const isPlanned = (e: PlanMark) =>
   e.category === "WORKOUT" || e.category.startsWith("RACE") || isFreeRide(e);
 
 /** Calendar events (planned workouts, notes, races) in a date range. */
@@ -582,6 +620,7 @@ export async function getEvents(range: Range): Promise<PlannedEvent[]> {
     description: (e["description"] as string) ?? null,
     moving_time: (e["moving_time"] as number) ?? null,
     icu_training_load: (e["icu_training_load"] as number) ?? null,
+    pairedActivityId: e["paired_activity_id"] != null ? String(e["paired_activity_id"]) : null,
   }));
 }
 
@@ -634,6 +673,30 @@ export async function updateOffEvent(id: string, start: string, last: string) {
   await icu(`/athlete/0/events/${idSchema.parse(id)}`, {
     method: "PUT",
     body: JSON.stringify(offBody(start, last)),
+  });
+}
+
+/** A note on the calendar, with no sport, so the app counts it as nothing planned. */
+export async function createNote(name: string, description: string, date: string): Promise<string> {
+  const made = await icu<{ id: string | number }>(`/athlete/0/events?upsertOnUid=false`, {
+    method: "POST",
+    body: JSON.stringify({
+      category: "NOTE",
+      name: z.string().min(1).max(120).parse(name),
+      description: z.string().max(10000).parse(description),
+      start_date_local: `${day.parse(date)}T00:00:00`,
+    }),
+  });
+  return String(made.id);
+}
+
+export async function updateNote(id: string, description: string, date: string) {
+  await icu(`/athlete/0/events/${idSchema.parse(id)}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      description: z.string().max(10000).parse(description),
+      start_date_local: `${day.parse(date)}T00:00:00`,
+    }),
   });
 }
 
@@ -751,9 +814,59 @@ export async function deleteWorkout(id: string) {
   await icu(`/athlete/0/workouts/${idSchema.parse(id)}`, { method: "DELETE" });
 }
 
+/** How much the response may differ from our own reading before someone should look at it. */
+const READ_BACK_TOLERANCE = 0.05;
+
+/** How long intervals.icu understood a planned workout to be: null when its answer doesn't say. */
+export function understoodSeconds(made: {
+  workout_doc?: { duration?: unknown; steps?: unknown } | null;
+  moving_time?: unknown;
+}): number | null {
+  const doc = made.workout_doc;
+  if (typeof doc?.duration === "number" && doc.duration > 0) return doc.duration;
+  if (Array.isArray(doc?.steps) && doc.steps.length === 0) return 0;
+  return typeof made.moving_time === "number" ? made.moving_time : null;
+}
+
+/**
+ * Whether intervals.icu read a workout's text as we do: what it understood is what Garmin and Zwift get. "unknown" means
+ * there's nothing to compare, such as a text that's no workout for us or an answer that doesn't say.
+ */
+export function readBack(w: Pick<WorkoutEntry, "type" | "description">, understood: number | null) {
+  const ours = parseWorkout(w.description, /run/i.test(w.type) ? "run" : "ride");
+  if (understood == null || ours.unread.length || !ours.totalSeconds) return "unknown";
+  const gap = Math.abs(understood - ours.totalSeconds) / ours.totalSeconds;
+  return gap <= READ_BACK_TOLERANCE ? "same" : "different";
+}
+
+type MadeWorkout = {
+  id: string | number;
+  workout_doc?: { duration?: unknown; steps?: unknown } | null;
+  moving_time?: unknown;
+};
+
+function warnIfMisread(w: WorkoutEntry, made: MadeWorkout) {
+  if (readBack(w, understoodSeconds(made)) === "different")
+    toast.warning(
+      t(
+        `intervals.icu read "${w.name}" differently: check its steps before riding it`,
+        `intervals.icu ha letto "${w.name}" in modo diverso: controlla i blocchi prima di farla`,
+      ),
+    );
+}
+
+/** A workout on the calendar, changed in place: its id stays, and intervals.icu updates the devices from there. */
+export async function replacePlanned(id: string, w: WorkoutEntry) {
+  const made = await icu<MadeWorkout>(`/athlete/0/events/${idSchema.parse(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(workoutBody(w)),
+  });
+  warnIfMisread(w, made);
+}
+
 /** A workout on the calendar. intervals.icu reads the text, and works out its duration and load. */
 export async function scheduleWorkout(w: WorkoutEntry, date: string): Promise<string> {
-  const made = await icu<{ id: string | number }>(`/athlete/0/events?upsertOnUid=false`, {
+  const made = await icu<MadeWorkout>(`/athlete/0/events?upsertOnUid=false`, {
     method: "POST",
     body: JSON.stringify({
       ...workoutBody(w),
@@ -761,6 +874,7 @@ export async function scheduleWorkout(w: WorkoutEntry, date: string): Promise<st
       start_date_local: `${day.parse(date)}T00:00:00`,
     }),
   });
+  warnIfMisread(w, made);
   return String(made.id);
 }
 
@@ -768,23 +882,35 @@ export const freeRideSchema = z.object({
   name: z.string().min(1).max(120),
   type: z.enum(["Ride", "Run"]),
   date: day,
+  /** Only a note saved before durations existed has none, and only undoing its removal comes here without one. */
+  seconds: z.number().int().min(60).max(86400).optional(),
+  load: z.number().int().min(0).max(2000).optional(),
 });
 export type FreeRide = z.infer<typeof freeRideSchema>;
 
-/** A ride or run that isn't training, as a note: nothing goes to a watch, and no load or time is assumed. */
+/** A ride or run of your own, as a workout with no text: its time counts, and there are no steps to follow. */
 export async function planFreeRide(r: FreeRide): Promise<string> {
   const v = freeRideSchema.parse(r);
   const made = await icu<{ id: string | number }>(`/athlete/0/events?upsertOnUid=false`, {
     method: "POST",
     body: JSON.stringify({
-      category: "NOTE",
+      category: "WORKOUT",
       name: v.name,
       type: v.type,
       start_date_local: `${v.date}T00:00:00`,
-      end_date_local: `${shiftDay(v.date, 1)}T00:00:00`,
+      ...(v.seconds != null ? { moving_time: v.seconds } : {}),
+      ...(v.load != null ? { icu_training_load: v.load } : {}),
     }),
   });
   return String(made.id);
+}
+
+/** Moves something planned to another day. */
+export async function movePlanned(id: string, date: string) {
+  await icu(`/athlete/0/events/${idSchema.parse(id)}`, {
+    method: "PUT",
+    body: JSON.stringify({ start_date_local: `${day.parse(date)}T00:00:00` }),
+  });
 }
 
 /** Replaces an activity's description on intervals.icu. */
