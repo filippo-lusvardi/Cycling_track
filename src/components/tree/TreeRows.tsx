@@ -543,7 +543,10 @@ export function MonthRow({
   ctl,
   chapter,
   fadeFrom = chapter,
+  onOpen,
 }: {
+  /** Tapping the month's name; only on your own tree. */
+  onOpen?: (() => void) | undefined;
   month: string;
   edge: TrunkEdge;
   w: number;
@@ -556,7 +559,16 @@ export function MonthRow({
 }) {
   const cx = w / 2;
   return (
-    <div style={slice(MONTH_H)}>
+    <div style={{ ...slice(MONTH_H), position: "relative" }}>
+      {onOpen && (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={month}
+          className="absolute left-0 top-[-7px] z-10 h-11"
+          style={{ width: Math.max(0, cx - 4) }}
+        />
+      )}
       <svg className="block" width={w} height={MONTH_H} aria-hidden>
         <Bark
           cx={cx}

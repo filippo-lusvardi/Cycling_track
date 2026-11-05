@@ -1,4 +1,5 @@
 // The Analysis page for running: pace and grade-adjusted pace instead of power.
+import type { RunPlot } from "@/lib/plots";
 import { zoneTops } from "@/lib/settings";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -56,15 +57,16 @@ const within = (runs: RunEntry[], days: number) => {
   return runs.filter((r) => r.date >= since);
 };
 
-export function RunAnalysis() {
+export function RunAnalysis({ only }: { only?: RunPlot | undefined } = {}) {
+  const show = (p: RunPlot) => !only || only === p;
   const { data, isLoading, isError } = useQuery(runDataQuery());
   const progress = useSyncExternalStore(runProgress.subscribe, runProgress.get);
   // So Fitness's window is ready alongside the rest.
   useQuery(wellnessQuery(90));
   return (
     <>
-      <FitnessSection />
-      {isLoading && (
+      {show("fitness") && <FitnessSection />}
+      {isLoading && only !== "fitness" && (
         <Panel title={t("Reading your runs", "Lettura delle corse")}>
           <p className="stat-num text-sm text-muted-foreground">
             {progress
@@ -98,12 +100,12 @@ export function RunAnalysis() {
       )}
       {data && data.runs.length > 0 && (
         <>
-          <PaceSection data={data} />
-          <BestsSection runs={data.runs} />
-          <FadeSection runs={data.runs} />
-          <ThresholdSection data={data} />
-          <DriftSection data={data} />
-          <RunZonesSection data={data} />
+          {show("pace") && <PaceSection data={data} />}
+          {show("bests") && <BestsSection runs={data.runs} />}
+          {show("fade") && <FadeSection runs={data.runs} />}
+          {show("threshold") && <ThresholdSection data={data} />}
+          {show("drift") && <DriftSection data={data} />}
+          {show("zones") && <RunZonesSection data={data} />}
         </>
       )}
     </>

@@ -12,6 +12,7 @@ import {
   fadeOf,
   fadeProfile,
   fadeVerdict,
+  kmSplits,
   paceZones,
   RUN_DUR,
   runLoad,
@@ -20,6 +21,7 @@ import {
   summaryRunLoad,
   thresholdTrend,
   withRunThreshold,
+  zoneIndex,
 } from "./run-metrics";
 
 /** `secs` seconds at `v` m/s on a constant grade, with or without heart rate. */
@@ -116,6 +118,55 @@ describe("run summary", () => {
     expect(z[0]).toBeGreaterThan(900); // 75% of threshold
     expect(paceZones(s, 2.8)[3]).toBe(0);
     expect(paceZones(s, 2.8)[5]).toBeGreaterThan(900); // 107%
+  });
+});
+
+describe("km splits", () => {
+  it("gives a row per kilometre and a partial last one", () => {
+    const rows = kmSplits(run(1001, 2.5));
+    expect(rows.map((r) => r.metres)).toEqual([1000, 1000, 500]);
+    expect(rows[0]!.speed).toBeCloseTo(2.5, 2);
+    expect(rows[0]!.hr).toBe(150);
+  });
+
+  it("leaves out a tail too short to have a pace", () => {
+    expect(kmSplits(run(410, 2.5)).length).toBe(1);
+  });
+
+  it("measures the net climb and the harder grade-adjusted pace uphill", () => {
+    const [up] = kmSplits(run(500, 2.5, 0.05));
+    expect(up!.climb).toBe(50);
+    expect(up!.gap!).toBeGreaterThan(up!.speed!);
+  });
+
+  it("doesn't count a stop against the pace", () => {
+    const s = run(401, 2.5);
+    const stopped: RideStreams = {
+      ...s,
+      time: [...s.time.slice(0, 200), ...s.time.slice(200).map((t) => t + 300)],
+      heartrate: s.heartrate,
+    };
+    expect(kmSplits(stopped)[0]!.speed).toBeCloseTo(2.5, 1);
+  });
+
+  it("leaves heart rate and altitude empty when they weren't recorded", () => {
+    const s = { ...run(500, 2.5, 0, null), altitude: Array.from({ length: 500 }, () => 0) };
+    const [row] = kmSplits(s);
+    expect(row!.hr).toBeNull();
+    expect(row!.climb).toBeNull();
+  });
+
+  it("has nothing to show without a track", () => {
+    expect(kmSplits(run(1, 2.5))).toEqual([]);
+  });
+});
+
+describe("zone index", () => {
+  it("finds the zone, with anything past the end in the last", () => {
+    expect(zoneIndex(1, [2, 4])).toBe(0);
+    expect(zoneIndex(2, [2, 4])).toBe(0);
+    expect(zoneIndex(3, [2, 4])).toBe(1);
+    expect(zoneIndex(9, [2, 4])).toBe(1);
   });
 });
 

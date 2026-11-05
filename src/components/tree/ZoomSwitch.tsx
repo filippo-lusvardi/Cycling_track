@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { useLocalStore } from "@/hooks/use-local-store";
 import { t } from "@/lib/i18n";
+import { CLASSIC_NAV } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 export type Zoom = "tree" | "years";
@@ -23,6 +25,8 @@ const pill = (on: boolean) =>
  * Tree page `onZoom` switches between tree and years in place; elsewhere every option is a link.
  */
 export function ZoomSwitch({ active, onZoom }: { active: View; onZoom?: (z: Zoom) => void }) {
+  const [classic] = useLocalStore(CLASSIC_NAV, false);
+  if (!classic) return null;
   return (
     <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-10 flex justify-center lg:bottom-6">
       <div

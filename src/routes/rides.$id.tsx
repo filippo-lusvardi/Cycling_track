@@ -1,13 +1,20 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useCanGoBack,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 import { ArrowLeft, ChevronDown, Minus, Plus, Star, Trophy } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CAT_COLOR, ElevationProfile } from "@/components/ElevationProfile";
 import { RideCharts } from "@/components/RideCharts";
 import { RideVisibility } from "@/components/forest/RideVisibility";
 import { RouteMap, type MapLine, type MapPin } from "@/components/RouteMap";
+import { RunSplits } from "@/components/RunSplits";
 import { Panel, StatCard } from "@/components/StatCard";
 import { WorkoutBlocks } from "@/components/WorkoutBlocks";
 import { ZoneBar } from "@/components/ZoneBar";
@@ -21,7 +28,11 @@ import { detectClimbs } from "@/lib/climbs";
 import { briochesIn, withBrioches, withoutBrioches } from "@/lib/brioches";
 import { BRIOCHE_G, rideFuel, runKcal } from "@/lib/fuel";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
-import { getRunSummary, setActivityDescription, sourceKind } from "@/lib/source";
+import { LayoutEditor, Sections, TuneButton } from "@/components/layout/Customizable";
+import { useLayout } from "@/hooks/use-layout";
+import { activityLayoutKind, activitySections } from "@/lib/layouts";
+import { FEEL_LABEL } from "@/lib/felt";
+import { getRunSummary, setActivityDescription, setActivityFeel, sourceKind } from "@/lib/source";
 import {
   activityQuery,
   athleteQuery,
@@ -58,6 +69,8 @@ const r = (n: number | null | undefined, suffix = "") =>
 
 function RideDetail() {
   const { id } = Route.useParams();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
   const { data: a } = useSuspenseQuery(activityQuery(id));
   const { data: streams } = useQuery(streamsQuery(id));
   // CP and W′ from the last 42 days' curve, for the W′ balance chart.
@@ -75,15 +88,19 @@ function RideDetail() {
     : (athlete?.weight ?? null);
   const intervals = (a.icu_intervals ?? []).filter((i) => i.type === "WORK" || i.label);
   // Collapsed by default: long and only occasionally needed.
-  const [showCharts, setShowCharts] = useState(false);
-  const [showIntervals, setShowIntervals] = useState(false);
+  const kind = activityLayoutKind(a);
+  const defs = useMemo(() => activitySections(kind), [kind]);
+  const layout = useLayout(kind, defs);
+  const [editing, setEditing] = useState(false);
+  // Choosing a work opens the charts for now, without changing how the page is arranged.
+  const [chartsNow, setChartsNow] = useState(false);
   // The selected work: the map, elevation and charts all show just that stretch.
   const [workId, setWorkId] = useState<number | null>(null);
   const work = useMemo(() => workOf(a, streams, workId), [a, streams, workId]);
   const select = (id: number | null, from: "blocks" | "list") => {
     setWorkId(id);
     if (id == null) return;
-    setShowCharts(true);
+    setChartsNow(true);
     // From the list at the bottom, bring the map up into view to show the work.
     if (from === "list")
       document.getElementById("ride-map")?.scrollIntoView({ behavior: "smooth" });
@@ -97,15 +114,142 @@ function RideDetail() {
     ? (a.decoupling ?? run?.drift ?? null)
     : (a.decoupling ?? (streams ? decoupling(streams.watts, streams.heartrate) : null));
   const np = a.icu_weighted_avg_watts;
+  const statCards: Record<string, ReactNode> = {
+    distance: (
+      <StatCard label={t("Distance", "Distanza")} value={formatKm(a.distance)} />
+    ),
+    time: (
+      <StatCard
+          label={t("Moving time", "Tempo in movimento")}
+          value={formatDuration(a.moving_time)}
+        />
+    ),
+    elevation: (
+      <StatCard label={t("Elevation", "Dislivello")} value={r(a.total_elevation_gain)} unit="m" />
+    ),
+    load: (
+      <StatCard label={t("Load", "Carico")} value={r(a.icu_training_load)} tone="fitness" />
+    ),
+    pace: (
+      <StatCard
+              label={t("Avg pace", "Passo medio")}
+              value={formatPace(a.average_speed)}
+              unit="/km"
+            />
+    ),
+    gap: (
+      <StatCard
+              label={t("GAP", "GAP")}
+              value={formatPace(run?.gap)}
+              unit="/km"
+              hint={t("grade-adjusted pace", "passo corretto per pendenza")}
+            />
+    ),
+    power: (
+      <StatCard
+              label={t("Avg power", "Potenza media")}
+              value={r(a.icu_average_watts)}
+              unit="W"
+            />
+    ),
+    np: (
+      <StatCard
+              label={t("Norm. power", "Potenza norm.")}
+              value={r(np)}
+              unit="W"
+              hint={
+                [
+                  a.icu_ftp && `FTP ${a.icu_ftp}W`,
+                  np && weight && `${(np / weight).toFixed(2)} W/kg`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || undefined
+              }
+            />
+    ),
+    intensity: (
+      <StatCard
+          label={t("Intensity", "Intensità")}
+          value={a.icu_intensity != null ? `${Math.round(a.icu_intensity)}%` : "–"}
+          tone="form"
+        />
+    ),
+    hr: (
+      <StatCard
+          label={t("Avg / max HR", "FC media / max")}
+          value={`${r(a.average_heartrate)} / ${r(a.max_heartrate)}`}
+          unit="bpm"
+          tone="fatigue"
+        />
+    ),
+    ngp: (
+      <StatCard
+            label={t("Normalized GAP", "GAP normalizzato")}
+            value={formatPace(run?.ngp)}
+            unit="/km"
+            hint={
+              run?.ngp && runThreshold
+                ? t(`threshold ${formatPace(runThreshold)}`, `soglia ${formatPace(runThreshold)}`)
+                : undefined
+            }
+          />
+    ),
+    speed: (
+      <StatCard
+            label={t("Avg speed", "Velocità media")}
+            value={a.average_speed ? (a.average_speed * 3.6).toFixed(1) : "–"}
+            unit="km/h"
+          />
+    ),
+    cadence: isRun ? (
+      <StatCard
+            label={t("Cadence", "Cadenza")}
+            value={r(stepsPerMinute(a.average_cadence))}
+            unit={t("steps/min", "passi/min")}
+          />
+    ) : (
+      <StatCard label={t("Cadence", "Cadenza")} value={r(a.average_cadence)} unit="rpm" />
+    ),
+    decoupling: (
+      <StatCard
+          label={t("Decoupling", "Decoupling")}
+          value={decouple != null ? decouple.toFixed(1) : "–"}
+          unit="%"
+          hint={
+            decouple != null
+              ? decouple < 5
+                ? isRun
+                  ? t("Pa:HR steady (< 5%)", "Pa:HR stabile (< 5%)")
+                  : t("Pw:HR steady (< 5%)", "Pw:HR stabile (< 5%)")
+                : isRun
+                  ? t("HR drifted vs pace", "FC in deriva rispetto al passo")
+                  : t("HR drifted vs power", "FC in deriva rispetto alla potenza")
+              : undefined
+          }
+        />
+    ),
+    calories: (
+      <StatCard label={t("Calories", "Calorie")} value={r(a.calories)} unit="kcal" />
+    ),
+  };
 
   return (
     <div className="space-y-6">
-      <Link
-        to="/rides"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> {t("Activities", "Attività")}
-      </Link>
+      {canGoBack ? (
+        <button
+          onClick={() => router.history.back()}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> {t("Back", "Indietro")}
+        </button>
+      ) : (
+        <Link
+          to="/rides"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> {t("Activities", "Attività")}
+        </Link>
+      )}
       <div>
         <div className="eyebrow">
           {a.start_date_local
@@ -123,209 +267,155 @@ function RideDetail() {
           </p>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("Distance", "Distanza")} value={formatKm(a.distance)} />
-        <StatCard
-          label={t("Moving time", "Tempo in movimento")}
-          value={formatDuration(a.moving_time)}
+      {editing ? (
+        <LayoutEditor
+          eyebrow={t("Activity", "Attività")}
+          kind={kind}
+          layout={layout}
+          onDone={() => setEditing(false)}
         />
-        <StatCard label={t("Elevation", "Dislivello")} value={r(a.total_elevation_gain)} unit="m" />
-        <StatCard label={t("Load", "Carico")} value={r(a.icu_training_load)} tone="fitness" />
-        {isRun ? (
-          <>
-            <StatCard
-              label={t("Avg pace", "Passo medio")}
-              value={formatPace(a.average_speed)}
-              unit="/km"
-            />
-            <StatCard
-              label={t("GAP", "GAP")}
-              value={formatPace(run?.gap)}
-              unit="/km"
-              hint={t("grade-adjusted pace", "passo corretto per pendenza")}
-            />
-          </>
-        ) : (
-          <>
-            <StatCard
-              label={t("Avg power", "Potenza media")}
-              value={r(a.icu_average_watts)}
-              unit="W"
-            />
-            <StatCard
-              label={t("Norm. power", "Potenza norm.")}
-              value={r(np)}
-              unit="W"
-              hint={
-                [
-                  a.icu_ftp && `FTP ${a.icu_ftp}W`,
-                  np && weight && `${(np / weight).toFixed(2)} W/kg`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || undefined
-              }
-            />
-          </>
-        )}
-        <StatCard
-          label={t("Intensity", "Intensità")}
-          value={a.icu_intensity != null ? `${Math.round(a.icu_intensity)}%` : "–"}
-          tone="form"
-        />
-        <StatCard
-          label={t("Avg / max HR", "FC media / max")}
-          value={`${r(a.average_heartrate)} / ${r(a.max_heartrate)}`}
-          unit="bpm"
-          tone="fatigue"
-        />
-        {isRun ? (
-          <StatCard
-            label={t("Normalized GAP", "GAP normalizzato")}
-            value={formatPace(run?.ngp)}
-            unit="/km"
-            hint={
-              run?.ngp && runThreshold
-                ? t(`threshold ${formatPace(runThreshold)}`, `soglia ${formatPace(runThreshold)}`)
-                : undefined
-            }
-          />
-        ) : (
-          <StatCard
-            label={t("Avg speed", "Velocità media")}
-            value={a.average_speed ? (a.average_speed * 3.6).toFixed(1) : "–"}
-            unit="km/h"
-          />
-        )}
-        {isRun ? (
-          <StatCard
-            label={t("Cadence", "Cadenza")}
-            value={r(stepsPerMinute(a.average_cadence))}
-            unit={t("steps/min", "passi/min")}
-          />
-        ) : (
-          <StatCard label={t("Cadence", "Cadenza")} value={r(a.average_cadence)} unit="rpm" />
-        )}
-        <StatCard
-          label={t("Decoupling", "Decoupling")}
-          value={decouple != null ? decouple.toFixed(1) : "–"}
-          unit="%"
-          hint={
-            decouple != null
-              ? decouple < 5
-                ? isRun
-                  ? t("Pa:HR steady (< 5%)", "Pa:HR stabile (< 5%)")
-                  : t("Pw:HR steady (< 5%)", "Pw:HR stabile (< 5%)")
-                : isRun
-                  ? t("HR drifted vs pace", "FC in deriva rispetto al passo")
-                  : t("HR drifted vs power", "FC in deriva rispetto alla potenza")
-              : undefined
-          }
-        />
-        <StatCard label={t("Calories", "Calorie")} value={r(a.calories)} unit="kcal" />
-      </div>
-
-      {isRun && runZones?.some((s) => s > 0) ? (
-        <Panel title={t("Time in pace zones (GAP)", "Tempo nelle zone di passo (GAP)")}>
-          <ZoneBar secs={runZones} names={RUN_ZONE_NAMES} />
-        </Panel>
-      ) : isRun ? null : a.zoneTimes.some((s) => s > 0) && (
-        <Panel title={t("Time in power zones", "Tempo nelle zone di potenza")}>
-          <ZoneBar secs={a.zoneTimes} />
-        </Panel>
-      )}
-
-      {!isRun && a.icu_ftp && (a.icu_intervals?.length ?? 0) > 0 && (
-        <Panel title={t("Workout blocks", "Blocchi di allenamento")}>
-          <WorkoutBlocks
-            intervals={a.icu_intervals ?? []}
-            ftp={a.icu_ftp}
-            selected={workId}
-            onSelect={(id) => select(id, "blocks")}
-          />
-          <p className="mt-2 text-xs text-muted-foreground">
-            {t(
-              "Tap a block to see just that work on the map and charts.",
-              "Tocca un blocco per vedere solo quel lavoro su mappa e grafici.",
-            )}
-          </p>
-        </Panel>
-      )}
-
-      {streams ? (
-        <div id="ride-map" className="scroll-mt-16">
-          <Climbs
-            a={a}
-            streams={streams}
-            weight={weight}
-            work={work}
-            onClear={() => setWorkId(null)}
-          />
-        </div>
       ) : (
-        <Panel title={t("Elevation & climbs", "Altimetria e salite")}>
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("Loading activity data…", "Caricamento dati attività…")}
-          </p>
-        </Panel>
+        <>
+          <div className="flex justify-end">
+            <TuneButton onClick={() => setEditing(true)} />
+          </div>
+          <Sections
+            layout={layout}
+            isOpen={(id) => id === "charts" && chartsNow}
+            onToggle={(id) => id === "charts" && setChartsNow(false)}
+            hints={{
+              intervals: intervals.length ? String(intervals.length) : undefined,
+              brioche: a.brioches ? String(a.brioches) : undefined,
+            }}
+            render={(sec) => {
+              switch (sec.id) {
+                case "feel":
+                  return <FeelPanel id={a.id} feel={a.feel} />;
+                case "numbers": {
+                  const cards = sec.numbers.filter((n) => !n.hidden);
+                  return cards.length ? (
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                      {cards.map((n) => (
+                        <Fragment key={n.id}>{statCards[n.id]}</Fragment>
+                      ))}
+                    </div>
+                  ) : null;
+                }
+                case "zones":
+                  return isRun ? (
+                    runZones?.some((v) => v > 0) ? (
+                      <Panel title={t("Time in pace zones (GAP)", "Tempo nelle zone di passo (GAP)")}>
+                        <ZoneBar secs={runZones} names={RUN_ZONE_NAMES} />
+                      </Panel>
+                    ) : null
+                  ) : a.zoneTimes.some((v) => v > 0) ? (
+                    <Panel title={t("Time in power zones", "Tempo nelle zone di potenza")}>
+                      <ZoneBar secs={a.zoneTimes} />
+                    </Panel>
+                  ) : null;
+                case "splits":
+                  return streams ? (
+                    <RunSplits streams={streams} threshold={runThreshold} tops={zoneTops().pace} />
+                  ) : null;
+                case "blocks":
+                  return !isRun && a.icu_ftp && (a.icu_intervals?.length ?? 0) > 0 ? (
+                    <Panel title={t("Workout blocks", "Blocchi di allenamento")}>
+                      <WorkoutBlocks
+                        intervals={a.icu_intervals ?? []}
+                        ftp={a.icu_ftp}
+                        selected={workId}
+                        onSelect={(id) => select(id, "blocks")}
+                      />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {t(
+                          "Tap a block to see just that work on the map and charts.",
+                          "Tocca un blocco per vedere solo quel lavoro su mappa e grafici.",
+                        )}
+                      </p>
+                    </Panel>
+                  ) : null;
+                case "climbs":
+                  return streams ? (
+                    <div id="ride-map" className="scroll-mt-16">
+                      <Climbs
+                        a={a}
+                        streams={streams}
+                        weight={weight}
+                        work={work}
+                        onClear={() => setWorkId(null)}
+                      />
+                    </div>
+                  ) : (
+                    <Panel title={t("Elevation & climbs", "Altimetria e salite")}>
+                      <p className="py-6 text-center text-sm text-muted-foreground">
+                        {t("Loading activity data…", "Caricamento dati attività…")}
+                      </p>
+                    </Panel>
+                  );
+                case "charts":
+                  return (
+                    <Panel
+                      title={
+                        isRun
+                          ? t("Pace, GAP & heart rate", "Passo, GAP e frequenza cardiaca")
+                          : t("Speed, power & heart rate", "Velocità, potenza e frequenza cardiaca")
+                      }
+                    >
+                      {work && <WorkBar work={work} onClear={() => setWorkId(null)} />}
+                      {streams ? (
+                        <RideCharts a={a} streams={streams} work={work} cp={isRun ? null : cp} />
+                      ) : (
+                        <p className="py-6 text-center text-sm text-muted-foreground">
+                          {t("Loading activity data…", "Caricamento dati attività…")}
+                        </p>
+                      )}
+                    </Panel>
+                  );
+                case "intervals":
+                  return intervals.length > 0 ? (
+                    <Panel title={`${t("Intervals", "Intervalli")} · ${intervals.length}`}>
+                      <div className="-mx-2 divide-y divide-border text-sm">
+                        {intervals.map((i) => (
+                          <button
+                            key={i.id}
+                            type="button"
+                            aria-pressed={workId === i.id}
+                            onClick={() => select(workId === i.id ? null : i.id, "list")}
+                            className={cn(
+                              "stat-num flex w-full justify-between rounded-md px-2 py-2.5 text-left transition-colors hover:bg-secondary",
+                              workId === i.id && "bg-secondary/60",
+                            )}
+                          >
+                            <span className="font-sans">{i.label ?? i.type}</span>
+                            <span className="flex gap-4">
+                              <span>{formatDuration(i.moving_time)}</span>
+                              {!isRun && <span className="w-14 text-right">{r(i.average_watts, "W")}</span>}
+                              <span className="w-16 text-right text-fatigue">
+                                {r(i.average_heartrate, " bpm")}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </Panel>
+                  ) : null;
+                case "brioche":
+                  return <Brioches a={a} />;
+                case "visibility":
+                  return (
+                    <RideVisibility
+                      rideId={a.id}
+                      day={a.start_date_local.slice(0, 10)}
+                      sport={sportOfActivity(a)}
+                    />
+                  );
+                default:
+                  return null;
+              }
+            }}
+          />
+        </>
       )}
-
-      <Panel
-        title={
-          isRun
-            ? t("Pace, GAP & heart rate", "Passo, GAP e frequenza cardiaca")
-            : t("Speed, power & heart rate", "Velocità, potenza e frequenza cardiaca")
-        }
-        action={<ShowHide open={showCharts} onToggle={() => setShowCharts((v) => !v)} />}
-      >
-        {showCharts && work && <WorkBar work={work} onClear={() => setWorkId(null)} />}
-        {showCharts &&
-          (streams ? (
-            <RideCharts a={a} streams={streams} work={work} cp={isRun ? null : cp} />
-          ) : (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {t("Loading activity data…", "Caricamento dati attività…")}
-            </p>
-          ))}
-      </Panel>
-
-      {intervals.length > 0 && (
-        <Panel
-          title={`${t("Intervals", "Intervalli")} · ${intervals.length}`}
-          action={<ShowHide open={showIntervals} onToggle={() => setShowIntervals((v) => !v)} />}
-        >
-          {showIntervals && (
-            <div className="-mx-2 divide-y divide-border text-sm">
-              {intervals.map((i) => (
-                <button
-                  key={i.id}
-                  type="button"
-                  aria-pressed={workId === i.id}
-                  onClick={() => select(workId === i.id ? null : i.id, "list")}
-                  className={cn(
-                    "stat-num flex w-full justify-between rounded-md px-2 py-2.5 text-left transition-colors hover:bg-secondary/40",
-                    workId === i.id && "bg-secondary/60",
-                  )}
-                >
-                  <span className="font-sans">{i.label ?? i.type}</span>
-                  <span className="flex gap-4">
-                    <span>{formatDuration(i.moving_time)}</span>
-                    {!isRun && <span className="w-14 text-right">{r(i.average_watts, "W")}</span>}
-                    <span className="w-16 text-right text-fatigue">
-                      {r(i.average_heartrate, " bpm")}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </Panel>
-      )}
-      <Brioches a={a} />
-      <RideVisibility
-        rideId={a.id}
-        day={a.start_date_local.slice(0, 10)}
-        sport={sportOfActivity(a)}
-      />
       {sourceKind() === "native" && <DeleteRide id={a.id} />}
     </div>
   );
@@ -362,6 +452,63 @@ function DeleteRide({ id }: { id: string }) {
           : t("Delete activity", "Elimina attività")}
       </Button>
     </div>
+  );
+}
+
+const FEEL_TONE = ["var(--pine)", "var(--fitness)", "var(--birch)", "var(--autumn)", "var(--lingon)"];
+
+/** How it went: the numbers come after. It counts toward the next days' crown and sky. */
+function FeelPanel({ id, feel }: { id: string; feel: number | null }) {
+  const qc = useQueryClient();
+  const saved = feel != null && feel >= 1 ? feel : null;
+  const [value, setValue] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setValue(saved), [saved]);
+
+  async function pick(n: number) {
+    const next = value === n ? null : n;
+    const prev = value;
+    setValue(next);
+    setBusy(true);
+    try {
+      await setActivityFeel(id, next);
+      await qc.invalidateQueries({ queryKey: ["activity", id] });
+      await qc.invalidateQueries({ queryKey: ["activities"] });
+    } catch {
+      setValue(prev);
+      toast.error(t("Couldn't save", "Impossibile salvare"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel title={t("How did it feel?", "Com'è andata?")}>
+      <div className="grid grid-cols-5 gap-1.5" role="group">
+        {FEEL_LABEL.map((label, i) => {
+          const on = value === i + 1;
+          return (
+            <button
+              key={label}
+              type="button"
+              disabled={busy}
+              aria-pressed={on}
+              onClick={() => void pick(i + 1)}
+              className={cn(
+                "flex min-h-11 flex-col items-center justify-center gap-1 rounded-md border px-0.5 py-1.5 text-[11px] sm:text-xs",
+                on
+                  ? "border-transparent bg-secondary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+              style={on ? { boxShadow: `inset 0 0 0 1.5px ${FEEL_TONE[i]}` } : undefined}
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: FEEL_TONE[i] }} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </Panel>
   );
 }
 

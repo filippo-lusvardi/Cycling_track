@@ -121,13 +121,18 @@ export function runSummary(
 /** Zone tops as % of threshold speed (the last is open): 7 zones like the power and heart-rate ones. */
 export const PACE_ZONE_PCT = [78, 88, 94, 100, 103, 111, 999];
 
+/** Which zone a value falls in, from 0; `tops` are each zone's upper bound. */
+export function zoneIndex(v: number, tops: number[]): number {
+  const z = tops.findIndex((top) => v <= top);
+  return z < 0 ? tops.length - 1 : z;
+}
+
 /** Seconds in each zone from a histogram; `tops` are each zone's upper bound. */
 export function zonesFromHist(hist: number[], bin: number, tops: number[]): number[] {
   const out = tops.map(() => 0);
   hist.forEach((secs, i) => {
     const v = (i + 0.5) * bin;
-    const z = tops.findIndex((top) => v <= top);
-    out[z < 0 ? tops.length - 1 : z]! += secs;
+    out[zoneIndex(v, tops)]! += secs;
   });
   return out;
 }
@@ -145,6 +150,73 @@ export const paceZones = (
 /** Seconds in each heart-rate zone. */
 export const hrZones = (s: Pick<RunSummary, "hrHist">, tops: number[]) =>
   zonesFromHist(s.hrHist, HR_BIN, tops);
+
+/** A last stretch shorter than this (m) gives no meaningful pace, so it isn't a split. */
+const MIN_SPLIT = 50;
+
+export type KmSplit = {
+  /** Metres moved in this split: about 1000, less for the last one. */
+  metres: number;
+  /** Pace while moving (m/s). */
+  speed: number | null;
+  /** Grade-adjusted pace while moving (m/s), what zones are measured on. */
+  gap: number | null;
+  /** Net change in altitude (m), null without altitude. */
+  climb: number | null;
+  /** Average heart rate while moving, null without heart rate. */
+  hr: number | null;
+};
+
+/** One entry per kilometre, in order, the last one partial. Stops count for neither time nor distance. */
+export function kmSplits(
+  s: Pick<RideStreams, "time" | "distance" | "altitude" | "heartrate">,
+): KmSplit[] {
+  const n = s.distance.length;
+  if (n < 2) return [];
+  const { speed, gap } = gapStreams(s);
+  const hasAltitude = s.altitude.some((a) => a != null && a !== 0);
+  const altitudeAt = (i: number) => (hasAltitude ? (s.altitude[i] ?? null) : null);
+  const out: KmSplit[] = [];
+  let [metres, secs, gapMetres, hrSum, hrCount] = [0, 0, 0, 0, 0];
+  let firstAltitude = altitudeAt(0);
+  let lastAltitude = firstAltitude;
+  let km = 1;
+  const close = () => {
+    out.push({
+      metres: Math.round(metres),
+      speed: secs ? round3(metres / secs) : null,
+      gap: secs ? round3(gapMetres / secs) : null,
+      climb:
+        firstAltitude != null && lastAltitude != null
+          ? Math.round(lastAltitude - firstAltitude)
+          : null,
+      hr: hrCount ? Math.round(hrSum / hrCount) : null,
+    });
+    [metres, secs, gapMetres, hrSum, hrCount] = [0, 0, 0, 0, 0];
+    firstAltitude = lastAltitude;
+  };
+  for (let i = 1; i < n; i++) {
+    lastAltitude = altitudeAt(i) ?? lastAltitude;
+    firstAltitude ??= lastAltitude;
+    if (speed[i]! >= RUN_MOVING_SPEED) {
+      const dt = s.time[i]! - s.time[i - 1]!;
+      metres += speed[i]! * dt;
+      secs += dt;
+      gapMetres += gap[i]! * dt;
+      const h = s.heartrate[i];
+      if (h != null && h > 0) {
+        hrSum += h;
+        hrCount++;
+      }
+    }
+    if (s.distance[i]! - s.distance[0]! >= km * 1000) {
+      close();
+      km++;
+    }
+  }
+  if (metres >= MIN_SPLIT) close();
+  return out;
+}
 
 /** Training load: an hour at threshold pace is 100, as with power. */
 export const runLoad = (movingSecs: number, speed: number, threshold: number) =>

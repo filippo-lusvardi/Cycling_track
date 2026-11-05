@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { endOfMonth, parseISO } from "date-fns";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Buds, CrownView, Rings } from "@/components/tree/Crown";
 import { TreeBody, usePinch, useWidth } from "@/components/tree/TreeBody";
 import { ZoomSwitch, type Zoom } from "@/components/tree/ZoomSwitch";
@@ -31,9 +32,11 @@ import { knownRunThreshold, mainSport } from "@/lib/sport";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: t("Tree — Cirmolo", "Albero — Cirmolo") }] }),
-  // ?zoom=years opens the rings (from the Forest page's switch); otherwise the tree.
-  validateSearch: (s: Record<string, unknown>): { zoom?: "years" } =>
-    s["zoom"] === "years" ? { zoom: "years" } : {},
+  // ?zoom=years opens the rings; ?sheet=today opens today's sheet (what you asked the tree); otherwise the tree.
+  validateSearch: (s: Record<string, unknown>): { zoom?: "years"; sheet?: "today" } => ({
+    ...(s["zoom"] === "years" ? { zoom: "years" as const } : {}),
+    ...(s["sheet"] === "today" ? { sheet: "today" as const } : {}),
+  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(allActivitiesQuery()),
   component: TreePage,
 });
@@ -59,8 +62,17 @@ function TreePage() {
   const [garden] = useLocalStore(GARDEN, gardenOn());
   const focus = useFocus(acts, wellness, today);
   // Not remembered: the home page always opens on the tree, Years is a look you take from there.
-  const [zoom, setZoom] = useState<Zoom>(Route.useSearch().zoom ?? "tree");
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const [zoom, setZoom] = useState<Zoom>(search.zoom ?? "tree");
   const [sheet, setSheet] = useState<Sheet | null>(null);
+  // Asked for from outside the page, even while it's open: the rings, the tree, today's sheet.
+  useEffect(() => setZoom(() => search.zoom ?? "tree"), [search.zoom]);
+  useEffect(() => {
+    if (search.sheet !== "today") return;
+    setSheet({ kind: "today" });
+    void navigate({ to: "/", search: {}, replace: true });
+  }, [search.sheet, navigate]);
   const [ref, w] = useWidth();
 
   const [crops] = useCropMap(garden ? acts : undefined);
@@ -98,6 +110,22 @@ function TreePage() {
     (e) => e.date === today && (e.category === "WORKOUT" || e.category.startsWith("RACE")),
   );
 
+  // A week's branch and a month's name: their recap.
+  const openWeek = useCallback(
+    (start: string) => void navigate({ to: "/recap", search: { from: start, to: addDays(start, 6) } }),
+    [navigate],
+  );
+  const openMonth = useCallback(
+    (month: string) => {
+      const first = `${month}-01`;
+      void navigate({
+        to: "/recap",
+        search: { from: first, to: isoDate(endOfMonth(parseISO(first))) },
+      });
+    },
+    [navigate],
+  );
+
   const step = (dir: 1 | -1) => {
     const i = ZOOMS.indexOf(zoom) + dir;
     if (ZOOMS[i]) setZoom(() => ZOOMS[i]!);
@@ -127,6 +155,8 @@ function TreePage() {
               quiet={quiet}
               blocks={focus.blocks}
               open={setSheet}
+              onWeek={openWeek}
+              onMonth={openMonth}
             />
           </>
         )}

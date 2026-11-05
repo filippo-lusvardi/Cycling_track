@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
-import { ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import {
   Area,
@@ -18,7 +18,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BodySection } from "@/components/BodySection";
+import { BodySection, WellnessPlot } from "@/components/BodySection";
+import { ZonesTab } from "@/components/analysis/ZonesTab";
 import { FitnessSection } from "@/components/FitnessSection";
 import { Panel, StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
   valueAt,
 } from "@/lib/analysis";
 import { BUCKETS, EFFORTS, durabilityVerdict } from "@/lib/durability";
+import { isBodyPlot, isPlot, PLOT_LABEL, RUN_PLOTS, type Plot, type RunPlot } from "@/lib/plots";
 import { DURABILITY_DAYS } from "@/lib/durability-data";
 import type { PowerCurve } from "@/lib/intervals";
 import {
@@ -49,11 +51,21 @@ import { format, t } from "@/lib/i18n";
 import { analysisBoth, isSport, mainSport, type MainSport } from "@/lib/sport";
 import { RunAnalysis } from "@/components/analysis/RunAnalysis";
 
+type AnalysisSearch = {
+  sport?: MainSport;
+  view?: "body" | "zones";
+  zone?: number;
+  plot?: Plot;
+};
+
 export const Route = createFileRoute("/analysis")({
   // ?view=body opens the Body view; ?sport= shows the other sport when Settings offers it.
-  validateSearch: (s: Record<string, unknown>): { sport?: MainSport; view?: "body" } => ({
+  // ?view=zones the zones (?zone=2 picks one out); ?plot= one chart alone.
+  validateSearch: (s: Record<string, unknown>): AnalysisSearch => ({
     ...(s["sport"] === "run" || s["sport"] === "ride" ? { sport: s["sport"] } : {}),
-    ...(s["view"] === "body" ? { view: "body" as const } : {}),
+    ...(s["view"] === "body" || s["view"] === "zones" ? { view: s["view"] } : {}),
+    ...(/^[1-7]$/.test(String(s["zone"] ?? "")) ? { zone: Number(s["zone"]) } : {}),
+    ...(isPlot(s["plot"]) ? { plot: s["plot"] } : {}),
   }),
   head: () => ({ meta: [{ title: t("Analysis — Cirmolo", "Analisi — Cirmolo") }] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(wellnessQuery(90)),
@@ -98,19 +110,25 @@ function Toggle<T extends string>({
 
 function Analysis() {
   const both = analysisBoth();
-  const { sport: chosen, view } = Route.useSearch();
+  const { sport: chosen, view, zone, plot } = Route.useSearch();
   const body = view === "body";
+  const zones = view === "zones";
   // Opens on the main sport; the toggle, when Settings offers it, shows the other one.
   const sport = both ? (chosen ?? mainSport()) : mainSport();
   const navigate = useNavigate({ from: Route.fullPath });
-  const go = (search: { sport?: MainSport; view?: "body" }) =>
+  const go = (search: AnalysisSearch) =>
     void navigate({ search, replace: true, resetScroll: false });
+  if (plot) return <PlotPage plot={plot} sport={sport} />;
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">
-            {body ? t("Last 180 days", "Ultimi 180 giorni") : t("Performance", "Performance")}
+            {body
+              ? t("Last 180 days", "Ultimi 180 giorni")
+              : zones
+                ? t("Your thresholds", "Le tue soglie")
+                : t("Performance", "Performance")}
           </div>
           <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Analysis", "Analisi")}</h1>
         </div>
@@ -122,25 +140,29 @@ function Analysis() {
                 ["run", t("Running", "Corsa")],
               ]}
               active={sport}
-              onPick={(s) => go({ sport: s })}
+              onPick={(s) => go({ sport: s, ...(zones ? { view: "zones" as const } : {}) })}
             />
           )}
           <Toggle
             options={[
               ["training", t("Training", "Allenamento")],
               ["body", t("Body", "Corpo")],
+              ["zones", t("Zones", "Zone")],
             ]}
-            active={body ? "body" : "training"}
+            active={body ? "body" : zones ? "zones" : "training"}
             onPick={(v) =>
               go({
                 ...(chosen ? { sport: chosen } : {}),
-                ...(v === "body" ? { view: "body" } : {}),
+                ...(v === "body" ? { view: "body" as const } : {}),
+                ...(v === "zones" ? { view: "zones" as const } : {}),
               })
             }
           />
         </div>
       </div>
-      {body ? (
+      {zones ? (
+        <ZonesTab sport={sport} zone={zone} />
+      ) : body ? (
         <Suspense
           fallback={
             <p className="py-10 text-center text-sm text-muted-foreground">
@@ -162,6 +184,55 @@ function Analysis() {
           <ZonesSection />
         </>
       )}
+    </div>
+  );
+}
+
+/** One chart alone, for when that's all that was asked. */
+function PlotPage({ plot, sport }: { plot: Plot; sport: MainSport }) {
+  const loading = (
+    <p className="py-10 text-center text-sm text-muted-foreground">
+      {t("Loading…", "Caricamento…")}
+    </p>
+  );
+  // A chart only one sport has is that sport's; the two they share follow the sport being looked at.
+  const runOnly = (RUN_PLOTS as readonly Plot[]).includes(plot) && plot !== "fitness" && plot !== "zones";
+  const asRun = runOnly || (sport === "run" && (plot === "fitness" || plot === "zones"));
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link
+          to="/analysis"
+          search={sport !== mainSport() ? { sport } : {}}
+          className="on-sky mb-2 inline-flex items-center gap-1 text-sm text-foreground/85 hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> {t("All of Analysis", "Tutta l'analisi")}
+        </Link>
+        <h1 className="on-sky text-3xl font-bold tracking-tight">{PLOT_LABEL[plot]()}</h1>
+      </div>
+      <Suspense fallback={loading}>
+        {isBodyPlot(plot) ? (
+          plot === "weight" || plot === "fat" ? (
+            <BodySection only={plot} />
+          ) : (
+            <WellnessPlot kind={plot} />
+          )
+        ) : asRun ? (
+          <RunAnalysis only={plot as RunPlot} />
+        ) : plot === "fitness" ? (
+          <FitnessSection />
+        ) : plot === "power" ? (
+          <PowerSection />
+        ) : plot === "durability" ? (
+          <DurabilitySection />
+        ) : plot === "eftp" ? (
+          <EftpSection />
+        ) : plot === "decoupling" ? (
+          <DecouplingSection />
+        ) : (
+          <ZonesSection />
+        )}
+      </Suspense>
     </div>
   );
 }

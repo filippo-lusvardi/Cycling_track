@@ -24,7 +24,36 @@ import { Textarea } from "@/components/ui/textarea";
 import { format, t } from "@/lib/i18n";
 
 /** Weight and body composition: the Body view of the Analysis page. */
-export function BodySection() {
+/** Sleep or HRV on its own, opened by asking: these aren't part of the Analysis page. */
+export function WellnessPlot({ kind }: { kind: "sleep" | "hrv" }) {
+  const { data } = useSuspenseQuery(wellnessQuery(180));
+  const rows = useMemo(
+    () =>
+      data.flatMap((w) =>
+        kind === "sleep"
+          ? w.sleepSecs
+            ? [{ date: w.id, value: Math.round((w.sleepSecs / 3600) * 10) / 10 }]
+            : []
+          : w.hrv
+            ? [{ date: w.id, value: Math.round(w.hrv) }]
+            : [],
+      ),
+    [data, kind],
+  );
+  const name = kind === "sleep" ? t("Sleep (h)", "Sonno (h)") : "HRV (ms)";
+  return (
+    <Panel title={name}>
+      <TrendChart
+        data={rows}
+        dataKey="value"
+        name={name}
+        color={kind === "sleep" ? "var(--weight)" : "var(--fitness)"}
+      />
+    </Panel>
+  );
+}
+
+export function BodySection({ only }: { only?: "weight" | "fat" | undefined } = {}) {
   const { data } = useSuspenseQuery(wellnessQuery(180));
   const weights = useMemo(
     () =>
@@ -48,6 +77,19 @@ export function BodySection() {
     setDate(d);
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  if (only === "weight")
+    return (
+      <Panel title={t("Weight", "Peso")}>
+        <TrendChart data={weights} dataKey="weight" name={t("Weight", "Peso")} color="var(--weight)" />
+      </Panel>
+    );
+  if (only === "fat")
+    return (
+      <Panel title={t("Body fat", "Grasso corporeo")}>
+        <TrendChart data={fat} dataKey="bodyFat" name={t("Body fat", "Grasso corporeo")} color="var(--form)" />
+      </Panel>
+    );
 
   return (
     <div className="space-y-6">

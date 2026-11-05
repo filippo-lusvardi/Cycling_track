@@ -268,6 +268,11 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
   return toDetail(ride);
 }
 
+export async function setActivityFeel(id: string, feel: number | null) {
+  await updateDoc(doc(col("activities"), id), { feel, updatedAt: serverTimestamp() });
+  forget();
+}
+
 export async function setActivityDescription(id: string, description: string) {
   await updateDoc(doc(col("activities"), id), { description, updatedAt: serverTimestamp() });
   forget();

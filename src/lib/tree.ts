@@ -1,4 +1,5 @@
 // The tree: training history as one growing organism. Pure data → shape model, drawn by components/tree.
+import { recentFeel } from "./felt";
 import { parseISO } from "date-fns";
 import { format, t } from "./i18n";
 import { activityKind, type Kind } from "./activity-kind";
@@ -662,7 +663,10 @@ export function crownFor(
   const form = row?.ctl != null && row.atl != null ? computeForm(row.ctl, row.atl) : null;
   const formPct = row?.ctl != null && row.atl != null ? formPercent(row.ctl, row.atl) : null;
   const checkedIn = !!row && (row.sleepQuality ?? row.fatigue ?? row.stress ?? row.mood) != null;
-  const r = readinessFor(wellness, today, returningFromBreak(acts, offEvents, today));
+  const felt = recentFeel(acts, today);
+  const r = readinessFor(wellness, today, returningFromBreak(acts, offEvents, today), felt);
+  // The sky is your form, moved a little by how the last days felt; the numbers stay what they are.
+  const skyForm = formPct != null ? formPct + (felt?.skyShift ?? 0) : null;
   // Without readiness inputs the score comes from form alone, still under the load cap.
   const score =
     r.score ?? (formPct != null ? capForLoad(Math.round(formScore(formPct)), r.load) : null);
@@ -681,8 +685,8 @@ export function crownFor(
     atl: row?.atl ?? null,
     form,
     formPct,
-    weather: formPct != null ? weatherOf(formPct) : null,
-    weatherPhase: formPct != null ? weatherPhase(formPct) : 0,
+    weather: skyForm != null ? weatherOf(skyForm) : null,
+    weatherPhase: skyForm != null ? weatherPhase(skyForm) : 0,
     // Load first: it's the one that already holds readiness down.
     signals: [
       ...r.load.reasons.map((text) => ({ key: "load" as const, text })),

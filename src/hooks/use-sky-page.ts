@@ -7,7 +7,7 @@ import { daylight, skyColors } from "@/lib/daylight";
 
 /** Paths drawn under the time-of-day sky: every page but sign-in, the privacy notice and a forest invite. */
 export const SKY_PAGE =
-  /^\/($|(analysis|calendar|settings|workouts)\/?$|rides(\/|$)|segments(\/|$)|garden(\/|$)|forest\/?$|forest\/[^/]+\/?$|forest\/[^/]+\/[^/]+\/?$|forest\/[^/]+\/[^/]+\/ride\/|forest\/[^/]+\/climb\/)/;
+  /^\/($|(analysis|calendar|recap|settings|workouts)\/?$|rides(\/|$)|segments(\/|$)|garden(\/|$)|forest\/?$|forest\/[^/]+\/?$|forest\/[^/]+\/[^/]+\/?$|forest\/[^/]+\/[^/]+\/ride\/|forest\/[^/]+\/climb\/)/;
 
 /**
  * Colour the page with the sky's top on `active` pages (and nothing elsewhere), following the hour. Sets

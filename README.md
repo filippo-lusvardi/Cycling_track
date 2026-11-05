@@ -92,15 +92,49 @@ On every other device, just sign in with the same account.
 **Language:** Cirmolo is in English and Italian. It starts in the browser's language; switch it in
 **Settings → Language** (each device remembers its own choice).
 
-**The Tree** is the first page. **The Garden** has its own place in the bar, under the sky of the moment (the real time
-of day, with the moon at night; the weather is your form). **Body** (weight and composition) is a view of **Analysis**.
+**The Tree** is the first page. **The Garden** is one tap away, under the sky of the moment (the real time of day, with
+the moon at night; the weather is your form). **Body** (weight and composition) is a view of **Analysis**.
+
+**Getting around:** at the foot of the screen (at the top on a desktop, where `/` opens it) are the tree, a line to ask on,
+and the sprout. Tap the line and type, in your own words and in either language: *sonno*, *vasi*, *marzo*, *gufo*, the
+name of a ride or a climb. You get up to three alternatives to choose from, closest to your thumb, ordered in part by your
+season of the moment. With nothing typed it offers what fits right now, and says when there's nothing left for today. It
+all runs on the device, so it works offline and sends nothing anywhere.
+
+Typing also gets answers. Parameters show their value in the row (*ftp*, *soglia*, *z2*, *fc max*, *fitness*, *peso*, *hrv*).
+*Zone* opens Analysis → **Zones**: power and heart rate for cycling, pace and heart rate for running. A chart's name
+(*eftp*, *durability*, *curva di potenza*, *sonno*) opens that chart alone. A stretch of time (*domani*, *sabato*, *ultimi 10
+giorni*, *mese scorso*, *ottobre*, *2025*) opens a **recap**: what happened, how the body was and what's planned, with arrows
+to the stretch before or after. A forest's name, once you've typed three letters, takes you into it.
+
+It also answers your own records and saves what you tell it: *best manghen*, *ultima manghen*, *quante volte manghen*, *best 20
+min*, *best 10 km*, *ultima corsa*, *km quest'anno*, *uscita più lunga*, *prossima gara*, *cosa faccio oggi*, *perché*, *mangiare 3
+ore*. And *peso 68.2*, *grasso 14*, *sonno 7h 30*, *malato oggi*, *non più malato*, *2 brioche* each offer a row saying what will be
+saved; choosing it saves (to intervals.icu, if you use it), and the message that follows has **Undo**. Times come from the
+rides already analysed on the device, within the history set in Settings.
+
+*Plan domani* (or *plan sabato*, *plan 12 novembre*) opens the Calendar on that day, ready to choose a workout. *Guida* opens the
+Legend, whose **Search** tab explains all of this.
+
+**How it felt:** each activity's page asks how it went, from Strong to Weak (saved as intervals.icu's Feel; also *sensazione
+buona* in the bar). The last three days' ratings, today's most, are a part of the crown, and they can move the sky by a few points of
+form. Unrated, they have no say.
+
+**Splits:** a run's page shows each kilometre's pace, net climb and heart rate, leaving out stops. With a threshold pace, each bar
+takes the colour of its zone, measured on grade-adjusted pace like the zones panel.
+
+**Your own pages:** the recap and activity pages have **Customize**: choose which sections and numbers show, in what order, and what
+stays closed. A day, a week, a month, a longer stretch, and each sport keep their own layout, which follows your account.
+On the Tree, a week's branch opens that week's recap, and a month's name that month's. **All** lists every page, sorted by today, before
+and ahead. The **Legend** (type *legenda*, or a part of the tree) labels a sample tree and appears once on each device.
+Settings → General → *Classic menu* brings back the bottom bar and the floating switches.
 
 **The Garden** is where the sports you do grow (Settings → *How to read the garden*). It starts empty: the first activity
 of a new sport gives it a bed, with a vegetable picked at random among those not in use. Every session of those sports
 in the last 8 weeks is a plant in its bed, its fruit ripening over the week after. In Settings → *What grows in the
 garden* you can change a sport's vegetable or remove it (it stays out until added again), and *Add a sport* adds one by
 hand, from the list or by a name of your own (padel, tennis…). Older months go into the **Pantry**, a jar per month
-(the *Garden · Pantry* switch at the bottom). Tap a plant to open its activity, or a jar to list that month's
+(type *dispensa*, or pinch out from the Garden). Tap a plant to open its activity, or a jar to list that month's
 activities and open it in the calendar.
 Tracking one sport only? Settings → *Show the Garden* turns it off: the Garden leaves the app and the sprouts leave the
 tree. Nothing is deleted.
@@ -164,7 +198,7 @@ Cirmolo has no connection to Garmin or other devices: neither reads zones from t
 
 ## Workouts
 
-**Workouts** (under *More*) is your workout library, one for each sport. With intervals.icu it's your real intervals.icu
+**Workouts** (type *allenamenti*, or find it under *All*) is your workout library, one for each sport. With intervals.icu it's your real intervals.icu
 library, and new workouts go in a *Cirmolo* folder there; without it, the library is kept in your account. Write steps in
 the intervals.icu builder's syntax and the blocks draw as you type:
 
@@ -189,7 +223,7 @@ blocks in the Calendar and on the Tree; heart-rate targets are drawn approximate
 
 ## Forest
 
-**Forest** (the third option of the *Tree · Years · Forest* switch at the bottom of the Tree) is where friends and teammates grow their trees side by side. You can be in
+**Forest** (type *bosco*, or find it under *All*) is where friends and teammates grow their trees side by side. You can be in
 several forests.
 
 - **Plant a forest** and choose its sport, cycling or running (forests planted before the choice are cycling; it can't
@@ -313,6 +347,7 @@ src/
   routes/       pages (file-based routing: Tree, Garden, Rides, Calendar, Analysis, Segments, Settings)
   components/   UI pieces (maps, profiles, charts, check-in, …)
   hooks/        React hooks (segments, names, online state)
+  components/nav/  the bar, the typed alternatives (logic in lib/ask.ts) and the legend
   lib/          logic: intervals.icu client, Firebase (firebase, cloud, account), readiness, climbs, segment engine …
 public/         icons, _redirects
 ```

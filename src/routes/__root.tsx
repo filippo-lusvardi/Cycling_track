@@ -31,6 +31,9 @@ import { sessionReady } from "@/lib/account";
 import { auth, authReady } from "@/lib/firebase";
 import { AuthError } from "@/lib/intervals";
 import { AppFooter } from "@/components/AppFooter";
+import { AskNav } from "@/components/nav/AskNav";
+import { Legend } from "@/components/nav/Legend";
+import { openLegend } from "@/components/nav/legend-store";
 import { PageSky, SkyLand } from "@/components/sky/SkyPage";
 import { SKY_PAGE, useSkyPage } from "@/hooks/use-sky-page";
 import { recordSinceLoad } from "@/lib/perf";
@@ -38,7 +41,14 @@ import { hasSource } from "@/lib/source";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { useLocalStore } from "@/hooks/use-local-store";
-import { GARDEN, gardenOn } from "@/lib/settings";
+import {
+  CLASSIC_NAV,
+  GARDEN,
+  gardenOn,
+  LEGEND_SEEN,
+  readSetting,
+  writeSetting,
+} from "@/lib/settings";
 import { byMain } from "@/lib/sport";
 
 // Background forest sync needs Firestore: loaded after the first screen, not before it.
@@ -185,6 +195,7 @@ function RootComponent() {
   const online = useOnline();
   const synced = useLastSynced();
   const [garden] = useLocalStore(GARDEN, gardenOn());
+  const [classic] = useLocalStore(CLASSIC_NAV, readSetting<boolean>(CLASSIC_NAV) ?? false);
   const nav = NAV.filter((n) => garden || n.to !== "/garden");
   const bar = nav.filter((n) => n.bar);
   const rest = nav.filter((n) => !n.bar);
@@ -203,6 +214,13 @@ function RootComponent() {
   // The Tree, the Garden and the forests live under the sky of the moment: the page takes its colour, the bar is glass.
   const skyPage = useRouterState({ select: (s) => SKY_PAGE.test(s.location.pathname) });
   useSkyPage(skyPage);
+  // The legend comes up once on this device, the first time the tree does.
+  const onTree = useRouterState({ select: (s) => s.location.pathname === "/" });
+  useEffect(() => {
+    if (!onTree || !hasSource() || readSetting(LEGEND_SEEN)) return;
+    writeSetting(LEGEND_SEEN, true);
+    openLegend("crown", "tree");
+  }, [onTree]);
   // The sun and moon cross the sky only on the Garden and the forests; the other pages, the Tree among them, get the
   // plain sky over hills (the forests draw their own land).
   // A member's tree (/forest/<forest>/<member>) and their rides are plain pages too: plain sky, high hills.
@@ -255,22 +273,28 @@ function RootComponent() {
               Offline{synced ? t(` · data from ${synced}`, ` · dati del ${synced}`) : ""}
             </span>
           )}
-          <nav className="flex gap-1">
-            {nav.map((n) => (
-              <Link
-                key={n.to}
-                to={n.to}
-                activeOptions={{ exact: n.to === "/" }}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground",
-                  navClass(n.to, "bg-secondary text-foreground"),
-                )}
-                activeProps={{ className: "bg-secondary text-foreground" }}
-              >
-                {n.label}
-              </Link>
-            ))}
-          </nav>
+          {classic ? (
+            <nav className="flex gap-1">
+              {nav.map((n) => (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  activeOptions={{ exact: n.to === "/" }}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground",
+                    navClass(n.to, "bg-secondary text-foreground"),
+                  )}
+                  activeProps={{ className: "bg-secondary text-foreground" }}
+                >
+                  {n.label}
+                </Link>
+              ))}
+            </nav>
+          ) : (
+            <div className="w-[480px] min-w-0">
+              <AskNav desktop />
+            </div>
+          )}
         </div>
       </header>
       {/* Phone only: the icon and name on a transparent line that scrolls away with the page. */}
@@ -303,69 +327,89 @@ function RootComponent() {
           />
         )}
       </main>
-      <nav
-        className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
-        style={{ gridTemplateColumns: `repeat(${bar.length + 1}, minmax(0, 1fr))` }}
-      >
-        {!online && (
-          <div
-            className="col-span-full flex items-center justify-center gap-1.5 border-b border-border py-1 text-xs text-muted-foreground"
-            role="status"
+      {classic ? (
+        <>
+          <nav
+            className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
+            style={{ gridTemplateColumns: `repeat(${bar.length + 1}, minmax(0, 1fr))` }}
           >
-            <CloudOff className="h-3.5 w-3.5" />
-            Offline{synced ? t(` · data from ${synced}`, ` · dati del ${synced}`) : ""}
-          </div>
-        )}
-        {bar.map((n) => (
-          <Link
-            key={n.to}
-            to={n.to}
-            activeOptions={{ exact: n.to === "/" }}
-            className={cn(
-              "flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground",
-              navClass(n.to, "text-primary"),
+            {!online && (
+              <div
+                className="col-span-full flex items-center justify-center gap-1.5 border-b border-border py-1 text-xs text-muted-foreground"
+                role="status"
+              >
+                <CloudOff className="h-3.5 w-3.5" />
+                Offline{synced ? t(` · data from ${synced}`, ` · dati del ${synced}`) : ""}
+              </div>
             )}
-            activeProps={{ className: "text-primary" }}
-          >
-            <n.icon className="h-5 w-5" />
-            {n.label}
-          </Link>
-        ))}
-        <button
-          onClick={() => setMore(true)}
-          className={cn(
-            "flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground",
-            more && "text-primary",
-          )}
-        >
-          <Ellipsis className="h-5 w-5" />
-          {t("More", "Altro")}
-        </button>
-      </nav>
-      <Sheet open={more} onOpenChange={setMore}>
-        <SheetContent
-          side="bottom"
-          className="rounded-t-2xl pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
-        >
-          <SheetHeader>
-            <SheetTitle>{t("More", "Altro")}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {rest.map((n) => (
+            {bar.map((n) => (
               <Link
                 key={n.to}
                 to={n.to}
-                onClick={() => setMore(false)}
-                className="flex flex-col items-center gap-2 rounded-xl bg-secondary py-4 text-sm"
+                activeOptions={{ exact: n.to === "/" }}
+                className={cn(
+                  "flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground",
+                  navClass(n.to, "text-primary"),
+                )}
                 activeProps={{ className: "text-primary" }}
               >
                 <n.icon className="h-5 w-5" />
                 {n.label}
               </Link>
             ))}
+            <button
+              onClick={() => setMore(true)}
+              className={cn(
+                "flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground",
+                more && "text-primary",
+              )}
+            >
+              <Ellipsis className="h-5 w-5" />
+              {t("More", "Altro")}
+            </button>
+          </nav>
+          <Sheet open={more} onOpenChange={setMore}>
+            <SheetContent
+              side="bottom"
+              className="rounded-t-2xl pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+            >
+              <SheetHeader>
+                <SheetTitle>{t("More", "Altro")}</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {rest.map((n) => (
+                  <Link
+                    key={n.to}
+                    to={n.to}
+                    onClick={() => setMore(false)}
+                    className="flex flex-col items-center gap-2 rounded-xl bg-secondary py-4 text-sm"
+                    activeProps={{ className: "text-primary" }}
+                  >
+                    <n.icon className="h-5 w-5" />
+                    {n.label}
+                  </Link>
+                ))}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </>
+      ) : (
+        <div className="pointer-events-none fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md space-y-1 lg:hidden">
+          {!online && (
+            <div
+              className="on-sky flex items-center justify-center gap-1.5 text-xs text-foreground/85"
+              role="status"
+            >
+              <CloudOff className="h-3.5 w-3.5" />
+              Offline{synced ? t(` · data from ${synced}`, ` · dati del ${synced}`) : ""}
+            </div>
+          )}
+          <div className="pointer-events-auto">
+            <AskNav />
           </div>
-        </SheetContent>
-      </Sheet>
+        </div>
+      )}
+      <Legend garden={garden} />
       <DailyCheckIn />
       <Suspense fallback={null}>
         <ForestSync />

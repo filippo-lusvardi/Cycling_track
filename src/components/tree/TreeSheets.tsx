@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Activity, OffKind, PlannedEvent, Wellness } from "@/lib/intervals";
 import { createOffEvent, deleteEvent, updateOffEvent } from "@/lib/source";
+import { recentFeel } from "@/lib/felt";
 import { briochesFor, intakeTarget } from "@/lib/fuel";
 import { advice, formPercent, readinessFor, readinessRows, recommendation } from "@/lib/readiness";
 import { checkInOn } from "@/lib/settings";
@@ -160,7 +161,12 @@ function TodayBody({
   // score estimated from HRV, sleep and form until the check-in is done.
   const checkIn = checkInOn();
   const crown = crownFor(wellness, acts, today, offEvents, checkIn);
-  const r = readinessFor(morningWellness(readinessRows(wellness), acts, today), today);
+  const r = readinessFor(
+    morningWellness(readinessRows(wellness), acts, today),
+    today,
+    false,
+    recentFeel(acts, today),
+  );
   const rec = crown.score != null ? recommendation(crown.score, crown.form) : null;
   // A day ready for intensity, without a race nearby: today's session is the block's.
   const quality = !focus.role && rec?.zones === "Z4–Z5";

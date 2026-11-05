@@ -85,7 +85,9 @@ function GardenPage() {
   const shelves = useMemo(() => buildPantry(acts, map, mainSport()), [acts, map]);
   const [bed, setBed] = useState<Sport | null>(null);
   const [jar, setJar] = useState<Jar | null>(null);
-  const [view, setView] = useState<GardenView>(Route.useSearch().zoom ?? "garden");
+  const zoom = Route.useSearch().zoom;
+  const [view, setView] = useState<GardenView>(zoom ?? "garden");
+  useEffect(() => setView(zoom ?? "garden"), [zoom]);
   // The pantry is indoors: over its strip of sky, with the title on it, no clouds and no rain.
   useEffect(() => {
     if (view === "pantry") setSky({ weather: null, phase: 0 });

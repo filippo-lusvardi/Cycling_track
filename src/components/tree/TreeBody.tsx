@@ -117,6 +117,8 @@ export function TreeBody({
   blocks,
   open,
   plain = false,
+  onWeek,
+  onMonth,
 }: {
   days: TreeDay[];
   w: number;
@@ -127,6 +129,9 @@ export function TreeBody({
   open: (s: Sheet) => void;
   /** Plain bark all the way down: no build/rest tints or labels (a friend's tree in a forest). */
   plain?: boolean;
+  /** A week's branch and a month's name open their recap: only on your own tree. */
+  onWeek?: (start: string) => void;
+  onMonth?: (month: string) => void;
 }) {
   const recent = useMemo(() => days.slice(0, RECENT_DAYS), [days]);
   const weeks = useMemo(() => {
@@ -144,6 +149,7 @@ export function TreeBody({
       ctl?: number | null,
       chapter?: Chapter,
       fadeFrom: Chapter | undefined = chapter,
+      openMonth?: () => void,
     ) =>
       pieces.push({
         h: MONTH_H,
@@ -158,13 +164,23 @@ export function TreeBody({
             ctl={quiet ? null : ctl}
             chapter={chapter}
             fadeFrom={fadeFrom}
+            onOpen={openMonth}
           />
         ),
       });
     const newMonth = (date: string, trunk: number, ctl: number | null, chapter?: Chapter) => {
       if (date.slice(0, 7) === month) return false;
       month = date.slice(0, 7);
-      monthRow(monthName(date), `m${month}`, trunk, ctl, chapter);
+      const m = month;
+      monthRow(
+        monthName(date),
+        `m${m}`,
+        trunk,
+        ctl,
+        chapter,
+        chapter,
+        onMonth ? () => onMonth(m) : undefined,
+      );
       return true;
     };
 
@@ -265,14 +281,16 @@ export function TreeBody({
             block={blocks.find((b) => b.since >= wk.start && b.since <= wk.end)?.focus}
             olderChapter={older?.chapter}
             onOpen={() =>
-              open({
-                kind: "days",
-                title: t(
-                  `Week ${weekRange(wk.start, wk.end)}`,
-                  `Settimana ${weekRange(wk.start, wk.end)}`,
-                ),
-                dates,
-              })
+              onWeek
+                ? onWeek(wk.start)
+                : open({
+                    kind: "days",
+                    title: t(
+                      `Week ${weekRange(wk.start, wk.end)}`,
+                      `Settimana ${weekRange(wk.start, wk.end)}`,
+                    ),
+                    dates,
+                  })
             }
           />
         ),
@@ -280,7 +298,7 @@ export function TreeBody({
     });
     const edges = smoothTrunk(pieces);
     return pieces.map((p, i) => p.render(edges[i]!));
-  }, [days, recent, weeks, w, today, quiet, blocks, open]);
+  }, [days, recent, weeks, w, today, quiet, blocks, open, onWeek, onMonth]);
   const last = days[days.length - 1]!;
   return (
     <Progressive

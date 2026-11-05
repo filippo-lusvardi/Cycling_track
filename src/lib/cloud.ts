@@ -34,6 +34,8 @@ export type Profile = {
   garden?: boolean | null;
   /** The sports in the garden and what grows for each: a CropMap as JSON. */
   gardenCrops?: string | null;
+  /** How the recap and activity pages are arranged, as JSON. */
+  layouts?: string | null;
   /** Where training data comes from: intervals.icu (default) or Cirmolo's own store (uploaded ride files). */
   source?: "intervals" | "native" | null;
   // For accounts without intervals.icu, what its athlete settings would hold.

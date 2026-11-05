@@ -45,6 +45,15 @@ export const GARDEN_CROPS = "cadence_garden_crops";
 /** This device doesn't send speed measurements (Firebase Performance Monitoring). Kept across sign-outs. */
 export const NO_PERF = "cadence_no_perf";
 
+/** This device uses the bottom bar and its menu instead of asking the tree. */
+export const CLASSIC_NAV = "cadence_classic_nav";
+/** How each person has arranged the recap and activity pages. Follows the account. */
+export const LAYOUTS = "cadence_layouts";
+/** The legend has been shown once on this device. */
+export const LEGEND_SEEN = "cadence_legend_seen";
+/** The last activity opened on this device, so today's isn't asked about once it has been read. */
+export const LAST_RIDE_SEEN = "cadence_last_ride_seen";
+
 export function readSetting<T>(key: string): T | null {
   try {
     const raw = localStorage.getItem(key);

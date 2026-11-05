@@ -14,8 +14,10 @@ export async function saveWellnessOrQueue(entry: WellnessEntry): Promise<"saved"
   } catch (e) {
     // fetch() rejects with TypeError on network failure; anything else (bad key, 4xx) is a real error.
     if (!(e instanceof TypeError)) throw e;
-    const q = (await pending()).filter((p) => p.date !== entry.date);
-    await set(KEY, [...q, entry]);
+    // Two saves for one day while offline add up: a weight mustn't wipe a waiting check-in.
+    const all = await pending();
+    const same = all.find((p) => p.date === entry.date);
+    await set(KEY, [...all.filter((p) => p.date !== entry.date), { ...same, ...entry }]);
     return "queued";
   }
 }

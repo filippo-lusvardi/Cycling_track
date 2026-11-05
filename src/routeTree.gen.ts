@@ -16,6 +16,7 @@ import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as GardenRouteImport } from './routes/garden'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RecapRouteImport } from './routes/recap'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TreeRouteImport } from './routes/tree'
 import { Route as WorkoutsRouteImport } from './routes/workouts'
@@ -63,6 +64,11 @@ const LoginRoute = LoginRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecapRoute = RecapRouteImport.update({
+  id: '/recap',
+  path: '/recap',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/recap': typeof RecapRoute
   '/settings': typeof SettingsRoute
   '/tree': typeof TreeRoute
   '/workouts': typeof WorkoutsRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByTo {
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/recap': typeof RecapRoute
   '/settings': typeof SettingsRoute
   '/tree': typeof TreeRoute
   '/workouts': typeof WorkoutsRoute
@@ -184,6 +192,7 @@ export interface FileRoutesById {
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/recap': typeof RecapRoute
   '/settings': typeof SettingsRoute
   '/tree': typeof TreeRoute
   '/workouts': typeof WorkoutsRoute
@@ -208,6 +217,7 @@ export interface FileRouteTypes {
     | '/garden'
     | '/login'
     | '/privacy'
+    | '/recap'
     | '/settings'
     | '/tree'
     | '/workouts'
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/garden'
     | '/login'
     | '/privacy'
+    | '/recap'
     | '/settings'
     | '/tree'
     | '/workouts'
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/garden'
     | '/login'
     | '/privacy'
+    | '/recap'
     | '/settings'
     | '/tree'
     | '/workouts'
@@ -275,6 +287,7 @@ export interface RootRouteChildren {
   GardenRoute: typeof GardenRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
+  RecapRoute: typeof RecapRoute
   SettingsRoute: typeof SettingsRoute
   TreeRoute: typeof TreeRoute
   WorkoutsRoute: typeof WorkoutsRoute
@@ -339,6 +352,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recap': {
+      id: '/recap'
+      path: '/recap'
+      fullPath: '/recap'
+      preLoaderRoute: typeof RecapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -443,6 +463,7 @@ const rootRouteChildren: RootRouteChildren = {
   GardenRoute: GardenRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
+  RecapRoute: RecapRoute,
   SettingsRoute: SettingsRoute,
   TreeRoute: TreeRoute,
   WorkoutsRoute: WorkoutsRoute,

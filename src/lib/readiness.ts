@@ -1,3 +1,4 @@
+import { feelWord, type RecentFeel } from "./felt";
 import { t } from "./i18n";
 import { formatPace } from "./pace";
 import { PACE_ZONE_PCT } from "./run-metrics";
@@ -29,10 +30,12 @@ export type ReadinessInput = {
   mood: number | null; // 1 = great … 4 = grumpy
   /** Median answers of the 30 days before (≥ 5 each), so answers count against your normal. */
   feelUsual?: { fatigue: number | null; stress: number | null; mood: number | null };
+  /** How the last days' activities felt, as rated; no part in the score without ratings. */
+  felt?: RecentFeel | null;
 };
 
 export type Component = {
-  key: "hrv" | "sleep" | "form" | "feel";
+  key: "hrv" | "sleep" | "form" | "feel" | "felt";
   label: string;
   score: number;
   weight: number;
@@ -177,6 +180,22 @@ export function computeReadiness(i: ReadinessInput) {
       detail:
         t(`${feel.length} check-in answers`, `${feel.length} risposte al check-in`) +
         (i.feelUsual ? t(" · vs your usual", " · rispetto al solito") : ""),
+    });
+  }
+  if (i.felt) {
+    comps.push({
+      key: "felt",
+      label: t("Recent activities", "Ultime attività"),
+      weight: 0.15,
+      score: i.felt.score,
+      detail:
+        t(
+          `${feelWord(i.felt.mean)} on average · ${i.felt.count} rated`,
+          `${feelWord(i.felt.mean)} in media · ${i.felt.count} ${i.felt.count === 1 ? "giudizio" : "giudizi"}`,
+        ) +
+        (i.felt.usual != null
+          ? t(` · usually ${feelWord(i.felt.usual).toLowerCase()}`, ` · di solito ${feelWord(i.felt.usual).toLowerCase()}`)
+          : ""),
     });
   }
   const w = comps.reduce((s, c) => s + c.weight, 0);
@@ -399,8 +418,13 @@ export function loadCheck(rows: WellnessLike[], date: string, returning = false)
 export const capForLoad = (score: number, load: LoadCheck) => Math.min(score, LOAD_CAP[load.level]);
 
 /** Readiness for a day: the morning feel, held down when the load is rising too fast. */
-export function readinessFor(rows: WellnessLike[], date: string, returning = false) {
-  const r = computeReadiness(readinessInputFor(rows, date));
+export function readinessFor(
+  rows: WellnessLike[],
+  date: string,
+  returning = false,
+  felt: RecentFeel | null = null,
+) {
+  const r = computeReadiness({ ...readinessInputFor(rows, date), felt });
   const load = loadCheck(rows, date, returning);
   const score = r.score == null ? null : capForLoad(r.score, load);
   return { ...r, score, advice: score == null ? null : advice(score), load, uncapped: r.score };

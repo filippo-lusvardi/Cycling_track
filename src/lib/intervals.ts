@@ -367,9 +367,9 @@ export const entrySchema = z.object({
   // null clears a value logged by mistake.
   weight: z.number().min(20).max(300).nullable().optional(),
   bodyFat: z.number().min(1).max(70).nullable().optional(),
-  sleepSecs: z.number().int().min(0).max(86400).optional(),
+  sleepSecs: z.number().int().min(0).max(86400).nullable().optional(),
   /** rMSSD in ms, typed in by accounts without intervals.icu (which gets it from the watch). */
-  hrv: z.number().min(5).max(300).optional(),
+  hrv: z.number().min(5).max(300).nullable().optional(),
   sleepQuality: z.number().int().min(1).max(4).optional(),
   soreness: z.number().int().min(1).max(4).optional(),
   fatigue: z.number().int().min(1).max(4).optional(),
@@ -756,6 +756,14 @@ export async function scheduleWorkout(w: WorkoutEntry, date: string) {
 }
 
 /** Replaces an activity's description on intervals.icu. */
+/** How the activity felt, 1 strong … 5 weak; null clears it. */
+export async function setActivityFeel(id: string, feel: number | null) {
+  await icu(`/activity/${idSchema.parse(id)}`, {
+    method: "PUT",
+    body: JSON.stringify({ feel: feel == null ? 0 : z.number().int().min(1).max(5).parse(feel) }),
+  });
+}
+
 export async function setActivityDescription(id: string, description: string) {
   await icu(`/activity/${idSchema.parse(id)}`, {
     method: "PUT",

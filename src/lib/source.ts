@@ -29,6 +29,7 @@ type Source = Pick<
   | "createRace"
   | "updateRace"
   | "setActivityDescription"
+  | "setActivityFeel"
   | "getThresholds"
   | "saveThresholds"
   | "getWorkouts"
@@ -73,6 +74,7 @@ export const deleteEvent = via("deleteEvent");
 export const createRace = via("createRace");
 export const updateRace = via("updateRace");
 export const setActivityDescription = via("setActivityDescription");
+export const setActivityFeel = via("setActivityFeel");
 export const getThresholds = via("getThresholds");
 export const saveThresholds = via("saveThresholds");
 export const getWorkouts = via("getWorkouts");

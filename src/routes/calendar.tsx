@@ -10,7 +10,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ActivityRow } from "@/components/ActivityRow";
 import { CheckInForm } from "@/components/CheckIn";
@@ -38,12 +38,16 @@ export const Route = createFileRoute("/calendar")({
   head: () => ({ meta: [{ title: t("Calendar — Cirmolo", "Calendario — Cirmolo") }] }),
   validateSearch: (
     s: Record<string, unknown>,
-  ): { month?: string | undefined; week?: string | undefined } => ({
+  ): { month?: string | undefined; week?: string | undefined; plan?: string | undefined } => ({
     month:
       typeof s["month"] === "string" && /^\d{4}-\d{2}$/.test(s["month"]) ? s["month"] : undefined,
     week:
       typeof s["week"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s["week"])
         ? s["week"]
+        : undefined,
+    plan:
+      typeof s["plan"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s["plan"])
+        ? s["plan"]
         : undefined,
   }),
   component: CalendarPage,
@@ -101,7 +105,8 @@ function loadStyle(load: number, edge: "top" | "left"): React.CSSProperties | un
 type View = "week" | "month";
 
 function CalendarPage() {
-  const { month, week } = Route.useSearch();
+  const { month, week, plan } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const today = isoDate(new Date());
   const anchor = useMemo(
     () => (month ? parseISO(`${month}-01`) : startOfMonth(parseISO(week ?? today))),
@@ -161,6 +166,10 @@ function CalendarPage() {
 
   const monthKey = (offset: number) => format(addMonths(anchor, offset), "yyyy-MM");
   const selected = weeks.flatMap((w) => w.days).find((d) => d.date === open);
+  // "plan tomorrow" from the bar: that day, on its plan page.
+  useEffect(() => {
+    if (plan) setOpen(plan);
+  }, [plan]);
 
   return (
     <div className="space-y-4">
@@ -338,10 +347,16 @@ function CalendarPage() {
 
       <ResponsiveDialog
         open={!!selected}
-        onOpenChange={(o) => !o && setOpen(null)}
+        onOpenChange={(o) => {
+          if (o) return;
+          setOpen(null);
+          if (plan) void navigate({ search: (s) => ({ ...s, plan: undefined }), replace: true });
+        }}
         title={selected ? format(parseISO(selected.date), "EEEE d MMMM") : ""}
       >
-        {selected && <DayDetail d={selected} />}
+        {selected && (
+          <DayDetail key={selected.date} d={selected} startOnPlan={selected.date === plan} />
+        )}
       </ResponsiveDialog>
       <ResponsiveDialog
         open={logging}
@@ -543,8 +558,10 @@ function WeekSummary({ totals }: { totals: WeekRow | undefined }) {
   );
 }
 
-function DayDetail({ d }: { d: DayData }) {
-  const [tab, setTab] = useState<"day" | "wellness" | "log" | "race" | "plan">("day");
+function DayDetail({ d, startOnPlan = false }: { d: DayData; startOnPlan?: boolean }) {
+  const [tab, setTab] = useState<"day" | "wellness" | "log" | "race" | "plan">(
+    startOnPlan ? "plan" : "day",
+  );
   const [editing, setEditing] = useState<Race | undefined>();
   return (
     <div className="space-y-4">

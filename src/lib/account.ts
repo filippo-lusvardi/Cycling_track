@@ -18,6 +18,7 @@ import {
   CHECK_IN,
   GARDEN,
   GARDEN_CROPS,
+  LAYOUTS,
   ZONE_TOPS,
   RUN_THRESHOLD,
   SEGMENT_HISTORY,
@@ -71,6 +72,7 @@ async function pullProfile() {
   const checkIn = readSetting<boolean>(CHECK_IN);
   const garden = readSetting<boolean>(GARDEN);
   const crops = readSetting<object>(GARDEN_CROPS);
+  const layouts = readSetting<object>(LAYOUTS);
   if (p.intervalsKey) writeSetting(API_KEY, p.intervalsKey);
   if (p.segmentHistory != null) writeSetting(SEGMENT_HISTORY, p.segmentHistory);
   if (p.source) writeSetting(SOURCE, p.source);
@@ -79,6 +81,7 @@ async function pullProfile() {
   if (p.checkIn != null) writeSetting(CHECK_IN, p.checkIn);
   if (p.garden != null) writeSetting(GARDEN, p.garden);
   if (p.gardenCrops) writeSetting(GARDEN_CROPS, JSON.parse(p.gardenCrops) as object);
+  if (p.layouts) writeSetting(LAYOUTS, JSON.parse(p.layouts) as object);
   writeSetting(RUN_THRESHOLD, p.runThreshold ?? null);
   writeSetting(ZONE_TOPS, p.zoneTops ?? null);
   const up = {
@@ -89,6 +92,7 @@ async function pullProfile() {
     ...(p.checkIn == null && checkIn != null ? { checkIn } : {}),
     ...(p.garden == null && garden != null ? { garden } : {}),
     ...(!p.gardenCrops && crops ? { gardenCrops: JSON.stringify(crops) } : {}),
+    ...(!p.layouts && layouts ? { layouts: JSON.stringify(layouts) } : {}),
   };
   if (Object.keys(up).length) await saveProfile(up);
   // Wording and pages are fixed for the page's lifetime, so another sport from the account means starting over.
