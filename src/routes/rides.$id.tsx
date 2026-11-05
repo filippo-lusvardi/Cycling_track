@@ -59,7 +59,6 @@ import { activityKind, KINDS } from "@/lib/activity-kind";
 import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/rides/$id")({
-  head: () => ({ meta: [{ title: t("Activity — Cirmolo", "Attività — Cirmolo") }] }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(activityQuery(params.id)),
   component: RideDetail,
 });
@@ -222,8 +221,8 @@ function RideDetail() {
                   ? t("Pa:HR steady (< 5%)", "Pa:HR stabile (< 5%)")
                   : t("Pw:HR steady (< 5%)", "Pw:HR stabile (< 5%)")
                 : isRun
-                  ? t("HR drifted vs pace", "FC in deriva rispetto al passo")
-                  : t("HR drifted vs power", "FC in deriva rispetto alla potenza")
+                  ? t("High decoupling vs pace", "Decoupling alto rispetto al passo")
+                  : t("High decoupling vs power", "Decoupling alto rispetto alla potenza")
               : undefined
           }
         />
@@ -534,7 +533,7 @@ function Brioches({ a }: { a: ActivityDetail }) {
       await qc.invalidateQueries({ queryKey: ["activities"] });
     } catch {
       setCount(prev);
-      toast.error(t("Couldn't save to intervals.icu", "Impossibile salvare su intervals.icu"));
+      toast.error(t("Couldn't save", "Impossibile salvare"));
     } finally {
       setBusy(false);
     }
@@ -575,8 +574,8 @@ function Brioches({ a }: { a: ActivityDetail }) {
           </div>
           <p className="text-center text-sm text-muted-foreground">
             {t(
-              "Each brioche perches as a bird on this activity's branch. Saved in its description on intervals.icu.",
-              "Ogni brioche si posa come un uccellino sul ramo di questa attività. Salvata nella sua descrizione su intervals.icu.",
+              "Each brioche perches as a bird on this activity's branch.",
+              "Ogni brioche si posa come un uccellino sul ramo di questa attività.",
             )}
           </p>
         </div>
@@ -1193,7 +1192,7 @@ function Climbs({
                       </span>
                       {rank === 1 && of > 1 ? (
                         <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                          <Trophy className="h-3 w-3" /> PR
+                          <Trophy className="h-3 w-3" /> {t("PR", "Record")}
                         </span>
                       ) : (
                         <span className="block text-xs text-muted-foreground">
@@ -1248,7 +1247,7 @@ function Climbs({
                       <td className="text-right">
                         {rank === 1 && of > 1 ? (
                           <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                            <Trophy className="h-3 w-3" /> PR
+                            <Trophy className="h-3 w-3" /> {t("PR", "Record")}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">

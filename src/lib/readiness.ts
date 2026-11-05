@@ -456,9 +456,15 @@ export function recommendation(
       duration: "60–90 min",
       minutes: 90,
       intensity: 0.8,
-      text: t(
-        "You feel good, but you carry a lot of load: tempo or sweet spot, no all-out efforts.",
-        "Ti senti bene, ma hai molto carico: tempo o sweet spot, niente sforzi massimali.",
+      text: byMain(
+        t(
+          "You feel good, but you carry a lot of load: tempo or sweet spot, no all-out efforts.",
+          "Ti senti bene, ma hai molto carico: tempo o sweet spot, niente sforzi massimali.",
+        ),
+        t(
+          "You feel good, but you carry a lot of load: steady tempo, no all-out efforts.",
+          "Ti senti bene, ma hai molto carico: passo medio, niente sforzi massimali.",
+        ),
       ),
     };
   if (score >= 55)

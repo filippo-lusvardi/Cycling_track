@@ -4,7 +4,6 @@ import { parseISO } from "date-fns";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { OpenScene, switchFit } from "@/components/forest/ForestScene";
 import { GardenScene } from "@/components/garden/GardenScene";
-import { GardenSwitch, type GardenView } from "@/components/garden/GardenSwitch";
 import { Pantry } from "@/components/garden/Pantry";
 import { usePinch } from "@/components/tree/TreeBody";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
@@ -29,7 +28,7 @@ import { useLocalStore } from "@/hooks/use-local-store";
 import { format, t } from "@/lib/i18n";
 import { rememberTree } from "@/lib/accent";
 import { treeGrowth } from "@/lib/forest/age";
-import { myTreeHeader } from "@/lib/home";
+import { myTreeHeader } from "@/lib/my-tree";
 import { recordSinceLoad } from "@/lib/perf";
 import { resetSky, setSky } from "@/lib/sky-store";
 import type { Activity } from "@/lib/intervals";
@@ -45,7 +44,6 @@ export const Route = createFileRoute("/garden")({
   beforeLoad: () => {
     if (!gardenOn()) throw redirect({ to: "/" });
   },
-  head: () => ({ meta: [{ title: t("Garden — Cirmolo", "Orto — Cirmolo") }] }),
   // ?zoom=pantry opens the pantry; otherwise the garden.
   validateSearch: (s: Record<string, unknown>): { zoom?: "pantry" } =>
     s["zoom"] === "pantry" ? { zoom: "pantry" } : {},
@@ -86,7 +84,7 @@ function GardenPage() {
   const [bed, setBed] = useState<Sport | null>(null);
   const [jar, setJar] = useState<Jar | null>(null);
   const zoom = Route.useSearch().zoom;
-  const [view, setView] = useState<GardenView>(zoom ?? "garden");
+  const [view, setView] = useState<"garden" | "pantry">(zoom ?? "garden");
   useEffect(() => setView(zoom ?? "garden"), [zoom]);
   // The pantry is indoors: over its strip of sky, with the title on it, no clouds and no rain.
   useEffect(() => {
@@ -174,7 +172,6 @@ function GardenPage() {
           </>
         )}
       </div>
-      <GardenSwitch active={view} onView={setView} />
       <BedSheet garden={garden} sport={bed} onClose={() => setBed(null)} />
       <JarSheet jar={jar} acts={acts} map={map} onClose={() => setJar(null)} />
     </div>

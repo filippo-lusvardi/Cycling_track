@@ -168,7 +168,7 @@ export function baseGate(
       reasons.push(
         isRun
           ? t(
-              `Aerobic drift on easy runs is ${avg.toFixed(1)}% (over 5%).`,
+              `Decoupling on easy runs is ${avg.toFixed(1)}% (over 5%).`,
               `Il decoupling nelle corse lente è ${avg.toFixed(1)}% (oltre il 5%).`,
             )
           : t(
@@ -547,15 +547,10 @@ export function focusWhy(
           `What your ${n === 1 ? "next race needs" : `${n} races in the next 20 weeks need`}, the nearest and the A races counting most.`,
           `Ciò che ${n === 1 ? "serve alla prossima gara" : `serve alle ${n} gare delle prossime 20 settimane`}, con più peso alle più vicine e alle A.`,
         )
-      : isRun
-        ? t(
-            "No races ahead: training the complete runner.",
-            "Nessuna gara in programma: alleni il runner completo.",
-          )
-        : t(
-            "No races ahead: training the complete cyclist.",
-            "Nessuna gara in programma: alleni il ciclista completo.",
-          ),
+      : t(
+          "No races ahead: training all-round.",
+          "Nessuna gara in programma: ti alleni a tutto tondo.",
+        ),
   );
   const pct = Math.round(r.ratio[r.focus] * 100);
   if (pct < 100)

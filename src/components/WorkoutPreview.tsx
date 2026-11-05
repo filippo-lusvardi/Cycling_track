@@ -1,5 +1,7 @@
 // A planned workout as blocks, like the intervals.icu calendar: width = duration, height = intensity, colour = zone.
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { t } from "@/lib/i18n";
 import { rideZonesQuery } from "@/lib/queries";
 import { hasSource } from "@/lib/source";
@@ -10,6 +12,7 @@ import {
   estimateLoad,
   hasBlocks,
   parseWorkout,
+  stepWatts,
   type ParsedWorkout,
   type Thresholds,
   type WorkoutBlock,
@@ -24,13 +27,6 @@ export function useThresholds(): Thresholds {
 /** The sport a workout is drawn for: a run against threshold pace, anything else against FTP. */
 export const workoutSport = (type: string | null | undefined): MainSport =>
   sportOfActivity({ type: type ?? null }) === "run" ? "run" : "ride";
-
-export function useParsedWorkout(
-  text: string | null | undefined,
-  type: string | null | undefined,
-): ParsedWorkout {
-  return parseWorkout(text, workoutSport(type), useThresholds());
-}
 
 /** The blocks, drawn. `compact` is a thin strip for lists and calendar days. */
 export function WorkoutBars({
@@ -89,6 +85,61 @@ export function WorkoutBars({
   );
 }
 
+/** A step's length down to the second: these are often shorter than a minute. */
+function stepTime(secs: number) {
+  const s = Math.round(secs);
+  if (s < 60) return `${s}s`;
+  return s % 60 ? `${Math.floor(s / 60)}m${s % 60}s` : formatDuration(s);
+}
+
+function Step({ step, ftp }: { step: WorkoutBlock; ftp: number }) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <span
+        className="h-2 w-2 shrink-0 rounded-sm"
+        style={{ background: step.zone ? `var(--z${step.zone})` : "var(--muted-foreground)" }}
+      />
+      <span className="text-muted-foreground">{stepTime(step.seconds)}</span>
+      {stepWatts(step, ftp)}
+    </span>
+  );
+}
+
+/** Every step's power from the FTP, folded away until asked for: repeats stay one row, as they were written. */
+function StepWatts({ workout, ftp }: { workout: ParsedWorkout; ftp: number }) {
+  return (
+    <Collapsible className="mt-1">
+      <CollapsibleTrigger className="group flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+        {t("Power for each step", "Potenza di ogni passo")}
+        <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="stat-num space-y-1 pb-1 text-xs">
+          {workout.sets.flatMap((set, i) =>
+            set.reps > 1 ? (
+              <li key={i} className="flex gap-2">
+                <span className="w-7 shrink-0 font-semibold">{set.reps}×</span>
+                <span className="flex flex-wrap gap-x-3 gap-y-1">
+                  {set.steps.map((step, j) => (
+                    <Step key={j} step={step} ftp={ftp} />
+                  ))}
+                </span>
+              </li>
+            ) : (
+              set.steps.map((step, j) => (
+                <li key={`${i}-${j}`} className="flex gap-2">
+                  <span className="w-7 shrink-0" />
+                  <Step step={step} ftp={ftp} />
+                </li>
+              ))
+            ),
+          )}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 /**
  * A workout's text as blocks, with its time and load; nothing when the text has no steps to draw, so the caller's plain
  * text is all there is.
@@ -104,7 +155,9 @@ export function WorkoutPreview({
   compact?: boolean;
   className?: string;
 }) {
-  const w = useParsedWorkout(text, type);
+  const th = useThresholds();
+  const sport = workoutSport(type);
+  const w = parseWorkout(text, sport, th);
   if (!hasBlocks(w)) return null;
   if (compact)
     return <WorkoutBars blocks={w.blocks} compact {...(className ? { className } : {})} />;
@@ -116,11 +169,14 @@ export function WorkoutPreview({
           {formatDuration(w.totalSeconds)} · {t("load", "carico")} ~{estimateLoad(w.blocks)}
         </span>
         <span>
-          {workoutSport(type) === "run"
+          {sport === "run"
             ? t("line: threshold pace", "linea: passo di soglia")
-            : t("line: FTP", "linea: FTP")}
+            : `${t("line: FTP", "linea: FTP")}${th.ftp ? ` ${th.ftp}W` : ""}`}
         </span>
       </div>
+      {sport === "ride" && th.ftp && w.blocks.some((b) => b.power) && (
+        <StepWatts workout={w} ftp={th.ftp} />
+      )}
     </div>
   );
 }

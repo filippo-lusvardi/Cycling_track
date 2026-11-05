@@ -21,7 +21,6 @@ export const Route = createFileRoute("/login")({
     typeof s["next"] === "string" && s["next"].startsWith("/") && !s["next"].startsWith("//")
       ? { next: s["next"] }
       : {},
-  head: () => ({ meta: [{ title: t("Sign in — Cirmolo", "Accedi — Cirmolo") }] }),
   component: LoginPage,
 });
 
@@ -136,7 +135,7 @@ function LoginPage() {
       </Panel>
       <p className="text-xs text-muted-foreground">
         {t(
-          "Your account keeps your intervals.icu key and saved segments, ready on every device. With intervals.icu, rides and wellness stay there.",
+          "Your account keeps your intervals.icu key and saved segments, ready on every device. With intervals.icu, activities and wellness stay there.",
           "L'account conserva la chiave intervals.icu e i segmenti salvati, pronti su ogni dispositivo. Con intervals.icu, attività e benessere restano lì.",
         )}{" "}
         {mode === "signup"

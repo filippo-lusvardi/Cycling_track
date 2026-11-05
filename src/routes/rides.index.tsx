@@ -26,26 +26,6 @@ function groupByMonth<T extends { start_date_local: string }>(acts: T[]): [strin
 }
 
 export const Route = createFileRoute("/rides/")({
-  head: () => ({
-    meta: [
-      { title: t("Activities — Cirmolo", "Attività — Cirmolo") },
-      {
-        name: "description",
-        content: t(
-          "All your rides and workouts synced from Garmin via intervals.icu.",
-          "Tutte le attività e gli allenamenti sincronizzati da Garmin tramite intervals.icu.",
-        ),
-      },
-      { property: "og:title", content: t("Activities — Cirmolo", "Attività — Cirmolo") },
-      {
-        property: "og:description",
-        content: t(
-          "Ride history with distance, power and training load.",
-          "Storico attività con distanza, potenza e carico di allenamento.",
-        ),
-      },
-    ],
-  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(allActivitiesQuery()),
   component: Rides,
 });

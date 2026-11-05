@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useId } from "react";
 import type { ForestClimb, ForestTime } from "@/lib/forest/leaderboard";
 import { t } from "@/lib/i18n";
 import { WildPines } from "@/components/forest/ForestScene";
@@ -6,7 +6,6 @@ import { useNow } from "@/hooks/use-now";
 import { daylight, lit } from "@/lib/daylight";
 import { ridgeAcross } from "@/lib/ridge";
 import { formatClock } from "@/lib/training";
-import { rng, seedOf } from "@/lib/tree";
 
 export type WorldClimb = { climb: ForestClimb; leader: (ForestTime & { name: string }) | null };
 

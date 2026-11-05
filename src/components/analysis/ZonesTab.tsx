@@ -54,7 +54,7 @@ function Zones({ title, rows, on }: { title: string; rows: ZoneRow[]; on?: numbe
         <p className="py-2 text-sm text-muted-foreground">
           {t("Not set yet.", "Non ancora impostate.")}{" "}
           <Link to="/settings" search={{ tab: "general" }} className="underline">
-            {t("Set them in Settings", "Impostale nelle Impostazioni")}
+            {t("Set them in Settings", "Vai alle Impostazioni")}
           </Link>
         </p>
       )}

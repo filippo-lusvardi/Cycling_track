@@ -35,11 +35,11 @@ export function OpenScene({ children }: { children: (w: number, fit: number) => 
   );
 }
 
-/** Screen px the phone's bottom bar covers. */
+/** Screen px the bar at the phone's foot covers. */
 const PHONE_BAR = 66;
 
 /**
- * A phone's scene runs down to the window's foot, behind the bottom bar, so no sky shows under its land: `fit` is then
+ * A phone's scene runs down to the window's foot, behind the bar at its foot, so no sky shows under its land: `fit` is then
  * that whole height and `clear` the room to keep free at the bottom, for the bar and `below` px of anything floating
  * over the land. A wide scene keeps OpenScene's `fit`.
  */
@@ -49,12 +49,12 @@ export function phoneFit(w: number, fit: number, below = 0) {
   return { fit: fit + OPEN_MARGIN * k, clear: (PHONE_BAR + below) * k };
 }
 
-/** On a phone or tablet the bottom bar and the Tree · Years · Forest switch float over the scene's end; on a desktop, only the switch. */
+/** On a phone or tablet the bar at the foot floats over the scene's end. */
 const barred = () => window.innerWidth < 1024;
 
 /**
- * For a scene under the floating switch: `fit` runs to the window's foot behind a bottom bar (the page must drop its
- * bottom padding), and `clear` is the room to keep free at the bottom for what floats over the land.
+ * For a full-window scene: `fit` runs to the window's foot behind the bar (the page must drop its bottom padding), and
+ * `clear` is the room to keep free at the bottom for what floats over the land.
  */
 export function switchFit(w: number, fit: number) {
   const k = w / Math.max(1, window.innerWidth);
@@ -149,10 +149,6 @@ export function ForestScene({
     const x = (i / steps) * W;
     return `L${x.toFixed(1)},${groundY(x).toFixed(1)}`;
   }).join(" ");
-  // Fitter trees stand taller: rank by the crown's fitness among the forest's members.
-  const ranked = [...trees].sort(
-    (a, b) => (a.header?.crown?.ctl ?? 0) - (b.header?.crown?.ctl ?? 0),
-  );
   const n = trees.length;
   const placed = trees.map((tr, i) => {
     const r = rng(seedOf(`${seed}${tr.uid}`));

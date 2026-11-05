@@ -4,7 +4,7 @@ import { parseISO } from "date-fns";
 import { useId, type CSSProperties, type ReactNode } from "react";
 import { Bird, BIRD_KINDS, Owl, OWL_BOX, Squirrel, SQUIRREL_BOX } from "./Critters";
 import { dayHeight, LANE, MONTH_H, REST_STEP, restHeight, WEEK_H } from "./geometry";
-import { KINDS, type Kind } from "@/lib/activity-kind";
+import { KINDS } from "@/lib/activity-kind";
 import type { OffKind } from "@/lib/intervals";
 import { FOCUS_LABEL, type Focus } from "@/lib/races";
 import { formatDuration } from "@/lib/training";
@@ -647,7 +647,7 @@ export function WeekRow({
     chapterStart && week.chapter !== "steady"
       ? week.chapter === "build"
         ? t("building", "carico")
-        : t("resting", "scarico")
+        : t("recovery", "scarico")
       : null,
   ];
   return (
@@ -686,7 +686,7 @@ export function WeekRow({
                   )
                 : week.off
                   ? offWord(week.off.days, week.off.kind)
-                  : t("rest week", "settimana di scarico")
+                  : t("recovery week", "settimana di scarico")
           }
         />
       </svg>

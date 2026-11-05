@@ -59,6 +59,3 @@ export function unpackTrack(p: PackedTrack): Required<TrackLike> {
     cad: orNull(p.cad),
   };
 }
-
-export const packedBytes = (p: PackedTrack) =>
-  [p.lat, p.lng, p.dist, p.time, p.alt, p.watts, p.hr, p.cad].reduce((s, a) => s + a.byteLength, 0);

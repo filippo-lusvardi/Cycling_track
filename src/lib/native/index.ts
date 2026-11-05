@@ -49,6 +49,8 @@ import {
   type WorkoutEntry,
   type PowerCurve,
   type RaceEntry,
+  freeRideSchema,
+  type FreeRide,
   type Range,
   type RideStreams,
   type RideZones,
@@ -667,12 +669,24 @@ export async function updateWorkout(id: string, w: WorkoutEntry) {
 
 export const deleteWorkout = (id: string) => deleteDoc(doc(col("workouts"), id));
 
-export async function scheduleWorkout(w: WorkoutEntry, date: string) {
+export async function scheduleWorkout(w: WorkoutEntry, date: string): Promise<string> {
   const { folder: _, ...v } = workoutDoc(w);
-  await addDoc(col("events"), event({ ...v, date: day.parse(date), category: "WORKOUT" }));
+  const made = await addDoc(
+    col("events"),
+    event({ ...v, date: day.parse(date), category: "WORKOUT" }),
+  );
+  return made.id;
 }
 
-/** Recompute every stored ride's numbers (after FTP or threshold heart rate changed in Settings). */
+export async function planFreeRide(r: FreeRide): Promise<string> {
+  const v = freeRideSchema.parse(r);
+  const made = await addDoc(
+    col("events"),
+    event({ date: v.date, category: "NOTE", type: v.type, name: v.name }),
+  );
+  return made.id;
+}
+
 /**
  * What a run's streams give. Runs stored before running was a main sport have none: their streams are read once (one
  * Firestore read) and the result stays with the run, along with a load if it had none.
@@ -704,6 +718,7 @@ export async function fillRunLoads(): Promise<void> {
   if (changed) runTh = null;
 }
 
+/** Recompute every stored ride's numbers (after FTP or threshold heart rate changed in Settings). */
 export async function recomputeRides(onProgress?: (done: number, total: number) => void) {
   const [th, runTh] = await Promise.all([thresholds(), runThresholds()]);
   const rides = (await allRides()).filter((a) => a.hasStreams);

@@ -3,7 +3,6 @@
 // It starts empty, and the first activity of a new sport gives that sport a bed with a vegetable picked at random
 // among those not in use (see growNewSports); the user can change it, or remove the sport. What a session bears (fruit per km, per minute, per metre climbed) belongs to its
 // sport. Older crops are harvested into the pantry: a jar per month. Like the tree, every mark means something. Pure.
-import { activityKind } from "./activity-kind";
 import { t } from "./i18n";
 import type { Activity } from "./intervals";
 import { isSport, sportOfActivity, type MainSport } from "./sport";
@@ -420,15 +419,6 @@ function usualSport(type: string): BuiltinSport {
   return "other";
 }
 
-/** The crop an activity grows as, with `map` (the defaults unless given); null for rides. */
-export function cropOf(
-  a: { type: string | null; trainer?: boolean; name?: string | null },
-  map: CropMap = DEFAULT_CROPS,
-) {
-  const sport = sportOf(a, map);
-  return sport ? cropFor(map, sport) : null;
-}
-
 /** "TableTennis" → "Table tennis". */
 const typeName = (type: string) => {
   const s = type.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
@@ -697,18 +687,4 @@ export function buildPantry(
     years.set(y, [...(years.get(y) ?? []), jar]);
   }
   return [...years.entries()].sort(([a], [b]) => b - a).map(([year, j]) => ({ year, jars: j }));
-}
-
-/** Training off the bike since Monday: for the Home's caption. */
-export function weekSummary(acts: Activity[], today: string) {
-  const [y, m, d] = today.split("-").map(Number);
-  const monday = addDays(today, -((new Date(y!, m! - 1, d!).getDay() + 6) % 7));
-  const week = acts.filter((a) => {
-    const date = a.start_date_local.slice(0, 10);
-    return sportOf(a) && date >= monday && date <= today;
-  });
-  return {
-    minutes: week.reduce((s, a) => s + (a.moving_time ?? 0) / 60, 0),
-    count: week.length,
-  };
 }

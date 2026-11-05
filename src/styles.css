@@ -39,19 +39,6 @@
   --color-pine: var(--pine);
   --color-birch: var(--birch);
   --color-lingon: var(--lingon);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 /* Nordic palette: deep fjord slate, frost cyan, pine, birch gold, lingonberry. */
@@ -108,19 +95,6 @@
   --z5: oklch(0.72 0.14 50);
   --z6: oklch(0.62 0.17 15);
   --z7: oklch(0.55 0.17 350);
-  --chart-1: var(--fitness);
-  --chart-2: var(--fatigue);
-  --chart-3: var(--form);
-  --chart-4: var(--weight);
-  --chart-5: var(--pine);
-  --sidebar: var(--card);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--foreground);
-  --sidebar-border: var(--border);
-  --sidebar-ring: var(--ring);
   --gradient-glow: radial-gradient(
     70% 50% at 50% 0%,
     color-mix(in oklab, var(--primary) 12%, transparent),

@@ -46,7 +46,6 @@ import {
   NO_PERF,
   QUIET_TREE,
   CHECK_IN,
-  CLASSIC_NAV,
   GARDEN,
   ANALYSIS_BOTH,
   SEASON_ACCENT,
@@ -63,14 +62,13 @@ import { formatPace, parsePace } from "@/lib/pace";
 import { GARDEN_GUIDE, SPROUTS, TREE_GUIDE, type GuideItem } from "@/lib/guides";
 import { UploadRides } from "@/components/UploadRides";
 import { cn } from "@/lib/utils";
-import { byMain, mainSport, type MainSport } from "@/lib/sport";
+import { mainSport, type MainSport } from "@/lib/sport";
 
 /** The page's categories. Language and main sport reload the page, so the open one lives in the URL. */
 const CATEGORIES = ["general", "garden", "data", "account"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: t("Settings — Cirmolo", "Impostazioni — Cirmolo") }] }),
   validateSearch: (s: Record<string, unknown>): { tab?: Category } =>
     CATEGORIES.includes(s["tab"] as Category) ? { tab: s["tab"] as Category } : {},
   component: SettingsPage,
@@ -96,7 +94,7 @@ function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <div className="eyebrow">{t("This device", "Questo dispositivo")}</div>
+        <div className="eyebrow">{t("Account & device", "Account e dispositivo")}</div>
         <h1 className="on-sky text-3xl font-bold tracking-tight">
           {t("Settings", "Impostazioni")}
         </h1>
@@ -116,7 +114,6 @@ function SettingsPage() {
         </TabsList>
         <TabsContent value="general" className={cn("mt-6", GRID)}>
           <Language />
-          <ClassicNav />
           <MainSportPanel />
           {(mainSport() === "run" || bothSports) && <RunningPanel />}
           {source === "native" && <Athlete />}
@@ -247,8 +244,8 @@ function WithoutIntervals() {
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           {t(
-            "Cirmolo can keep your rides itself. Upload .fit files from Garmin, Wahoo or Zwift and it works out fitness, fatigue, zones and power curves. Check-ins, weight, races and sick days are saved in your account.",
-            "Cirmolo può conservare le tue uscite: carica i file .fit da Garmin, Wahoo o Zwift e calcola fitness, fatica, zone e curve di potenza. Check-in, peso, gare e giorni di malattia restano nel tuo account.",
+            "Cirmolo can keep your activities itself. Upload .fit files from your device or training app and it works out fitness, fatigue, zones and curves. Check-ins, weight, races and sick days are saved in your account.",
+            "Cirmolo può conservare le tue attività: carica i file .fit dal tuo dispositivo o dalla tua app di allenamento e calcola fitness, fatica, zone e curve. Check-in, peso, gare e giorni di malattia restano nel tuo account.",
           )}
         </p>
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
@@ -260,8 +257,8 @@ function WithoutIntervals() {
           />
           <span>
             {t(
-              "I agree that Cirmolo stores my rides and health data (heart rate, HRV, sleep, weight) in my account to analyse my training, as described in the ",
-              "Acconsento alla conservazione nel mio account delle mie uscite e dei dati sulla salute (frequenza cardiaca, HRV, sonno, peso) per analizzare il mio allenamento, come descritto nell'",
+              "I agree that Cirmolo stores my activities and health data (heart rate, HRV, sleep, weight) in my account to analyse my training, as described in the ",
+              "Acconsento alla conservazione nel mio account delle mie attività e dei dati sulla salute (frequenza cardiaca, HRV, sonno, peso) per analizzare il mio allenamento, come descritto nell'",
             )}
             <Link to="/privacy" className="underline">
               {t("privacy notice", "informativa privacy")}
@@ -327,7 +324,7 @@ function Athlete() {
     await recomputeRides((done, total) => setProgress([done, total]));
     setProgress(null);
     await qc.invalidateQueries();
-    toast.success(t("Rides recalculated", "Uscite ricalcolate"));
+    toast.success(t("Activities recalculated", "Attività ricalcolate"));
   }
 
   const field = (k: keyof typeof form, label: string, unit: string, hint?: string) => (
@@ -363,8 +360,8 @@ function Athlete() {
         </div>
         <p className="text-xs text-muted-foreground">
           {t(
-            "FTP sets power zones and training load; leave it empty to use the estimate from your last 42 days. Threshold heart rate (or 90% of max) is used for rides without a power meter.",
-            "L'FTP definisce zone di potenza e carico; lascialo vuoto per usare la stima degli ultimi 42 giorni. La FC di soglia (o il 90% della massima) serve per le uscite senza misuratore di potenza.",
+            "FTP sets cycling power zones and training load; leave it empty to use the estimate from your last 42 days. Threshold heart rate (or 90% of max) is used for activities without a power meter.",
+            "L'FTP definisce zone di potenza in bici e carico; lascialo vuoto per usare la stima degli ultimi 42 giorni. La FC di soglia (o il 90% della massima) serve per le attività senza misuratore di potenza.",
           )}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -382,7 +379,7 @@ function Athlete() {
                   `Recalculating ${progress[0]}/${progress[1]}…`,
                   `Ricalcolo ${progress[0]}/${progress[1]}…`,
                 )
-              : t("Recalculate all rides", "Ricalcola tutte le uscite")}
+              : t("Recalculate all activities", "Ricalcola tutte le attività")}
           </Button>
         </div>
       </form>
@@ -392,7 +389,7 @@ function Athlete() {
 
 function RideFiles() {
   return (
-    <Panel title={t("Ride files", "File delle uscite")}>
+    <Panel title={t("Activity files", "File delle attività")}>
       <UploadRides />
     </Panel>
   );
@@ -464,8 +461,8 @@ function Account() {
         </div>
         <p className="text-xs text-muted-foreground">
           {t(
-            "Signing out removes your data from this device. It stays in your account and on intervals.icu.",
-            "Uscendo, i tuoi dati vengono rimossi da questo dispositivo. Restano nel tuo account e su intervals.icu.",
+            "Signing out removes your data from this device. It stays in your account, and on intervals.icu if you use it.",
+            "Uscendo, i tuoi dati vengono rimossi da questo dispositivo. Restano nel tuo account e, se lo usi, su intervals.icu.",
           )}{" "}
           <Link to="/privacy" className="underline hover:text-foreground">
             {t("Privacy notice", "Informativa privacy")}
@@ -525,33 +522,12 @@ function Account() {
           {confirmDelete && (
             <p className="text-xs text-muted-foreground">
               {t(
-                "Deletes your account and saved segments. Enter your current password above to confirm. Your intervals.icu data isn't touched.",
-                "Elimina l'account e i segmenti salvati. Inserisci la password attuale qui sopra per confermare. I dati su intervals.icu non vengono toccati.",
+                "Deletes your account and saved segments. Enter your current password above to confirm. Any data on intervals.icu isn't touched.",
+                "Elimina l'account e i segmenti salvati. Inserisci la password attuale qui sopra per confermare. Gli eventuali dati su intervals.icu non vengono toccati.",
               )}
             </p>
           )}
         </form>
-      </div>
-    </Panel>
-  );
-}
-
-/** Back to the bottom bar and its menu, on this device. */
-function ClassicNav() {
-  const [classic, setClassic] = useLocalStore(CLASSIC_NAV, false);
-  return (
-    <Panel title={t("Menu", "Menu")}>
-      <div className="flex items-start justify-between gap-4">
-        <Label htmlFor="classic-nav" className="block space-y-1">
-          <span className="block">{t("Classic menu", "Menu classico")}</span>
-          <span className="block text-sm font-normal text-muted-foreground">
-            {t(
-              "The bottom bar with its pages, instead of asking the tree.",
-              "La barra in basso con le sue pagine, invece di chiedere all'albero.",
-            )}
-          </span>
-        </Label>
-        <Switch id="classic-nav" checked={classic} onCheckedChange={(v) => setClassic(() => v)} />
       </div>
     </Panel>
   );
@@ -838,8 +814,8 @@ function QuietTree() {
           <span className="block">{t("Morning check-in", "Check-in mattutino")}</span>
           <span className="block text-sm font-normal text-muted-foreground">
             {t(
-              "Asks how you slept and how you feel each morning. Off: it's no longer asked, and the crown comes only from your HRV, sleep and form. Your past answers stay saved, but don't count.",
-              "Chiede ogni mattina come hai dormito e come ti senti. Disattivato: non viene più chiesto, e la chioma dipende solo da HRV, sonno e forma. Le risposte passate restano salvate, ma non contano.",
+              "Asks how you slept and how you feel each morning. Off: it's no longer asked, and the crown comes from your HRV, sleep, form and how your activities felt. Your past answers stay saved, but don't count.",
+              "Chiede ogni mattina come hai dormito e come ti senti. Disattivato: non viene più chiesto, e la chioma dipende da HRV, sonno, forma e da come sono andate le attività. Le risposte passate restano salvate, ma non contano.",
             )}
           </span>
         </Label>
@@ -975,8 +951,8 @@ function TreeGuide() {
     <Guide
       title={t("How to read the tree", "Come leggere l'albero")}
       intro={t(
-        `The Tree page grows from your ${byMain("rides", "runs")}: the top is today, going down is going back in time. Tap any part to see its details.`,
-        `La pagina Albero cresce con ${byMain("le tue uscite in bici", "le tue corse")}: in alto c'è oggi, scendendo si torna indietro nel tempo. Tocca qualsiasi parte per vederne i dettagli.`,
+        "The Tree page grows from your main sport: the top is today, going down is going back in time. Tap any part to see its details.",
+        "La pagina Albero cresce con il tuo sport principale: in alto c'è oggi, scendendo si torna indietro nel tempo. Tocca qualsiasi parte per vederne i dettagli.",
       )}
       items={garden ? TREE_GUIDE : TREE_GUIDE.filter((i) => i !== SPROUTS)}
     >
@@ -1026,7 +1002,7 @@ function ReadinessCheck() {
         : acc.r >= 0.2
           ? t("moderate: a useful guide", "moderata: una guida utile")
           : acc.r >= 0
-            ? t("weak: listen to your legs too", "debole: ascolta anche le gambe")
+            ? t("weak: treat it as a rough hint", "debole: prendila come un'indicazione di massima")
             : t(
                 "not matching: check HRV and sleep data",
                 "non corrisponde: controlla i dati di HRV e sonno",
@@ -1034,17 +1010,17 @@ function ReadinessCheck() {
   return (
     <div className="mt-4 rounded-lg bg-secondary/60 p-3 text-sm">
       <div className="font-medium">
-        {t("Is readiness right for you?", "La readiness funziona per te?")}
+        {t("Is readiness right for you?", "La readiness è affidabile per te?")}
       </div>
       <p className="mt-1 text-muted-foreground">
         {acc.r == null
           ? t(
-              `Rate how your rides felt on intervals.icu: after ${ACCURACY_MIN_RIDES} rated rides (${acc.rides} so far) this compares them with that morning's readiness.`,
-              `Valuta come sono andate le uscite su intervals.icu: dopo ${ACCURACY_MIN_RIDES} uscite valutate (finora ${acc.rides}) qui si confrontano con la readiness di quella mattina.`,
+              `Rate how your activities felt, on their own pages: after ${ACCURACY_MIN_RIDES} rated activities (${acc.rides} so far) this compares them with that morning's readiness.`,
+              `Valuta come sono andate le attività, nella loro pagina: dopo ${ACCURACY_MIN_RIDES} attività valutate (finora ${acc.rides}) qui si confrontano con la readiness di quella mattina.`,
             )
           : t(
-              `Over ${acc.rides} rated rides in the last ${CHECK_DAYS} days, readiness and how the ride felt match with a correlation of ${acc.r.toFixed(2)}: ${verdict}.`,
-              `Su ${acc.rides} uscite valutate negli ultimi ${CHECK_DAYS} giorni, readiness e sensazioni dell'uscita corrispondono con una correlazione di ${acc.r.toFixed(2)}: ${verdict}.`,
+              `Over ${acc.rides} rated activities in the last ${CHECK_DAYS} days, readiness and how they felt match with a correlation of ${acc.r.toFixed(2)}: ${verdict}.`,
+              `Su ${acc.rides} attività valutate negli ultimi ${CHECK_DAYS} giorni, readiness e sensazioni corrispondono con una correlazione di ${acc.r.toFixed(2)}: ${verdict}.`,
             )}
       </p>
     </div>
@@ -1076,8 +1052,8 @@ function SegmentAnalysis() {
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           {t(
-            "Each outdoor ride and run is downloaded once and analysed on this device; after that only new ones are. More history finds more recurring climbs but takes longer the first time (and uses mobile data on the phone).",
-            "Ogni uscita e corsa all'aperto viene scaricata una volta e analizzata su questo dispositivo; poi solo le nuove. Più storico trova più salite ricorrenti ma la prima volta richiede più tempo (e usa dati mobili sul telefono).",
+            "Each outdoor activity is downloaded once and analysed on this device; after that only new ones are. More history finds more recurring climbs but takes longer the first time (and uses mobile data on the phone).",
+            "Ogni attività all'aperto viene scaricata una volta e analizzata su questo dispositivo; poi solo le nuove. Più storico trova più salite ricorrenti ma la prima volta richiede più tempo (e usa dati mobili sul telefono).",
           )}
         </p>
         <div className="space-y-1">

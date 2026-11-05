@@ -7,6 +7,7 @@ import type { OffKind } from "./intervals";
 import {
   createOffEvent,
   deleteEvent,
+  planFreeRide,
   getActivity,
   getOffEvents,
   getWellness,
@@ -55,6 +56,17 @@ export async function runWrite(a: WriteAction, qc: QueryClient): Promise<WriteRe
       queued: false,
       undo: async () => {
         await toggleOff(a.off, a.today);
+        await qc.invalidateQueries({ queryKey: ["events"] });
+      },
+    };
+  }
+  if (a.kind === "ride") {
+    const id = await planFreeRide({ name: a.name, type: a.type, date: a.date });
+    await qc.invalidateQueries({ queryKey: ["events"] });
+    return {
+      queued: false,
+      undo: async () => {
+        await deleteEvent(id);
         await qc.invalidateQueries({ queryKey: ["events"] });
       },
     };

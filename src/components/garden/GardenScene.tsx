@@ -872,7 +872,6 @@ export function GardenScene({
         d={d}
         w={W}
         h={H}
-        horizon={SKY + 4}
         from={SKY}
         weather={sky.weather}
         phase={sky.weatherPhase}

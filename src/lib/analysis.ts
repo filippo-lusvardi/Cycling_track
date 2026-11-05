@@ -9,23 +9,12 @@ export function mondayOf(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Foster monotony: mean daily load / SD of daily load across a 7-day week (rest days count as 0). */
-export function monotony(dailyLoads: number[]): number | null {
-  const days = [...dailyLoads, ...Array(Math.max(0, 7 - dailyLoads.length)).fill(0)].slice(0, 7);
-  const m = days.reduce((s, v) => s + v, 0) / 7;
-  const sd = Math.sqrt(days.reduce((s, v) => s + (v - m) ** 2, 0) / 7);
-  if (sd === 0) return null;
-  return m / sd;
-}
-
 export type WeekRow = {
   week: string;
   hours: number;
   km: number;
   elevation: number;
   load: number;
-  monotony: number | null;
-  strain: number | null;
 };
 
 type ActLike = {
@@ -37,36 +26,20 @@ type ActLike = {
 };
 
 export function weeklyTotals(acts: ActLike[]): WeekRow[] {
-  const map = new Map<
-    string,
-    { hours: number; km: number; elevation: number; load: number; daily: number[] }
-  >();
+  const map = new Map<string, { hours: number; km: number; elevation: number; load: number }>();
   for (const a of acts) {
     if (!a.start_date_local) continue;
     const wk = mondayOf(a.start_date_local);
-    const row = map.get(wk) ?? { hours: 0, km: 0, elevation: 0, load: 0, daily: Array(7).fill(0) };
-    const dow = (new Date(a.start_date_local.slice(0, 10) + "T00:00:00Z").getUTCDay() + 6) % 7;
+    const row = map.get(wk) ?? { hours: 0, km: 0, elevation: 0, load: 0 };
     row.hours += (a.moving_time ?? 0) / 3600;
     row.km += (a.distance ?? 0) / 1000;
     row.elevation += a.total_elevation_gain ?? 0;
     row.load += a.icu_training_load ?? 0;
-    row.daily[dow] += a.icu_training_load ?? 0;
     map.set(wk, row);
   }
   return [...map.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([week, r]) => {
-      const mono = monotony(r.daily);
-      return {
-        week,
-        hours: r.hours,
-        km: r.km,
-        elevation: r.elevation,
-        load: r.load,
-        monotony: mono,
-        strain: mono != null ? r.load * mono : null,
-      };
-    });
+    .map(([week, r]) => ({ week, hours: r.hours, km: r.km, elevation: r.elevation, load: r.load }));
 }
 
 /** Seiler 3-zone split from 7 power zones: Z1–Z2 low, Z3 moderate, Z4+ high. Returns fractions. */

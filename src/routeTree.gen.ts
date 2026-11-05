@@ -11,14 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalysisRouteImport } from './routes/analysis'
-import { Route as BodyRouteImport } from './routes/body'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as GardenRouteImport } from './routes/garden'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecapRouteImport } from './routes/recap'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as TreeRouteImport } from './routes/tree'
+import { Route as SuggestRouteImport } from './routes/suggest'
 import { Route as WorkoutsRouteImport } from './routes/workouts'
 import { Route as ForestIndexRouteImport } from './routes/forest.index'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
@@ -39,11 +38,6 @@ const IndexRoute = IndexRouteImport.update({
 const AnalysisRoute = AnalysisRouteImport.update({
   id: '/analysis',
   path: '/analysis',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BodyRoute = BodyRouteImport.update({
-  id: '/body',
-  path: '/body',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarRoute = CalendarRouteImport.update({
@@ -76,9 +70,9 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TreeRoute = TreeRouteImport.update({
-  id: '/tree',
-  path: '/tree',
+const SuggestRoute = SuggestRouteImport.update({
+  id: '/suggest',
+  path: '/suggest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WorkoutsRoute = WorkoutsRouteImport.update({
@@ -140,14 +134,13 @@ const ForestFidUidRideRidRoute = ForestFidUidRideRidRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRoute
-  '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
   '/settings': typeof SettingsRoute
-  '/tree': typeof TreeRoute
+  '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
@@ -163,14 +156,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRoute
-  '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
   '/settings': typeof SettingsRoute
-  '/tree': typeof TreeRoute
+  '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
@@ -187,14 +179,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRoute
-  '/body': typeof BodyRoute
   '/calendar': typeof CalendarRoute
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
   '/settings': typeof SettingsRoute
-  '/tree': typeof TreeRoute
+  '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
   '/rides/$id': typeof RidesIdRoute
   '/segments/$id': typeof SegmentsIdRoute
@@ -212,14 +203,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/analysis'
-    | '/body'
     | '/calendar'
     | '/garden'
     | '/login'
     | '/privacy'
     | '/recap'
     | '/settings'
-    | '/tree'
+    | '/suggest'
     | '/workouts'
     | '/rides/$id'
     | '/segments/$id'
@@ -235,14 +225,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/analysis'
-    | '/body'
     | '/calendar'
     | '/garden'
     | '/login'
     | '/privacy'
     | '/recap'
     | '/settings'
-    | '/tree'
+    | '/suggest'
     | '/workouts'
     | '/rides/$id'
     | '/segments/$id'
@@ -258,14 +247,13 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/analysis'
-    | '/body'
     | '/calendar'
     | '/garden'
     | '/login'
     | '/privacy'
     | '/recap'
     | '/settings'
-    | '/tree'
+    | '/suggest'
     | '/workouts'
     | '/rides/$id'
     | '/segments/$id'
@@ -282,14 +270,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalysisRoute: typeof AnalysisRoute
-  BodyRoute: typeof BodyRoute
   CalendarRoute: typeof CalendarRoute
   GardenRoute: typeof GardenRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   RecapRoute: typeof RecapRoute
   SettingsRoute: typeof SettingsRoute
-  TreeRoute: typeof TreeRoute
+  SuggestRoute: typeof SuggestRoute
   WorkoutsRoute: typeof WorkoutsRoute
   RidesIdRoute: typeof RidesIdRoute
   SegmentsIdRoute: typeof SegmentsIdRoute
@@ -317,13 +304,6 @@ declare module '@tanstack/react-router' {
       path: '/analysis'
       fullPath: '/analysis'
       preLoaderRoute: typeof AnalysisRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/body': {
-      id: '/body'
-      path: '/body'
-      fullPath: '/body'
-      preLoaderRoute: typeof BodyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar': {
@@ -368,11 +348,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tree': {
-      id: '/tree'
-      path: '/tree'
-      fullPath: '/tree'
-      preLoaderRoute: typeof TreeRouteImport
+    '/suggest': {
+      id: '/suggest'
+      path: '/suggest'
+      fullPath: '/suggest'
+      preLoaderRoute: typeof SuggestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/workouts': {
@@ -458,14 +438,13 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalysisRoute: AnalysisRoute,
-  BodyRoute: BodyRoute,
   CalendarRoute: CalendarRoute,
   GardenRoute: GardenRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   RecapRoute: RecapRoute,
   SettingsRoute: SettingsRoute,
-  TreeRoute: TreeRoute,
+  SuggestRoute: SuggestRoute,
   WorkoutsRoute: WorkoutsRoute,
   RidesIdRoute: RidesIdRoute,
   SegmentsIdRoute: SegmentsIdRoute,

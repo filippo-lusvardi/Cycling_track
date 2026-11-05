@@ -11,6 +11,7 @@ import {
   whenEntries,
   type AskData,
   type Moment,
+  type Entry,
 } from "./ask";
 
 // These cases are written in Italian; the language is fixed when the module loads.
@@ -30,19 +31,19 @@ const data: AskData = {
   today,
   garden: true,
   acts: [
-    ride("a", "Passo Manghen"),
-    ride("b", "Passo Manghen", "2026-10-01"),
-    ride("c", "Valsugana"),
+    ride("a", "Passo Verdana"),
+    ride("b", "Passo Verdana", "2026-10-01"),
+    ride("c", "Valverde"),
   ],
   climbs: [
-    { id: "s", name: "Salita del Manghen", length: 21000, gain: 1400, rides: 4, saved: true },
-    { id: "d", name: "Monte-Bondone da Trento", length: 19800, gain: 1320, rides: 6, saved: false },
+    { id: "s", name: "Salita del Verdana", length: 21000, gain: 1400, rides: 4, saved: true },
+    { id: "d", name: "Monte-Rosso da Borgo", length: 19800, gain: 1320, rides: 6, saved: false },
   ],
-  forests: [{ id: "f1", name: "FantaBosco", trees: 4 }],
+  forests: [{ id: "f1", name: "Faggeta", trees: 4 }],
   races: [
     {
       id: "r",
-      name: "Marcialonga",
+      name: "Marcia Alta",
       date: "2027-01-31",
       category: "RACE_B",
     } as unknown as PlannedEvent,
@@ -187,18 +188,32 @@ const moment: Moment = {
 };
 
 describe("alternatives", () => {
+  it("counts the same row once, however it was reached", () => {
+    const dest = {
+      kind: "route",
+      to: "/suggest",
+      search: { date: "2026-11-05", id: "x" },
+    } as const;
+    const twice: Entry[] = [
+      { id: "a", q: "Fondo", page: "workouts", kind: "plan", exact: true, dest },
+      { id: "b", q: "Fondo", page: "workouts", kind: "plan", dest },
+      { id: "c", q: "Fondo", page: "ride", kind: "ride", dest: { kind: "stay" } },
+    ];
+    expect(alternatives("fondo", null, twice).map((e) => e.id)).toEqual(["a", "c"]);
+  });
+
   it("offers at most three", () => {
     expect(alternatives("s", "summer", entries).length).toBeLessThanOrEqual(3);
   });
 
   it("lets the season decide on a single letter", () => {
-    expect(ids("s", "summer")[0]).toBe("improving");
-    expect(ids("s", "winter")).not.toContain("improving");
+    expect(ids("s", "summer")[0]).toBe("climbs");
+    expect(ids("s", "winter")).not.toContain("climbs");
     expect(ids("s", "winter")).toContain("sleep");
   });
 
   it("finds the same word whatever the season once it's typed in full", () => {
-    expect(ids("migliorando", "winter")[0]).toBe("improving");
+    expect(ids("analisi", "winter")[0]).toBe("analysis");
     expect(ids("salite", "winter")[0]).toBe("climbs");
   });
 
@@ -222,13 +237,13 @@ describe("alternatives", () => {
   });
 
   it("forgives one slip and ignores accents", () => {
-    expect(ids("miglorando")[0]).toBe("improving");
+    expect(ids("miglorando")[0]).toBe("analysis");
     expect(norm("Attività")).toBe("attivita");
     expect(ids("attivita")).toContain("activities");
   });
 
   it("finds the person's own rides, climbs and races, each name once", () => {
-    const man = ids("man");
+    const man = ids("verd");
     expect(man).toContain("ride-a");
     expect(man).toContain("segment-s");
     expect(man).not.toContain("ride-b");
@@ -246,26 +261,26 @@ describe("alternatives", () => {
   });
 
   it("finds a climb by a word after punctuation", () => {
-    expect(ids("bondone")).toContain("segment-d");
-    expect(ids("manghen")).toContain("segment-s");
+    expect(ids("rosso")).toContain("segment-d");
+    expect(ids("verdana")).toContain("segment-s");
   });
 
   it("enters a forest by its name, never by a guess", () => {
-    const [f] = alternatives("fantabosco", null, entries);
+    const [f] = alternatives("faggeta", null, entries);
     expect(f!.dest).toEqual({ kind: "route", to: "/forest/$fid", params: { fid: "f1" } });
-    expect(alternatives("fan", null, entries)[0]!.id).toBe("forest-f1");
+    expect(alternatives("fag", null, entries)[0]!.id).toBe("forest-f1");
     expect(ids("fa")).not.toContain("forest-f1");
     expect(ids("f")).not.toContain("forest-f1");
     expect(nowEntries(moment, entries).map((e) => e.id)).not.toContain("forest-f1");
   });
 
   it("takes a question in the other language too", () => {
-    expect(ids("improving")[0]).toBe("improving");
+    expect(ids("analysis")[0]).toBe("analysis");
     expect(ids("sleeping")[0]).toBe("sleep");
   });
 
   it("completes only what starts with what's typed", () => {
-    expect(alternatives("sto", "summer", entries)[0]!.ghost).toBe(" migliorando?");
+    expect(alternatives("come sto", "summer", entries)[0]!.ghost).toBe(" oggi?");
     expect(alternatives("gufo", "summer", entries)[0]!.ghost).toBe("");
     expect(alternatives("sonno", "summer", entries)[0]!.ghost).toBeNull();
   });
@@ -286,20 +301,31 @@ describe("the moment", () => {
 
   it("asks for the check-in first", () => {
     expect(now({ checkInDue: true, season: "winter" })).toEqual(["today", "sleep", "week"]);
-    expect(now({ checkInDue: true, season: "summer" })).toEqual(["today", "improving", "climbs"]);
+    expect(now({ checkInDue: true, season: "summer" })).toEqual(["today", "climbs", "activities"]);
   });
 
   it("asks about today's activity until it has been opened", () => {
-    const r = ride("t", "Monte Bondone", today);
-    expect(now({ ride: r, season: "summer" })).toEqual(["today-ride", "improving"]);
+    const r = ride("t", "Monte Rosso", today);
+    expect(now({ ride: r, season: "summer" })).toEqual(["today-ride", "climbs"]);
     expect(barText({ ...moment, ride: r })).toBe("Com'è andata oggi?");
     expect(dayIsDone({ ...moment, ride: r, rideSeen: true })).toBe(true);
     expect(now({ ride: r, rideSeen: true })).toEqual([]);
   });
 
+  it('no longer offers "Sto migliorando?", typed or not', () => {
+    expect(entries.some((e) => e.q === "Sto migliorando?")).toBe(false);
+    expect(alternatives("sto", "summer", entries).map((e) => e.q)).not.toContain(
+      "Sto migliorando?",
+    );
+  });
+
+  it("just invites on the bar when a plan is all that's waiting", () => {
+    expect(barText({ ...moment, planned: true })).toBe("Chiedi all'albero…");
+  });
+
   it("keeps performance away on a low day", () => {
     for (const season of ["winter", "autumn"] as const) {
-      expect(now({ season })).not.toContain("improving");
+      expect(now({ season })).not.toContain("analysis");
       expect(now({ season })).not.toContain("climbs");
     }
   });

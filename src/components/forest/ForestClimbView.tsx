@@ -211,7 +211,7 @@ export function ForestClimbView({
           <p className="pt-3 text-xs text-muted-foreground">
             {t(
               `A time can be raced once its owner opens the updated app with that ${w.ride} still on their device.`,
-              `Un tempo si può sfidare quando il suo autore apre l'app aggiornata con ${sport === "run" ? "quella corsa" : "quell'uscita"} ancora sul dispositivo.`,
+              `Un tempo si può sfidare quando chi l'ha registrato apre l'app aggiornata con ${sport === "run" ? "quella corsa" : "quell'uscita"} ancora sul dispositivo.`,
             )}
           </p>
         )}

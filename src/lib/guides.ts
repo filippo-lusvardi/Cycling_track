@@ -9,14 +9,8 @@ export const SPROUTS: GuideItem = {
   id: "sprouts",
   term: t("Sprouts", "Germogli"),
   text: t(
-    byMain(
-      "A day trained off the bike (run, gym, swim, hike…), in the sport's colour: that training grows in the garden. It still counts for the trunk and the crown.",
-      "A day of another sport (bike, gym, swim, hike…), in the sport's colour: that training grows in the garden. It still counts for the trunk and the crown.",
-    ),
-    byMain(
-      "Un giorno di allenamento senza bici (corsa, palestra, nuoto, escursione…), nel colore dello sport: quell'allenamento cresce nell'orto. Conta comunque per il tronco e la chioma.",
-      "Un giorno di un altro sport (bici, palestra, nuoto, escursione…), nel colore dello sport: quell'allenamento cresce nell'orto. Conta comunque per il tronco e la chioma.",
-    ),
+    "A day of another sport (gym, swim, hike…), in its colour: that training grows in the garden. It still counts for the trunk and the crown.",
+    "Un giorno di un altro sport (palestra, nuoto, escursione…), nel suo colore: quell'allenamento cresce nell'orto. Conta comunque per il tronco e la chioma.",
   ),
 };
 
@@ -64,35 +58,53 @@ export const TREE_GUIDE: GuideItem[] = [
   {
     id: "limit",
     term: t("Limit", "Limite"),
-    text: t(
-      "On easy and endurance days, the power and heart rate to stay under: the top of Z1 or Z2 in your intervals.icu zones.",
-      "Nei giorni facili e di fondo, potenza e frequenza cardiaca da non superare: il limite di Z1 o Z2 nelle tue zone di intervals.icu.",
+    text: byMain(
+      t(
+        "On easy and endurance days, the power and heart rate to stay under: the top of Z1 or Z2 in your zones.",
+        "Nei giorni facili e di fondo, potenza e frequenza cardiaca da non superare: il limite di Z1 o Z2 nelle tue zone.",
+      ),
+      t(
+        "On easy and endurance days, the pace and heart rate to keep to: the limit of Z1 or Z2 in your zones.",
+        "Nei giorni facili e di fondo, passo e frequenza cardiaca da rispettare: il limite di Z1 o Z2 nelle tue zone.",
+      ),
     ),
   },
   {
     id: "focus",
     term: t("Training focus", "Focus di allenamento"),
-    text: t(
-      "What to train in this block (base, high aerobic, VO2max, anaerobic, sprint), shown above the crown. Readiness decides when to go hard; the focus decides what. It comes from:",
-      "Cosa allenare in questo blocco (base, aerobico alto, VO2max, anaerobico, sprint), mostrato sopra la chioma. La readiness decide quando spingere; il focus decide cosa. Nasce da:",
-    ),
-    points: [
+    text: byMain(
       t(
-        "Your races in the next 20 weeks (add them in Calendar with kind, estimated time and sprint finish); A counts more than B and C, nearer more than later",
-        "Le tue gare nelle prossime 20 settimane (aggiungile dal Calendario con tipo, tempo stimato e arrivo in volata); A conta più di B e C, le più vicine più delle lontane",
+        "What to train in this block (base, high aerobic, VO2max, anaerobic, sprint), shown above the crown. Readiness decides when to go hard; the focus decides what. It comes from:",
+        "Cosa allenare in questo blocco (base, aerobico alto, VO2max, anaerobico, sprint), mostrato sopra la chioma. La readiness decide quando spingere; il focus decide cosa. Nasce da:",
       ),
       t(
-        "With no races, the complete cyclist: everything counts the same",
-        "Senza gare, il ciclista completo: tutto conta allo stesso modo",
+        "What to train in this block (base, threshold, VO2max, speed), shown above the crown. Readiness decides when to go hard; the focus decides what. It comes from:",
+        "Cosa allenare in questo blocco (base, soglia, VO2max, velocità), mostrato sopra la chioma. La readiness decide quando spingere; il focus decide cosa. Nasce da:",
+      ),
+    ),
+    points: [
+      byMain(
+        t(
+          "Your races in the next 20 weeks (add them in Calendar with kind, estimated time and sprint finish); A counts more than B and C, nearer more than later",
+          "Le tue gare nelle prossime 20 settimane (aggiungile dal Calendario con tipo, tempo stimato e arrivo in volata); A conta più di B e C, le più vicine più delle lontane",
+        ),
+        t(
+          "Your races in the next 20 weeks (add them in Calendar with kind and estimated time); A counts more than B and C, nearer more than later",
+          "Le tue gare nelle prossime 20 settimane (aggiungile dal Calendario con tipo e tempo stimato); A conta più di B e C, le più vicine più delle lontane",
+        ),
+      ),
+      t(
+        "With no races, all-round: everything counts the same",
+        "Senza gare, a tutto tondo: tutto conta allo stesso modo",
       ),
       byMain(
         t(
           "Your last 42 days of power against your best of the year: the biggest gap that the races need",
-          "La tua potenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: il divario più grande tra quelli che servono alle gare",
+          "La tua potenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: il divario più grande tra ciò che serve alle gare",
         ),
         t(
           "Your last 42 days of grade-adjusted pace against your best of the year: the biggest gap that the races need",
-          "Il tuo passo corretto per pendenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: il divario più grande tra quelli che servono alle gare",
+          "Il tuo passo corretto per pendenza degli ultimi 42 giorni rispetto al tuo meglio dell'anno: il divario più grande tra ciò che serve alle gare",
         ),
       ),
       byMain(
@@ -101,7 +113,7 @@ export const TREE_GUIDE: GuideItem[] = [
           "Prima la base se il decoupling delle uscite regolari sale, il tempo in Z2 cala, il fitness è molto sotto il solito o la potenza sui 20 min cala oltre il 15% dopo 30 kJ/kg (Analisi → Durability)",
         ),
         t(
-          "Base first when easy runs drift, Z2 time drops, fitness is well below your usual, or your 5 min pace fades over 15% after 25 km (Analysis → Late-run fade)",
+          "Base first when easy runs decouple, Z2 time drops, fitness is well below your usual, or your 5 min pace fades over 15% after 25 km (Analysis → Late-run fade)",
           "Prima la base se il decoupling delle corse lente sale, il tempo in Z2 cala, il fitness è molto sotto il solito o il passo sui 5 min cala oltre il 15% dopo 25 km (Analisi → Calo nel finale)",
         ),
       ),
@@ -114,31 +126,22 @@ export const TREE_GUIDE: GuideItem[] = [
   {
     id: "buds",
     term: t("Buds above the crown", "Gemme sopra la chioma"),
-    text: t(
-      "Workouts planned for today in intervals.icu.",
-      "Allenamenti pianificati per oggi su intervals.icu.",
-    ),
+    text: t("Workouts planned for today.", "Allenamenti pianificati per oggi."),
   },
   {
     id: "trunk",
     term: t("Trunk", "Tronco"),
     text: t(
       "Fitness (CTL): the wider, the fitter compared with the rest of your history.",
-      "Fitness (CTL): più è largo, più sei in forma rispetto al resto del tuo storico.",
+      "Fitness (CTL): più è largo, più è alto il fitness rispetto al resto del tuo storico.",
     ),
   },
   {
     id: "branches",
     term: t("Branches", "Rami"),
     text: t(
-      byMain(
-        "One per ride in the last 5 days (only cycling grows branches):",
-        "One per run in the last 5 days (only running grows branches):",
-      ),
-      byMain(
-        "Uno per uscita in bici negli ultimi 5 giorni (solo la bici fa crescere i rami):",
-        "Uno per corsa negli ultimi 5 giorni (solo la corsa fa crescere i rami):",
-      ),
+      "One per activity of your main sport in the last 5 days:",
+      "Uno per attività del tuo sport principale negli ultimi 5 giorni:",
     ),
     points: [t("Length: duration", "Lunghezza: durata"), t("Thickness: load", "Spessore: carico")],
   },
@@ -174,28 +177,16 @@ export const TREE_GUIDE: GuideItem[] = [
     id: "squirrel",
     term: t("Squirrel", "Scoiattolo"),
     text: t(
-      byMain(
-        "Lives on the branch of your longest ride ever.",
-        "Lives on the branch of your longest run ever.",
-      ),
-      byMain(
-        "Vive sul ramo della tua uscita più lunga di sempre.",
-        "Vive sul ramo della tua corsa più lunga di sempre.",
-      ),
+      "Lives on the branch of your longest activity ever.",
+      "Vive sul ramo della tua attività più lunga di sempre.",
     ),
   },
   {
     id: "owl",
     term: t("Owl", "Gufo"),
     text: t(
-      byMain(
-        "Keeps watch on the branch of the ride with the most climbing ever.",
-        "Keeps watch on the branch of the run with the most climbing ever.",
-      ),
-      byMain(
-        "Fa la guardia sul ramo dell'uscita con più dislivello di sempre.",
-        "Fa la guardia sul ramo della corsa con più dislivello di sempre.",
-      ),
+      "Keeps watch on the branch of the activity with the most climbing ever.",
+      "Fa la guardia sul ramo dell'attività con più dislivello di sempre.",
     ),
   },
   {
@@ -208,8 +199,8 @@ export const TREE_GUIDE: GuideItem[] = [
     id: "knots",
     term: t("Knots", "Nodi"),
     text: t(
-      "A dark spiral for each day sick or injured, from Sick and Injured events in the intervals.icu calendar. Mark today in the crown's sheet, or a past run of rest days by tapping it.",
-      "Una spirale scura per ogni giorno di malattia o infortunio, dagli eventi Sick e Injured del calendario di intervals.icu. Segna oggi dal pannello della chioma, o una serie passata di giorni di riposo toccandola.",
+      "A dark spiral for each day sick or injured. Mark today in the crown's sheet, or a past stretch of rest days by tapping it.",
+      "Una spirale scura per ogni giorno di malattia o infortunio. Segna oggi dal pannello della chioma, o una serie passata di giorni di riposo toccandola.",
     ),
   },
   {
@@ -230,10 +221,7 @@ export const TREE_GUIDE: GuideItem[] = [
   {
     id: "roots",
     term: t("Roots", "Radici"),
-    text: t(
-      "Where your intervals.icu history begins.",
-      "Dove inizia il tuo storico su intervals.icu.",
-    ),
+    text: t("Where your history begins.", "Dove inizia il tuo storico."),
   },
   {
     id: "years",
@@ -260,15 +248,15 @@ export const GARDEN_GUIDE: GuideItem[] = [
     id: "plants",
     term: t("Plants", "Piante"),
     text: t(
-      "One per session, in its sport's bed, older to the left. Taller for a longer session, lusher for a harder one. A new sport gets a vegetable at random, and you can change it in Settings; what a session bears depends on the sport:",
-      "Una per seduta, nell'aiuola del suo sport, le più vecchie a sinistra. Più alta se è più lunga, più rigogliosa se è più dura. Un nuovo sport riceve un ortaggio a caso, e puoi cambiarlo nelle Impostazioni; quanto frutta una seduta dipende dallo sport:",
+      "One per activity, in its sport's bed, older to the left. Taller for a longer one, lusher for a harder one. A new sport gets a vegetable at random, and you can change it in Settings; what an activity bears depends on the sport:",
+      "Una per attività, nell'aiuola del suo sport, le più vecchie a sinistra. Più alta se è più lunga, più rigogliosa se è più dura. Un nuovo sport riceve un ortaggio a caso, e puoi cambiarlo nelle Impostazioni; quanto frutta un'attività dipende dallo sport:",
     ),
     points: [
       byMain(
         t("Running: one per 5 km", "Corsa: uno ogni 5 km"),
         t("Cycling: one per 20 km", "Ciclismo: uno ogni 20 km"),
       ),
-      t("Strength: one, as big as the session", "Forza: uno, grande quanto la seduta"),
+      t("Strength: one, as big as the workout", "Forza: uno, grande quanto l'allenamento"),
       t(
         "Yoga, pilates and stretching: one per 10 minutes",
         "Yoga, pilates e stretching: uno ogni 10 minuti",
@@ -280,7 +268,7 @@ export const GARDEN_GUIDE: GuideItem[] = [
       t("Swimming: one per 500 m", "Nuoto: uno ogni 500 m"),
       t("Skiing: the plant itself is the crop", "Sci: il raccolto è la pianta stessa"),
       t("Rowing and paddling: one per 3 km", "Canottaggio e pagaia: uno ogni 3 km"),
-      t("Climbing: by the session's load", "Arrampicata: secondo il carico della seduta"),
+      t("Climbing: by the activity's load", "Arrampicata: secondo il carico dell'attività"),
       t(
         "A sport you named: one per quarter of an hour",
         "Uno sport con il tuo nome: uno ogni quarto d'ora",
@@ -307,9 +295,15 @@ export const GARDEN_GUIDE: GuideItem[] = [
   {
     id: "animals",
     term: t("Animals", "Animali"),
-    text: t(
-      "A hedgehog under your longest run ever, a frog on your longest swim, a snail beside your longest walk or hike.",
-      "Un riccio sotto la tua corsa più lunga di sempre, una rana sulla tua nuotata più lunga, una lumaca accanto alla tua camminata o escursione più lunga.",
+    text: byMain(
+      t(
+        "A hedgehog under your longest run ever, a frog on your longest swim, a snail beside your longest walk or hike.",
+        "Un riccio sotto la tua corsa più lunga di sempre, una rana sulla tua nuotata più lunga, una lumaca accanto alla tua camminata o escursione più lunga.",
+      ),
+      t(
+        "A frog on your longest swim ever, a snail beside your longest walk or hike.",
+        "Una rana sulla tua nuotata più lunga di sempre, una lumaca accanto alla tua camminata o escursione più lunga.",
+      ),
     ),
   },
   {
@@ -324,13 +318,13 @@ export const GARDEN_GUIDE: GuideItem[] = [
     id: "pantry",
     term: t("Pantry", "Dispensa"),
     text: t(
-      `A jar per month, as full as its hours ${byMain("off the bike", "at other sports")}, in layers coloured by sport. Tap one for that month's activities.`,
-      `Un barattolo per mese, pieno quanto le sue ore ${byMain("senza bici", "di altri sport")}, a strati colorati per sport. Toccane uno per le attività di quel mese.`,
+      "A jar per month, as full as its hours at other sports, in layers coloured by sport. Tap one for that month's activities.",
+      "Un barattolo per mese, pieno quanto le sue ore di altri sport, a strati colorati per sport. Toccane uno per le attività di quel mese.",
     ),
   },
 ];
 
-/** How to use the search bar: one line each, with what to type. */
+/** How to use the search bar: one line each, with what to type. A "+" in an example stands for a name of your own. */
 export const ASK_GUIDE: GuideItem[] = [
   {
     id: "find",
@@ -340,17 +334,24 @@ export const ASK_GUIDE: GuideItem[] = [
       "Scrivi con parole tue, in italiano o in inglese: ricevi fino a tre alternative, la migliore vicino al pollice. Tutto elenca ogni pagina.",
     ),
     points: [
-      "analisi",
-      "vasi",
-      t("the name of a ride or climb", "il nome di un'uscita o di una salita"),
-      "fantabosco",
+      t("analysis", "analisi"),
+      t("jars", "vasi"),
+      t("the name of an activity or climb", "il nome di un'attività o di una salita"),
+      t("the name of a forest", "il nome di un bosco"),
     ],
   },
   {
     id: "numbers",
     term: t("Numbers", "Numeri"),
     text: t("The value appears right in the row.", "Il valore appare direttamente nella riga."),
-    points: ["ftp", "soglia", "z2", "fitness", "peso", "hrv"],
+    points: [
+      byMain("ftp", t("threshold pace", "passo di soglia")),
+      t("threshold", "soglia"),
+      "z2",
+      "fitness",
+      t("weight", "peso"),
+      "hrv",
+    ],
   },
   {
     id: "charts",
@@ -359,7 +360,13 @@ export const ASK_GUIDE: GuideItem[] = [
       "A chart's name opens only that chart.",
       "Il nome di un grafico apre solo quel grafico.",
     ),
-    points: ["eftp", "durability", t("power curve", "curva di potenza"), t("sleep", "sonno")],
+    points: [
+      ...byMain(
+        ["eftp", "durability", t("power curve", "curva di potenza")],
+        [t("best times", "migliori tempi"), t("pace curve", "curva del passo")],
+      ),
+      t("sleep", "sonno"),
+    ],
   },
   {
     id: "time",
@@ -376,10 +383,34 @@ export const ASK_GUIDE: GuideItem[] = [
   {
     id: "records",
     term: t("Your records", "I tuoi record"),
-    text: t("Only ever yours.", "Sempre e solo tuoi."),
-    points: t(
-      "best manghen|last manghen|how many times manghen|best 20 min|best 10 km|km this year|longest ride",
-      "best manghen|ultima manghen|quante volte manghen|best 20 min|best 10 km|km quest'anno|uscita più lunga",
+    text: t("Your bests and totals.", "I tuoi migliori e i tuoi totali."),
+    points: [
+      ...t(
+        "best + climb|last + climb|how many times + climb",
+        "miglior + salita|ultima + salita|quante volte + salita",
+      ).split("|"),
+      ...byMain([t("best 20 min", "miglior 20 min")], []),
+      t("best 10 km", "miglior 10 km"),
+      t("km this year", "km quest'anno"),
+      byMain(t("longest ride", "pedalata più lunga"), t("longest run", "corsa più lunga")),
+    ],
+  },
+  {
+    id: "power",
+    term: byMain(t("Power", "Potenza"), t("Pace", "Passo")),
+    text: byMain(
+      t(
+        "What you've held for that long lately, against your year, your weight and your FTP.",
+        "Quanto hai tenuto per quel tempo di recente, rispetto al tuo anno, al tuo peso e alla tua FTP.",
+      ),
+      t(
+        "What you've held for that long lately, against your year and your threshold.",
+        "Quanto hai tenuto per quel tempo di recente, rispetto al tuo anno e alla tua soglia.",
+      ),
+    ),
+    points: byMain(
+      t("power 5 min|power 30 s|power 2h", "potenza 5 min|potenza 30 s|potenza 2h"),
+      t("pace 5 min|pace 20 min|pace 1h", "passo 5 min|passo 20 min|passo 1h"),
     ).split("|"),
   },
   {
@@ -399,20 +430,32 @@ export const ASK_GUIDE: GuideItem[] = [
       "Una riga dice cosa verrà salvato; sceglierla salva, e il messaggio che segue ha Annulla.",
     ),
     points: t(
-      "weight 68.2|fat 14|sleep 7h 30|sick today|not sick|2 brioches|feel good",
-      "peso 68.2|grasso 14|sonno 7h 30|malato oggi|non più malato|2 brioche|sensazione buona",
+      "weight 70|fat 15|sleep 7h 30|sick today|not sick|2 brioches|feel good",
+      "peso 70|grasso 15|sonno 7h 30|malattia oggi|fine malattia|2 brioche|sensazione buona",
     ).split("|"),
   },
   {
     id: "plan",
     term: t("Plan", "Pianificare"),
     text: t(
-      "Opens the Calendar on that day, ready to choose a workout.",
-      "Apre il Calendario su quel giorno, pronto per scegliere un allenamento.",
+      "Opens the Calendar on that day, ready to choose a workout. With a name it marks a ride that isn't training, and doesn't touch your load.",
+      "Apre il Calendario su quel giorno, pronto per scegliere un allenamento. Con un nome segna un'uscita che non è un allenamento, e non tocca il carico.",
     ),
     points: t(
-      "plan tomorrow|plan saturday|plan 12 november",
-      "plan domani|pianifica sabato|plan 12 novembre",
+      "plan tomorrow|plan saturday|plan 12 november|plan saturday ride with Marco",
+      "pianifica domani|pianifica sabato|pianifica 12 novembre|pianifica sabato giro con Marco",
+    ).split("|"),
+  },
+  {
+    id: "suggest",
+    term: t("Suggestions", "Consigli"),
+    text: t(
+      "A few workouts that fit, from how the day reads, your block and your recent days. Choosing one shows it first; nothing is saved until you add it.",
+      "Qualche allenamento adatto, da come si presenta la giornata, dal tuo blocco e dagli ultimi giorni. Sceglierne uno te lo mostra prima; nulla viene salvato finché non lo aggiungi.",
+    ),
+    points: t(
+      "suggest|suggest tomorrow|suggest 1h|suggest threshold|suggest week",
+      "consiglia|consiglia domani|consiglia 1h|consiglia soglia|consiglia settimana",
     ).split("|"),
   },
 ];

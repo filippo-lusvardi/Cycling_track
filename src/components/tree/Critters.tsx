@@ -46,16 +46,6 @@ export const BIRD_KINDS: readonly BirdKind[] = [
   "kingfisher",
 ];
 
-export const BIRD_NAME: Record<BirdKind, [en: string, it: string]> = {
-  sparrow: ["Sparrow", "Passero"],
-  robin: ["Robin", "Pettirosso"],
-  snow: ["Snow bunting", "Zigolo delle nevi"],
-  blackbird: ["Blackbird", "Merlo"],
-  bluetit: ["Blue tit", "Cinciarella"],
-  goldfinch: ["Goldfinch", "Cardellino"],
-  kingfisher: ["Kingfisher", "Martin pescatore"],
-};
-
 function Legs({ color = BIRCH }: { color?: string }) {
   return (
     <path

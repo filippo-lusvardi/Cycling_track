@@ -75,7 +75,7 @@ describe("a runner's focus", () => {
   });
   it("looks at runs, not rides, for the base", () => {
     const runs = [act("1", "Run"), act("2", "Run"), act("3", "TrailRun")];
-    expect(baseGate(runs, [], today, null, "run")[0]).toContain("drift");
+    expect(baseGate(runs, [], today, null, "run")[0]).toContain("Decoupling");
     expect(baseGate(runs, [], today).length).toBe(0);
     const rides = runs.map((a) => ({ ...a, type: "Ride" }));
     expect(baseGate(rides, [], today, null, "run").length).toBe(0);
@@ -153,7 +153,7 @@ describe("a runner's focus", () => {
       sport: "run",
     });
     const why = focusWhy(r, [], today, "run").join(" ");
-    expect(why).toContain("runner");
+    expect(why).toContain("all-round");
     expect(why).toContain("pace");
     expect(why).not.toContain("power");
     expect(roleText({ role: "sharpen", race: race(), days: 5 }, "run")).toContain("strides");

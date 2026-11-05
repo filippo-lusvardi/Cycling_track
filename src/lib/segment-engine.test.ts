@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { packTrack, unpackTrack, packedBytes } from "./compact";
+import { packTrack, unpackTrack } from "./compact";
 import { createSegmentEngine, yearChunks, type KV, type RideRef } from "./segment-engine";
 import { attemptsIn, groupSegment, ridesIn, traceIn, type EffortRec } from "./segment-index";
 import { findAttempts, haversine, segmentFromRange, type TrackLike } from "./segments";
@@ -94,7 +94,6 @@ describe("compact tracks", () => {
       Math.max(...t.lat.map((la, i) => haversine(la, t.lng[i]!, back.lat[i]!, back.lng[i]!))),
     ).toBeLessThan(1);
     expect(back.watts[10]).toBe(220);
-    expect(packedBytes(packTrack(t)) / t.lat.length).toBe(24);
   });
 });
 

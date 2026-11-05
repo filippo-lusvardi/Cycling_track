@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WORKOUT_LIBRARY } from "./workout-library-data";
 import { WORKOUT_KINDS, workoutTemplates, workoutText } from "./workout-templates";
-import { estimateLoad, hasBlocks, parseWorkout, powerZone } from "./workout";
+import { estimateLoad, hasBlocks, parseWorkout, powerZone, stepWatts } from "./workout";
 
 const one = (line: string, th = {}, sport: "ride" | "run" = "ride") =>
   parseWorkout(line, sport, th).blocks[0]!;
@@ -130,5 +130,59 @@ Cooldown
     expect([0.5, 0.7, 0.8, 1, 1.1, 1.3, 1.6].map((f) => powerZone(f, 1))).toEqual([
       1, 2, 3, 4, 5, 6, 7,
     ]);
+  });
+});
+
+describe("a step's watts", () => {
+  const watts = (line: string, sport: "ride" | "run" = "ride") =>
+    stepWatts(one(line, { ftp: 250, pace: 4 }, sport), 250);
+
+  it("works out percentages from the FTP", () => {
+    expect(watts("- 5m 105%")).toBe("263W");
+    expect(watts("- 5m 88-92%")).toBe("220–230W");
+  });
+
+  it("reads a decimal percentage whole", () => {
+    expect(one("- 1m 112.9%").from).toBeCloseTo(1.129);
+    expect(watts("- 1m 112.9%")).toBe("282W");
+  });
+
+  it("gives a ramp its start and end", () => {
+    expect(watts("- 6m Ramp 45-70%")).toBe("113 → 175W");
+    expect(watts("- 3m Ramp 60-45%")).toBe("150 → 113W");
+  });
+
+  it("gives a zone its whole range, open at both ends of the scale", () => {
+    expect(watts("- 10m Z2")).toBe("138–188W");
+    expect(watts("- 10m Z2-Z3")).toBe("138–225W");
+    expect(watts("- 4m Z1")).toBe("≤138W");
+    expect(watts("- 20s Z7")).toBe("≥375W");
+  });
+
+  it("keeps watts as written", () => {
+    expect(watts("- 5m 280W")).toBe("280W");
+    expect(watts("- 5m 280-300W")).toBe("280–300W");
+  });
+
+  it("doesn't pretend heart rate, pace or nothing are watts", () => {
+    expect(watts("- 10m 85% LTHR")).toBeNull();
+    expect(watts("- 10m 90% pace")).toBeNull();
+    expect(watts("- 10m 4:30/km")).toBeNull();
+    expect(watts("- 10m easy")).toBeNull();
+  });
+});
+
+describe("a workout's sets", () => {
+  it("keeps repeats folded, as written", () => {
+    const w = parseWorkout(
+      "Warmup\n- 10m 60%\n\nMain set 4x\n- 5m 105%\n- 3m 55%\n\n- 8m 50%",
+      "ride",
+    );
+    expect(w.sets.map((s) => [s.reps, s.steps.length])).toEqual([
+      [1, 1],
+      [4, 2],
+      [1, 1],
+    ]);
+    expect(w.blocks.length).toBe(10);
   });
 });

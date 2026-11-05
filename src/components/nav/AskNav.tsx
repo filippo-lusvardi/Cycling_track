@@ -13,7 +13,6 @@ import {
   CalendarDays,
   ChartSpline,
   CircleDot,
-  Dumbbell,
   HeartPulse,
   Mountain,
   Search,
@@ -25,14 +24,23 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { get as idbGet } from "idb-keyval";
 import { isCheckedIn, useCheckInState } from "@/components/CheckIn";
-import { Owl } from "@/components/tree/Critters";
+import { Bird, Owl, Squirrel } from "@/components/tree/Critters";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { useNow } from "@/hooks/use-now";
 import { useSegmentNames } from "@/hooks/use-segment-names";
 import { useSegmentLibrary } from "@/hooks/use-segments";
+import { useSuggestInput } from "@/hooks/use-suggest-input";
 import { uid } from "@/lib/firebase";
 import { analysisBoth, knownRunThreshold, mainSport } from "@/lib/sport";
 import {
@@ -59,6 +67,7 @@ import {
 import { intentEntries, liveEntries, type IntentData, type WriteAction } from "@/lib/ask-intents";
 import { runWrite } from "@/lib/ask-write";
 import { t } from "@/lib/i18n";
+import { isPlanned, type Wellness } from "@/lib/intervals";
 import type { RunData } from "@/lib/run-data";
 import { attemptsIn } from "@/lib/segment-index";
 import { crownFor } from "@/lib/tree";
@@ -72,7 +81,6 @@ import {
   rideZonesQuery,
   runDataQuery,
   thresholdsQuery,
-  workoutsQuery,
   wellnessQuery,
 } from "@/lib/queries";
 import {
@@ -94,7 +102,19 @@ import { openLegend } from "./legend-store";
 const PILL =
   "flex items-center gap-1 rounded-full border border-border bg-card/85 p-1 shadow-lg backdrop-blur";
 
-const ICON: Record<Page, LucideIcon> = {
+/** A workout's own shape, as its chart draws it: a ramp, then efforts with an easy one between. */
+function WorkoutProfile({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M2 21 V16 L7 11 V21 Z" />
+      <rect x="9" y="5" width="3.4" height="16" rx="0.8" />
+      <rect x="14" y="13" width="2.2" height="8" rx="0.6" opacity=".55" />
+      <rect x="17.5" y="5" width="3.4" height="16" rx="0.8" />
+    </svg>
+  );
+}
+
+const ICON: Record<Page, LucideIcon | typeof WorkoutProfile> = {
   tree: TreeDeciduous,
   garden: Sprout,
   body: HeartPulse,
@@ -103,7 +123,7 @@ const ICON: Record<Page, LucideIcon> = {
   rides: ActivityIcon,
   ride: ActivityIcon,
   calendar: CalendarDays,
-  workouts: Dumbbell,
+  workouts: WorkoutProfile,
   pantry: Archive,
   years: CircleDot,
   settings: Settings,
@@ -165,9 +185,7 @@ function useMoment(): Moment {
       state !== "dismissed",
     ride,
     rideSeen: !!ride && ride.id === (opened ?? seen),
-    planned: (events ?? []).some(
-      (e) => e.date === today && (e.category === "WORKOUT" || e.category.startsWith("RACE")),
-    ),
+    planned: (events ?? []).some((e) => e.date === today && isPlanned(e)),
     hour: now.getHours(),
     weekday: now.getDay(),
   };
@@ -213,6 +231,25 @@ function Door({
   );
 }
 
+/** The legend's own creatures, drawn as they are on the tree. */
+const LEGEND_ART: Record<string, ReactNode> = {
+  "legend-owl": (
+    <svg viewBox="-8 -20 16 21" width={20} height={26} aria-hidden>
+      <Owl x={0} y={0} />
+    </svg>
+  ),
+  "legend-squirrel": (
+    <svg viewBox="-11.5 -20 23 21" width={26} height={24} aria-hidden>
+      <Squirrel x={0} y={0} side={1} />
+    </svg>
+  ),
+  "legend-birds": (
+    <svg viewBox="-9 -14 19 15" width={25} height={20} aria-hidden>
+      <Bird x={0} y={0} side={1} />
+    </svg>
+  ),
+};
+
 function Tile({ e }: { e: Entry }) {
   const Icon = ICON[e.page];
   const color =
@@ -222,13 +259,7 @@ function Tile({ e }: { e: Entry }) {
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
       style={{ background: `color-mix(in oklab, ${color} 22%, transparent)`, color }}
     >
-      {e.id === "legend-owl" ? (
-        <svg viewBox="-8 -20 16 21" width={20} height={26} aria-hidden>
-          <Owl x={0} y={0} />
-        </svg>
-      ) : (
-        <Icon className="h-4 w-4" />
-      )}
+      {LEGEND_ART[e.id] ?? <Icon className="h-4 w-4" />}
     </span>
   );
 }
@@ -381,12 +412,12 @@ function AskBody({
   const { data: runZones } = useQuery({ ...rideZonesQuery("run"), enabled: enabled && runs });
   const { data: thresholds } = useQuery({ ...thresholdsQuery(sport), enabled });
   const { data: curves } = useQuery({ ...powerCurvesQuery(), enabled: enabled && sport !== "run" });
-  const { data: workouts } = useQuery({ ...workoutsQuery(), enabled });
   const { data: offEvents } = useQuery({
     ...offEventsQuery({ oldest: addDays(today, -90), newest: today }),
     enabled,
   });
   const qc = useQueryClient();
+  const suggest = useSuggestInput();
   const zones = sport === "run" ? runZones : rideZones;
   const [checkIn] = useLocalStore(CHECK_IN, true);
   const lib = useSegmentLibrary({ sync: false });
@@ -459,10 +490,10 @@ function AskBody({
         pacePct: zoneTops().pace,
         planned: events,
         races,
-        workouts,
+        suggest,
       }),
     ],
-    [data, today, sport, checkIn, acts, wellness, crown, zones, events, races, workouts],
+    [data, today, sport, checkIn, acts, wellness, crown, zones, events, races, suggest],
   );
   // What the commands read: passes on each climb, and the running analysis only if it's already been done.
   const intentData: IntentData = useMemo(
@@ -474,9 +505,13 @@ function AskBody({
       curves,
       offEvents,
       events,
+      suggest,
+      ftp: rideZones?.ftp ?? null,
+      weight: latestWeight(wellness),
+      runThreshold: knownRunThreshold(),
       runs: qc
         .getQueryData<RunData>(runDataQuery().queryKey)
-        ?.runs.map((r) => ({ id: r.a.id, bests: r.s.bests })),
+        ?.runs.map((r) => ({ id: r.a.id, bests: r.s.bests, date: r.date, curve: r.s.paceCurve })),
       climbs: lib.list.map((c) => ({
         id: c.id,
         name: nameOf(c),
@@ -485,7 +520,21 @@ function AskBody({
         attempts: attemptsIn(lib.efforts[c.effortsKey], sport),
       })),
     }),
-    [today, sport, acts, curves, offEvents, events, qc, lib.list, lib.efforts, nameOf],
+    [
+      today,
+      sport,
+      acts,
+      curves,
+      offEvents,
+      events,
+      qc,
+      lib.list,
+      lib.efforts,
+      nameOf,
+      rideZones,
+      wellness,
+      suggest,
+    ],
   );
   const typed = q.trim().length > 0;
   const found = useMemo(
@@ -623,6 +672,9 @@ function AskBody({
     </div>
   );
 }
+
+const latestWeight = (rows: Wellness[] | undefined) =>
+  [...(rows ?? [])].sort((a, b) => b.id.localeCompare(a.id)).find((w) => w.weight)?.weight ?? null;
 
 /** Runs what a row said it would, then says so with a way back. */
 async function saveAndOfferUndo(action: WriteAction, what: string, qc: QueryClient) {

@@ -84,15 +84,7 @@ export function PageSky({ bodies = true, own = false }: { bodies?: boolean; own?
         </linearGradient>
       </defs>
       <rect x={0} y={H * 0.8} width={SW} height={H * 0.2} fill="url(#page-ground)" />
-      <WeatherFront
-        d={d}
-        w={SW}
-        h={H}
-        horizon={horizon}
-        weather={weather}
-        phase={phase}
-        seed="page"
-      />
+      <WeatherFront d={d} w={SW} h={H} weather={weather} phase={phase} seed="page" />
     </svg>
   );
 }

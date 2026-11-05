@@ -10,10 +10,8 @@ import {
   type ForestClimb,
   type ForestTime,
 } from "@/lib/forest/leaderboard";
-import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/forest/$fid/climb/$sid")({
-  head: () => ({ meta: [{ title: t("Forest climb — Cirmolo", "Salita del bosco — Cirmolo") }] }),
   component: ForestClimbPage,
 });
 

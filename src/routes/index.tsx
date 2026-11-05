@@ -4,11 +4,11 @@ import { endOfMonth, parseISO } from "date-fns";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Buds, CrownView, Rings } from "@/components/tree/Crown";
 import { TreeBody, usePinch, useWidth } from "@/components/tree/TreeBody";
-import { ZoomSwitch, type Zoom } from "@/components/tree/ZoomSwitch";
 import { TreeSheet, type Sheet } from "@/components/tree/TreeSheets";
 import { useFocus } from "@/hooks/use-focus";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { usePublishTree } from "@/hooks/use-publish-tree";
+import { isPlanned } from "@/lib/intervals";
 import { FOCUS_LABEL } from "@/lib/races";
 import {
   allActivitiesQuery,
@@ -23,7 +23,6 @@ import { addDays, isoDate } from "@/lib/training";
 import { buildDays, buildYears, crownFor, offDays, onlySprouts } from "@/lib/tree";
 import { sportOf } from "@/lib/garden";
 import { useCropMap } from "@/hooks/use-crop-map";
-import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { rememberTree } from "@/lib/accent";
 import { useTreeSky } from "@/hooks/use-tree-sky";
@@ -31,7 +30,6 @@ import { recordSinceLoad } from "@/lib/perf";
 import { knownRunThreshold, mainSport } from "@/lib/sport";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: t("Tree — Cirmolo", "Albero — Cirmolo") }] }),
   // ?zoom=years opens the rings; ?sheet=today opens today's sheet (what you asked the tree); otherwise the tree.
   validateSearch: (s: Record<string, unknown>): { zoom?: "years"; sheet?: "today" } => ({
     ...(s["zoom"] === "years" ? { zoom: "years" as const } : {}),
@@ -41,6 +39,7 @@ export const Route = createFileRoute("/")({
   component: TreePage,
 });
 
+type Zoom = "tree" | "years";
 const ZOOMS: Zoom[] = ["tree", "years"];
 /** A stable empty list, so effects keyed on it don't rerun every render while events load. */
 const NO_EVENTS: never[] = [];
@@ -106,9 +105,7 @@ function TreePage() {
         )
       : null;
   // Only today's plan buds above the crown.
-  const planned = (events ?? []).filter(
-    (e) => e.date === today && (e.category === "WORKOUT" || e.category.startsWith("RACE")),
-  );
+  const planned = (events ?? []).filter((e) => e.date === today && isPlanned(e));
 
   // A week's branch and a month's name: their recap.
   const openWeek = useCallback(
@@ -170,7 +167,6 @@ function TreePage() {
         )}
       </div>
 
-      <ZoomSwitch active={zoom} onZoom={(z) => setZoom(() => z)} />
 
       <TreeSheet
         sheet={sheet}

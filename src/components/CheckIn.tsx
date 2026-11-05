@@ -207,7 +207,7 @@ export function CheckInForm({
           <Input
             id="checkin-weight"
             inputMode="decimal"
-            placeholder="72.4"
+            placeholder="70"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
             autoFocus={row?.weight == null}

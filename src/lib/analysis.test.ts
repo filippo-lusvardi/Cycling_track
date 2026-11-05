@@ -5,7 +5,6 @@ import {
   fitCriticalPower,
   fitOmPD,
   mmp,
-  monotony,
   omPD,
   polarizationIndex,
   threeZone,
@@ -83,10 +82,6 @@ describe("climb detection", () => {
 });
 
 describe("load analysis", () => {
-  it("monotony is mean / SD of daily load including rest days", () => {
-    expect(monotony([70, 70, 70, 70, 70, 70, 0])).toBeCloseTo(2.449, 2);
-    expect(monotony([0, 0, 0, 0, 0, 0, 0])).toBeNull();
-  });
   it("groups activities into Monday-start weeks", () => {
     const rows = weeklyTotals([
       {

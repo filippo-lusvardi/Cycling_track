@@ -20,7 +20,6 @@ export const Route = createFileRoute("/forest/$fid/$uid/ride/$rid")({
   // Opened from a forest climb's leaderboard: that climb is highlighted on the route.
   validateSearch: (s: Record<string, unknown>): { climb?: string } =>
     typeof s["climb"] === "string" && s["climb"] ? { climb: s["climb"] } : {},
-  head: () => ({ meta: [{ title: t("Ride — Cirmolo", "Uscita — Cirmolo") }] }),
   component: FriendRide,
 });
 
@@ -93,8 +92,8 @@ function FriendRide() {
         {back}
         <p className="text-sm text-muted-foreground">
           {t(
-            "This ride isn't shared in this forest (or is more than a year old).",
-            "Questa uscita non è condivisa in questo bosco (o ha più di un anno).",
+            "This activity isn't shared in this forest (or is more than a year old).",
+            "Questa attività non è condivisa in questo bosco (o ha più di un anno).",
           )}
         </p>
       </div>

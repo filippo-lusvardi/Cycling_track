@@ -25,7 +25,6 @@ import { isoDate } from "@/lib/training";
 import { workoutText, type WorkoutTemplate } from "@/lib/workout-templates";
 
 export const Route = createFileRoute("/workouts")({
-  head: () => ({ meta: [{ title: t("Workouts — Cirmolo", "Allenamenti — Cirmolo") }] }),
   component: WorkoutsPage,
 });
 

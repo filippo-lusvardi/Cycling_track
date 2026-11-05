@@ -266,7 +266,6 @@ export function WeatherFront({
   d,
   w,
   h,
-  horizon,
   weather,
   phase,
   seed,
@@ -275,7 +274,6 @@ export function WeatherFront({
   d: Daylight;
   w: number;
   h: number;
-  horizon: number;
   weather: Weather | null;
   phase: number;
   seed: string;

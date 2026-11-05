@@ -19,7 +19,6 @@ import { t } from "@/lib/i18n";
 import { sportWords, type MainSport } from "@/lib/sport";
 
 export const Route = createFileRoute("/forest/join/$fid/$key")({
-  head: () => ({ meta: [{ title: t("Join a forest — Cirmolo", "Entra in un bosco — Cirmolo") }] }),
   component: JoinForest,
 });
 

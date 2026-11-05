@@ -19,7 +19,6 @@ import { RIDE_PAGE_DAYS } from "@/lib/forest/rides";
 import { buildDays, offDays, WEATHER_WORD, type Crown } from "@/lib/tree";
 
 export const Route = createFileRoute("/forest/$fid/$uid/")({
-  head: () => ({ meta: [{ title: t("Forest — Cirmolo", "Bosco — Cirmolo") }] }),
   component: MemberTree,
 });
 

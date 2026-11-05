@@ -13,7 +13,6 @@ import {
   type Crown as CrownState,
   type Scar as ScarSpan,
   type TreeYear,
-  type Weather,
 } from "@/lib/tree";
 import { format, num, t } from "@/lib/i18n";
 import { checkInOn } from "@/lib/settings";

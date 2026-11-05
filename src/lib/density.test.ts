@@ -13,6 +13,6 @@ describe("densestRegion", () => {
     const b = densestRegion([...holiday, ...home])!;
     expect(b[0][0]).toBeCloseTo(44.58);
     expect(b[1][0]).toBeCloseTo(44.66);
-    expect(b[1][1]).toBeLessThan(11); // the Dolomites trip isn't in the frame
+    expect(b[1][1]).toBeLessThan(11); // the far-away trip isn't in the frame
   });
 });

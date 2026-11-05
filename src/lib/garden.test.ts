@@ -9,7 +9,6 @@ import {
   buildPantry,
   cropMap,
   cropFor,
-  cropOf,
   customSportCount,
   DEFAULT_CROPS,
   freeCrops,
@@ -25,7 +24,6 @@ import {
   sportOf,
   sportSign,
   suggestedSports,
-  weekSummary,
 } from "./garden";
 
 const act = (
@@ -50,6 +48,11 @@ const act = (
   }) as Activity;
 
 const today = "2026-11-03"; // a Tuesday
+
+const cropOf = (a: Parameters<typeof sportOf>[0], map: CropMap = DEFAULT_CROPS) => {
+  const sport = sportOf(a, map);
+  return sport ? cropFor(map, sport) : null;
+};
 
 describe("the garden", () => {
   it("plants every sport but cycling in its own crop", () => {
@@ -120,7 +123,6 @@ describe("the garden", () => {
     expect(shelves.map((s) => s.year)).toEqual([2026, 2025]);
     const jan = shelves[0]!.jars.find((j) => j.month === "2026-01")!;
     expect(jan).toMatchObject({ minutes: 75, bySport: { mobility: 30, run: 45 } });
-    expect(weekSummary(acts, today)).toEqual({ minutes: 40, count: 1 });
   });
 });
 
@@ -243,7 +245,7 @@ describe("a garden with no defaults", () => {
     expect(growNewSports(gone, acts, "ride")).toBe(gone);
     expect(sportOf({ type: "Swim" }, gone)).toBeNull();
     expect(sportOf({ type: "Tennis" }, gone)).toBeNull();
-    const back = addSport(gone, "swim", "carrot");
+    const back = addSport(gone, "swim", freeCrops(gone)[0]!);
     expect(back.skipped).toEqual(["custom:tennis"]);
     expect(sportOf({ type: "Swim" }, back)).toBe("swim");
   });
@@ -272,7 +274,7 @@ describe("a sport of your own", () => {
 
   it("grows activities of its type, and titled with it among other sports", () => {
     expect(sportOf({ type: "Padel" }, padel)).toBe(id);
-    expect(sportOf({ type: "Other", name: "Evening padel with Marco" }, padel)).toBe(id);
+    expect(sportOf({ type: "Other", name: "Evening padel with friends" }, padel)).toBe(id);
     expect(sportOf({ type: "Other", name: "Padella party" }, padel)).toBe("other");
     expect(sportOf({ type: "Tennis" }, padel)).toBe("other");
   });

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { OpenScene, switchFit } from "@/components/forest/ForestScene";
 import { ForestWorld } from "@/components/forest/ForestWorld";
-import { ZoomSwitch } from "@/components/tree/ZoomSwitch";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +25,6 @@ import { useScreenTrace } from "@/lib/perf";
 import { mainSport, sportWords, type MainSport } from "@/lib/sport";
 
 export const Route = createFileRoute("/forest/")({
-  head: () => ({ meta: [{ title: t("Forest — Cirmolo", "Bosco — Cirmolo") }] }),
   component: ForestPage,
 });
 
@@ -75,7 +73,7 @@ function ForestPage() {
     <div className="-mb-32 space-y-4 lg:mb-0">
       <div className="on-sky">
         <div className="eyebrow text-foreground/75">
-          {t("Friends & teammates", "Amici e compagni")}
+          {t("People you train with", "Chi si allena con te")}
         </div>
         <h1 className="text-3xl font-bold tracking-tight">{t("Forest", "Bosco")}</h1>
       </div>
@@ -90,8 +88,8 @@ function ForestPage() {
       {!forests?.length && (
         <p className="on-sky mx-auto max-w-xl text-sm text-foreground/85">
           {t(
-            "Trees grow better together. Plant a forest and invite friends or teammates with a link: you'll see each other's trees, choose which rides to show, and race on the forest's climbs.",
-            "Gli alberi crescono meglio insieme. Pianta un bosco e invita amici o compagni con un link: vedrete gli alberi degli altri, sceglierete quali uscite mostrare e vi sfiderete sulle salite del bosco.",
+            "Trees grow better together. Plant a forest and invite people you train with by link: you'll see each other's trees, choose which activities to show, and race on the forest's climbs.",
+            "Gli alberi crescono meglio insieme. Pianta un bosco e invita con un link chi si allena con te: vedrete gli alberi degli altri, sceglierete quali attività mostrare e vi sfiderete sulle salite del bosco.",
           )}
         </p>
       )}
@@ -116,14 +114,13 @@ function ForestPage() {
           />
         )}
       </OpenScene>
-      <ZoomSwitch active="forest" />
       <ResponsiveDialog
         open={planting}
         onOpenChange={setPlanting}
         title={t("Plant a forest", "Pianta un bosco")}
         description={t(
-          "A forest for friends or teammates. You'll get a link to invite them.",
-          "Un bosco per amici o compagni di squadra. Riceverai un link per invitarli.",
+          "A forest for people you train with. You'll get a link to invite them.",
+          "Un bosco per chi si allena con te. Riceverai un link da condividere.",
         )}
       >
         <PlantForm onDone={() => setPlanting(false)} />

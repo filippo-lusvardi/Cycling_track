@@ -223,9 +223,6 @@ export async function approve(fid: string, r: JoinRequest) {
 
 export const decline = (fid: string, r: JoinRequest) => deleteDoc(doc(sub(fid, "requests"), r.uid));
 
-export const renameForest = (fid: string, name: string) =>
-  updateDoc(forestDoc(fid), { name: name.trim().slice(0, 40) });
-
 export const setMyForestPrefs = (
   fid: string,
   patch: Partial<

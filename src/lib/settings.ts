@@ -1,8 +1,6 @@
 // Per-device settings in localStorage, JSON-encoded like useLocalStore so both can share keys.
 
 export const API_KEY = "cadence_api_key";
-export const GITHUB_TOKEN = "cadence_github_token";
-export const GIST_ID = "cadence_gist_id";
 export const SEGMENTS = "cadence_segments";
 /** The sport that grows the tree, "ride" (default) or "run". Follows the account. */
 export const MAIN_SPORT = "cadence_main_sport";
@@ -45,8 +43,6 @@ export const GARDEN_CROPS = "cadence_garden_crops";
 /** This device doesn't send speed measurements (Firebase Performance Monitoring). Kept across sign-outs. */
 export const NO_PERF = "cadence_no_perf";
 
-/** This device uses the bottom bar and its menu instead of asking the tree. */
-export const CLASSIC_NAV = "cadence_classic_nav";
 /** How each person has arranged the recap and activity pages. Follows the account. */
 export const LAYOUTS = "cadence_layouts";
 /** The legend has been shown once on this device. */

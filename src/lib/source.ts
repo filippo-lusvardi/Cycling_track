@@ -37,6 +37,7 @@ type Source = Pick<
   | "updateWorkout"
   | "deleteWorkout"
   | "scheduleWorkout"
+  | "planFreeRide"
 >;
 
 export const sourceKind = (): SourceKind =>
@@ -82,6 +83,7 @@ export const createWorkout = via("createWorkout");
 export const updateWorkout = via("updateWorkout");
 export const deleteWorkout = via("deleteWorkout");
 export const scheduleWorkout = via("scheduleWorkout");
+export const planFreeRide = via("planFreeRide");
 
 /** Signed in and either holding an intervals.icu key or using Cirmolo's own store. */
 export const hasSource = () => sourceKind() === "native" || !!readSetting<string>(API_KEY);

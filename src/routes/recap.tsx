@@ -22,7 +22,6 @@ import { offDays } from "@/lib/tree";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const Route = createFileRoute("/recap")({
-  head: () => ({ meta: [{ title: t("Recap — Cirmolo", "Recap — Cirmolo") }] }),
   validateSearch: (s: Record<string, unknown>): { from?: string; to?: string } =>
     typeof s["from"] === "string" &&
     typeof s["to"] === "string" &&

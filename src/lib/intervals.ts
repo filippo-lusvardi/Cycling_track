@@ -558,6 +558,14 @@ export type PlannedEvent = {
   icu_training_load: number | null;
 };
 
+/** A ride or run with nothing to follow, marked by its sport among intervals.icu's notes: not training, just planned. */
+export const isFreeRide = (e: Pick<PlannedEvent, "category" | "type">) =>
+  e.category === "NOTE" && (e.type === "Ride" || e.type === "Run");
+
+/** What counts as planned for a day: a workout, a race, a free ride. A note of your own doesn't. */
+export const isPlanned = (e: Pick<PlannedEvent, "category" | "type">) =>
+  e.category === "WORKOUT" || e.category.startsWith("RACE") || isFreeRide(e);
+
 /** Calendar events (planned workouts, notes, races) in a date range. */
 export async function getEvents(range: Range): Promise<PlannedEvent[]> {
   const { oldest, newest } = rangeSchema.parse(range);
@@ -744,8 +752,8 @@ export async function deleteWorkout(id: string) {
 }
 
 /** A workout on the calendar. intervals.icu reads the text, and works out its duration and load. */
-export async function scheduleWorkout(w: WorkoutEntry, date: string) {
-  await icu(`/athlete/0/events?upsertOnUid=false`, {
+export async function scheduleWorkout(w: WorkoutEntry, date: string): Promise<string> {
+  const made = await icu<{ id: string | number }>(`/athlete/0/events?upsertOnUid=false`, {
     method: "POST",
     body: JSON.stringify({
       ...workoutBody(w),
@@ -753,6 +761,30 @@ export async function scheduleWorkout(w: WorkoutEntry, date: string) {
       start_date_local: `${day.parse(date)}T00:00:00`,
     }),
   });
+  return String(made.id);
+}
+
+export const freeRideSchema = z.object({
+  name: z.string().min(1).max(120),
+  type: z.enum(["Ride", "Run"]),
+  date: day,
+});
+export type FreeRide = z.infer<typeof freeRideSchema>;
+
+/** A ride or run that isn't training, as a note: nothing goes to a watch, and no load or time is assumed. */
+export async function planFreeRide(r: FreeRide): Promise<string> {
+  const v = freeRideSchema.parse(r);
+  const made = await icu<{ id: string | number }>(`/athlete/0/events?upsertOnUid=false`, {
+    method: "POST",
+    body: JSON.stringify({
+      category: "NOTE",
+      name: v.name,
+      type: v.type,
+      start_date_local: `${v.date}T00:00:00`,
+      end_date_local: `${shiftDay(v.date, 1)}T00:00:00`,
+    }),
+  });
+  return String(made.id);
 }
 
 /** Replaces an activity's description on intervals.icu. */

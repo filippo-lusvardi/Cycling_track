@@ -13,10 +13,17 @@ export type WorkoutBlock = {
   /** 1–7, from the average intensity; null when the step names no target we can read. */
   zone: number | null;
   label: string | null;
+  /** As a fraction of FTP, when the step is written in power; null for heart rate, pace or no target. */
+  power: [number, number] | null;
+  ramp: boolean;
 };
+
+/** Steps as they were written: "4x" stays one set, where `blocks` has them laid out in full. */
+export type WorkoutSet = { reps: number; steps: WorkoutBlock[] };
 
 export type ParsedWorkout = {
   blocks: WorkoutBlock[];
+  sets: WorkoutSet[];
   totalSeconds: number;
   /** Lines written as steps that couldn't be read: the editor flags them. */
   unread: string[];
@@ -38,6 +45,8 @@ export function powerZone(watts: number, ftp: number): number {
 
 /** The middle of each zone, for a target given as "Z2". */
 const ZONE_MID = [0.45, 0.65, 0.82, 0.97, 1.12, 1.35, 1.6];
+/** Where each zone ends, as `powerZone` has it: what a target given as "Z2" means in watts. */
+const ZONE_TOP = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5, Infinity];
 /** A step with no target we can read draws low, and counts as easy. */
 const FREE = 0.5;
 /** Threshold heart rate is about this share of maximum. */
@@ -56,12 +65,15 @@ const DISTANCE = /(?:^|\s)(\d+(?:[.,]\d+)?)\s*(km|mtr|mi)(?=\s|$)/i;
 const paceSpeed = (m: string, s: string, unit: string) =>
   (unit === "mi" ? 1609.34 : 1000) / (Number(m) * 60 + Number(s));
 
-/** The target in a step's text as [from, to] (equal unless a ramp); null when it names none we can read. */
-function readTarget(text: string, ramp: boolean, th: Thresholds): [number, number] | null {
-  const span = (a: number, b: number): [number, number] => {
+type Target = { from: number; to: number; power: [number, number] | null };
+
+/** The target in a step's text (from and to differ only on a ramp); null when it names none we can read. */
+function readTarget(text: string, ramp: boolean, th: Thresholds): Target | null {
+  const span = (a: number, b: number): Target => {
     const mid = (a + b) / 2;
-    return ramp ? [a, b] : [mid, mid];
+    return ramp ? { from: a, to: b, power: null } : { from: mid, to: mid, power: null };
   };
+  const inPower = (a: number, b: number): Target => ({ ...span(a, b), power: [a, b] });
   const hr = /(\d+)(?:\s*-\s*(\d+))?\s*%\s*(LTHR|HR)\b/i.exec(text);
   if (hr) {
     const k = hr[3]!.toUpperCase() === "HR" ? 1 / LTHR_OF_MAX : 1;
@@ -82,12 +94,20 @@ function readTarget(text: string, ramp: boolean, th: Thresholds): [number, numbe
   const watts = /(\d+)(?:\s*-\s*(\d+))?\s*w\b/i.exec(text);
   if (watts) {
     if (!th.ftp) return null;
-    return span(Number(watts[1]) / th.ftp, Number(watts[2] ?? watts[1]) / th.ftp);
+    return inPower(Number(watts[1]) / th.ftp, Number(watts[2] ?? watts[1]) / th.ftp);
   }
   const zone = /\bZ([1-7])(?:\s*-\s*Z?([1-7]))?\b/i.exec(text);
-  if (zone) return span(ZONE_MID[Number(zone[1]) - 1]!, ZONE_MID[Number(zone[2] ?? zone[1]) - 1]!);
-  const pct = /(\d+)(?:\s*-\s*(\d+))?\s*%/.exec(text);
-  if (pct) return span(Number(pct[1]) / 100, Number(pct[2] ?? pct[1]) / 100);
+  if (zone) {
+    const low = Number(zone[1]) - 1;
+    const high = Number(zone[2] ?? zone[1]) - 1;
+    const drawn = span(ZONE_MID[low]!, ZONE_MID[high]!);
+    return {
+      ...drawn,
+      power: ramp ? [drawn.from, drawn.to] : [ZONE_TOP[low - 1] ?? 0, ZONE_TOP[high]!],
+    };
+  }
+  const pct = /(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?\s*%/.exec(text);
+  if (pct) return inPower(Number(pct[1]) / 100, Number(pct[2] ?? pct[1]) / 100);
   return null;
 }
 
@@ -101,7 +121,7 @@ function readStep(line: string, sport: MainSport, th: Thresholds): WorkoutBlock 
   if (!match) return null;
   const rest = text.slice(match.index + match[0].length);
   const target = readTarget(rest, ramp, th);
-  const [from, to] = target ?? [FREE, FREE];
+  const { from, to } = target ?? { from: FREE, to: FREE };
   let seconds: number;
   if (time) {
     const n = (i: number) => Number(time[i] ?? 0);
@@ -125,6 +145,8 @@ function readStep(line: string, sport: MainSport, th: Thresholds): WorkoutBlock 
     to,
     zone: target ? powerZone((from + to) / 2, 1) : null,
     label: label || null,
+    power: target?.power ?? null,
+    ramp,
   };
 }
 
@@ -141,11 +163,13 @@ export function parseWorkout(
   th: Thresholds = {},
 ): ParsedWorkout {
   const blocks: WorkoutBlock[] = [];
+  const sets: WorkoutSet[] = [];
   const unread: string[] = [];
   const notes: string[] = [];
   let reps = 1;
   let set: WorkoutBlock[] = [];
   const close = () => {
+    if (set.length) sets.push({ reps, steps: set });
     for (let i = 0; i < reps; i++) blocks.push(...set);
     set = [];
     reps = 1;
@@ -165,7 +189,19 @@ export function parseWorkout(
     else notes.push(line);
   }
   close();
-  return { blocks, totalSeconds: blocks.reduce((s, b) => s + b.seconds, 0), unread, notes };
+  return { blocks, sets, totalSeconds: blocks.reduce((s, b) => s + b.seconds, 0), unread, notes };
+}
+
+/** A step's power in watts: "263W", a range, or a ramp's start and end. Null when it isn't written in power. */
+export function stepWatts(step: WorkoutBlock, ftp: number): string | null {
+  if (!step.power) return null;
+  const [a, b] = step.power;
+  const w = (f: number) => Math.round(f * ftp);
+  if (w(a) === w(b)) return `${w(a)}W`;
+  if (step.ramp) return `${w(a)} → ${w(b)}W`;
+  if (!a) return `≤${w(b)}W`;
+  if (b === Infinity) return `≥${w(a)}W`;
+  return `${w(a)}–${w(b)}W`;
 }
 
 /** Whether there's anything worth drawing: at least one step with a target, not just a line that happens to read as one. */

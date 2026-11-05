@@ -93,9 +93,9 @@ describe("buildRecap", () => {
   it("drops today's plan once today has an activity, and keeps races", () => {
     const r = recap("2026-11-05", "2026-11-15", new Map(), [
       plan(today, "Oggi", 3600),
-      plan("2026-11-15", "Garda", 0, "RACE_B"),
+      plan("2026-11-15", "Lago", 0, "RACE_B"),
     ]);
-    expect(r.planned.map((e) => e.name)).toEqual(["Garda"]);
+    expect(r.planned.map((e) => e.name)).toEqual(["Lago"]);
   });
 
   it("gives long stretches a shape", () => {

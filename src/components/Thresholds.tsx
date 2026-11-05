@@ -221,8 +221,8 @@ function ZoneEditor({
       toast.success(
         sourceKind() === "native"
           ? t(
-              'Saved. "Recalculate all rides" applies it to the rides you already have.',
-              'Salvato. "Ricalcola tutte le uscite" lo applica alle uscite che hai già.',
+              'Saved. "Recalculate all activities" applies it to the ones you already have.',
+              'Salvato. "Ricalcola tutte le attività" lo applica a quelle che hai già.',
             )
           : t("Saved", "Salvato"),
       );

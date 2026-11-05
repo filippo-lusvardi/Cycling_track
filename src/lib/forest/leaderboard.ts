@@ -134,23 +134,27 @@ export function bestShared(attempts: Attempt[], shared: (a: Attempt) => boolean)
   return best;
 }
 
+/** A time as the forest stores it. Power is health data: it goes out only with the member's consent. */
+export const timeDoc = (a: Attempt, splits: Splits | null, shareEffort: boolean) => ({
+  duration: a.duration,
+  date: a.date,
+  rideId: a.trackId,
+  rideName: a.trackName,
+  avgWatts: !shareEffort || a.sport === "run" || a.avgWatts == null ? null : Math.round(a.avgWatts),
+  ...(a.sport === "run" ? { sport: "run" as const } : {}),
+  ...(splits ? { splits } : {}),
+});
+
 export async function publishTime(
   fid: string,
   sid: string,
   a: Attempt | null,
-  splits: Splits | null = null,
+  splits: Splits | null,
+  shareEffort: boolean,
 ) {
   const ref = doc(db, "forests", fid, "segments", sid, "times", uid());
   if (!a) return deleteDoc(ref);
-  await setDoc(ref, {
-    duration: a.duration,
-    date: a.date,
-    rideId: a.trackId,
-    rideName: a.trackName,
-    avgWatts: a.sport === "run" || a.avgWatts == null ? null : Math.round(a.avgWatts),
-    ...(a.sport === "run" ? { sport: "run" } : {}),
-    ...(splits ? { splits } : {}),
-  });
+  await setDoc(ref, timeDoc(a, splits, shareEffort));
 }
 
 /**

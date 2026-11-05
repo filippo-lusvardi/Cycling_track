@@ -35,10 +35,10 @@ describe("segment naming", () => {
     expect(nearestNamed(places, 46.5287, 10.4531, 400, ["peak"])).toBe("Cima Garibaldi");
   });
   it("composes landmark, towns, or a single-town name", () => {
-    expect(composeName({ landmark: "Passo Coe", from: "Folgaria", to: "Folgaria" }, "auto")).toBe(
-      "Passo Coe",
+    expect(composeName({ landmark: "Passo Verde", from: "Borgo", to: "Borgo" }, "auto")).toBe(
+      "Passo Verde",
     );
-    expect(composeName({ from: "Avio", to: "Ala" }, "auto")).toBe("Avio → Ala");
+    expect(composeName({ from: "Borgo", to: "Villa" }, "auto")).toBe("Borgo → Villa");
     expect(composeName({ from: "Ala", to: "Ala", toLocal: "Brustolotti" }, "auto")).toBe(
       "Ala → Brustolotti",
     );
@@ -48,12 +48,12 @@ describe("segment naming", () => {
   });
   it("appends the length when two segments share a name", () => {
     const m = dedupeNames([
-      { id: "a", name: "Avio → Ala", length: 3700 },
-      { id: "b", name: "Avio → Ala", length: 5200 },
-      { id: "c", name: "Passo Coe", length: 9400 },
+      { id: "a", name: "Borgo → Villa", length: 3700 },
+      { id: "b", name: "Borgo → Villa", length: 5200 },
+      { id: "c", name: "Passo Verde", length: 9400 },
     ]);
-    expect(m.get("a")).toBe("Avio → Ala · 3.7 km");
-    expect(m.get("c")).toBe("Passo Coe");
+    expect(m.get("a")).toBe("Borgo → Villa · 3.7 km");
+    expect(m.get("c")).toBe("Passo Verde");
   });
   it("keys names by where the segment runs, to ~10 m", () => {
     const a = { lat1: 45.889912, lng1: 11.040081, lat2: 45.93031, lng2: 11.00544 };

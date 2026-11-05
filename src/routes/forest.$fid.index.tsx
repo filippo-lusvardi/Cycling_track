@@ -18,7 +18,6 @@ import type { TreeHeader } from "@/lib/forest/types";
 import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/forest/$fid/")({
-  head: () => ({ meta: [{ title: t("Forest — Cirmolo", "Bosco — Cirmolo") }] }),
   validateSearch: (s: Record<string, unknown>): { tab?: Tab } =>
     TABS.includes(s["tab"] as Tab) ? { tab: s["tab"] as Tab } : {},
   component: ForestDetail,

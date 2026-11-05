@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { weeklyTotals, type WeekRow } from "@/lib/analysis";
-import type { Activity, PlannedEvent, Wellness } from "@/lib/intervals";
+import { isFreeRide, isPlanned, type Activity, type PlannedEvent, type Wellness } from "@/lib/intervals";
 import { deleteEvent, sourceKind } from "@/lib/source";
 import { UploadRides } from "@/components/UploadRides";
 import { activitiesRangeQuery, eventsQuery, wellnessRangeQuery } from "@/lib/queries";
@@ -35,7 +35,6 @@ import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/calendar")({
-  head: () => ({ meta: [{ title: t("Calendar — Cirmolo", "Calendario — Cirmolo") }] }),
   validateSearch: (
     s: Record<string, unknown>,
   ): { month?: string | undefined; week?: string | undefined; plan?: string | undefined } => ({
@@ -144,9 +143,7 @@ function CalendarPage() {
           date,
           inMonth: weekView || d.getMonth() === anchor.getMonth(),
           acts: (acts ?? []).filter((a) => a.start_date_local.startsWith(date)).reverse(),
-          planned: (events ?? []).filter(
-            (e) => e.date === date && (e.category === "WORKOUT" || e.category.startsWith("RACE")),
-          ),
+          planned: (events ?? []).filter((e) => e.date === date && isPlanned(e)),
           well: wellness?.find((w) => w.id === date),
           score:
             wellness && date <= today ? readinessFor(readinessRows(wellness), date).score : null,
@@ -569,7 +566,7 @@ function DayDetail({ d, startOnPlan = false }: { d: DayData; startOnPlan?: boole
         {(
           [
             ["day", t("Activities", "Attività")],
-            ["wellness", t("Wellness", "Benessere")],
+            ["wellness", t("Body", "Corpo")],
             ["log", t("Log workout", "Registra allenamento")],
             ["race", t("Race", "Gara")],
           ] as const
@@ -611,7 +608,11 @@ function DayDetail({ d, startOnPlan = false }: { d: DayData; startOnPlan?: boole
                   <div className="stat-num text-xs text-muted-foreground">
                     {race
                       ? raceSummary(race)
-                      : `${formatDuration(e.moving_time)} · ${t("load", "carico")} ${e.icu_training_load ?? "–"}`}
+                      : isFreeRide(e)
+                        ? e.type === "Run"
+                          ? t("Run", "Corsa")
+                          : t("Ride", "Uscita")
+                        : `${formatDuration(e.moving_time)} · ${t("load", "carico")} ${e.icu_training_load ?? "–"}`}
                   </div>
                   {!race && e.category === "WORKOUT" && (
                     <WorkoutPreview text={e.description} type={e.type} className="mt-2" />
@@ -636,7 +637,7 @@ function DayDetail({ d, startOnPlan = false }: { d: DayData; startOnPlan?: boole
                         : t("Set the race kind", "Imposta il tipo di gara")}
                     </Button>
                   )}
-                  {!race && e.category === "WORKOUT" && <RemovePlanned id={e.id} />}
+                  {!race && (e.category === "WORKOUT" || isFreeRide(e)) && <RemovePlanned id={e.id} />}
                 </div>
               );
             })}

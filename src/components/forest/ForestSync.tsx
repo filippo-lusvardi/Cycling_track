@@ -68,14 +68,15 @@ export function ForestSync() {
           );
           const key = `forest-time:${me}:${f.id}:${c.sid}`;
           const before = await idbGet<string>(key).catch(() => undefined);
-          // Times published before splits existed go out again once, now with them.
-          const full = fingerprint(best && [best.trackId, best.duration, "splits"]);
+          // Sharing heart rate and power is part of what's published, so changing it sends the time again.
+          const effort = p.shareEffort ? "effort" : "no-effort";
+          const full = fingerprint(best && [best.trackId, best.duration, "splits", effort]);
           if (before === full) continue;
           const track = best && (await segmentEngine.loadTrack(best.trackId).catch(() => null));
           const splits: Splits | null = best && track ? toSplits(effortSeries(track, best)) : null;
-          const fp = splits || !best ? full : fingerprint([best.trackId, best.duration]);
+          const fp = splits || !best ? full : fingerprint([best.trackId, best.duration, effort]);
           if (before === fp) continue;
-          await publishTime(f.id, c.sid, best, splits).catch((e) =>
+          await publishTime(f.id, c.sid, best, splits, p.shareEffort).catch((e) =>
             console.warn("Time not published", e),
           );
           await idbSet(key, fp).catch(() => {});

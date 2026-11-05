@@ -8,22 +8,10 @@ import {
   useRouterState,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useState } from "react";
-import {
-  Activity,
-  CalendarDays,
-  ChartSpline,
-  CloudOff,
-  Dumbbell,
-  Ellipsis,
-  Mountain,
-  Sprout,
-  Settings,
-  TreeDeciduous,
-} from "lucide-react";
+import { lazy, Suspense, useEffect } from "react";
+import { CloudOff } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DailyCheckIn } from "@/components/CheckIn";
 import { PwaUpdater } from "@/components/PwaUpdater";
 import { useLastSynced, useOnline } from "@/hooks/use-online";
@@ -41,15 +29,7 @@ import { hasSource } from "@/lib/source";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { useLocalStore } from "@/hooks/use-local-store";
-import {
-  CLASSIC_NAV,
-  GARDEN,
-  gardenOn,
-  LEGEND_SEEN,
-  readSetting,
-  writeSetting,
-} from "@/lib/settings";
-import { byMain } from "@/lib/sport";
+import { GARDEN, gardenOn, LEGEND_SEEN, readSetting, writeSetting } from "@/lib/settings";
 
 // Background forest sync needs Firestore: loaded after the first screen, not before it.
 const ForestSync = lazy(() =>
@@ -75,7 +55,7 @@ function NotFoundComponent() {
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            {t("Go home", "Torna alla home")}
+            {t("Back to the tree", "Torna all'albero")}
           </Link>
         </div>
       </div>
@@ -104,8 +84,8 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
             ? t("Check the key in Settings.", "Controlla la chiave nelle Impostazioni.")
             : navigator.onLine
               ? t(
-                  "intervals.icu couldn't be reached. Try again in a moment.",
-                  "intervals.icu non è raggiungibile. Riprova tra poco.",
+                  "Your data couldn't be reached. Try again in a moment.",
+                  "I tuoi dati non sono raggiungibili. Riprova tra poco.",
                 )
               : t(
                   "You're offline and this page isn't cached yet.",
@@ -135,7 +115,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
             to="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            {t("Go home", "Torna alla home")}
+            {t("Back to the tree", "Torna all'albero")}
           </Link>
         </div>
       </div>
@@ -144,16 +124,6 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      {
-        title: byMain(
-          t("Cirmolo — Cycling Training", "Cirmolo — Allenamento di ciclismo"),
-          t("Cirmolo — Running Training", "Cirmolo — Allenamento di corsa"),
-        ),
-      },
-    ],
-  }),
   beforeLoad: async ({ location }) => {
     // The privacy notice must be readable before anyone signs up.
     if (location.pathname === "/privacy") return;
@@ -176,29 +146,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
-/** `bar: true` items sit in the Android bottom bar; the rest go under "More". */
-const NAV = [
-  { to: "/", label: t("Tree", "Albero"), icon: TreeDeciduous, bar: true },
-  { to: "/garden", label: t("Garden", "Orto"), icon: Sprout, bar: true },
-  { to: "/segments", label: t("Segments", "Segmenti"), icon: Mountain, bar: true },
-  { to: "/calendar", label: t("Calendar", "Calendario"), icon: CalendarDays, bar: true },
-  { to: "/analysis", label: t("Analysis", "Analisi"), icon: ChartSpline, bar: true },
-  { to: "/rides", label: t("Activities", "Attività"), icon: Activity, bar: false },
-  { to: "/workouts", label: t("Workouts", "Allenamenti"), icon: Dumbbell, bar: false },
-  { to: "/settings", label: t("Settings", "Impostazioni"), icon: Settings, bar: false },
-] as const;
-
 function RootComponent() {
   // The app shell is on screen (the page itself may still be loading its data).
   useEffect(() => recordSinceLoad("app_start"), []);
-  const [more, setMore] = useState(false);
   const online = useOnline();
   const synced = useLastSynced();
   const [garden] = useLocalStore(GARDEN, gardenOn());
-  const [classic] = useLocalStore(CLASSIC_NAV, readSetting<boolean>(CLASSIC_NAV) ?? false);
-  const nav = NAV.filter((n) => garden || n.to !== "/garden");
-  const bar = nav.filter((n) => n.bar);
-  const rest = nav.filter((n) => !n.bar);
   const bare = useRouterState({
     select: (s) => s.location.pathname === "/login" || s.location.pathname === "/privacy",
   });
@@ -208,9 +161,6 @@ function RootComponent() {
   const scenic = useRouterState({
     select: (s) => /^\/((garden|forest)(\/|$)|$)/.test(s.location.pathname),
   });
-  // The forests are reached from the tree: the Tree stays lit in the nav there.
-  const inForest = useRouterState({ select: (s) => /^\/forest(\/|$)/.test(s.location.pathname) });
-  const navClass = (to: string, on: string) => (to === "/" && inForest ? on : undefined);
   // The Tree, the Garden and the forests live under the sky of the moment: the page takes its colour, the bar is glass.
   const skyPage = useRouterState({ select: (s) => SKY_PAGE.test(s.location.pathname) });
   useSkyPage(skyPage);
@@ -252,7 +202,7 @@ function RootComponent() {
       {/* One sky behind the whole window, from its very top. */}
       {skyPage && <PageSky bodies={sunPage} own={!sunPage && !forestPage && !memberTree} />}
       {skyPage && !sunPage && !forestPage && <SkyLand high />}
-      {/* Desktop only: on the phone each page's own title is the top, and the bottom bar navigates. */}
+      {/* Desktop only: on the phone each page's own title is the top, and the bar at the foot navigates. */}
       <header
         className={cn(
           "sticky top-0 z-20 hidden backdrop-blur lg:block",
@@ -273,28 +223,9 @@ function RootComponent() {
               Offline{synced ? t(` · data from ${synced}`, ` · dati del ${synced}`) : ""}
             </span>
           )}
-          {classic ? (
-            <nav className="flex gap-1">
-              {nav.map((n) => (
-                <Link
-                  key={n.to}
-                  to={n.to}
-                  activeOptions={{ exact: n.to === "/" }}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground",
-                    navClass(n.to, "bg-secondary text-foreground"),
-                  )}
-                  activeProps={{ className: "bg-secondary text-foreground" }}
-                >
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
-          ) : (
-            <div className="w-[480px] min-w-0">
-              <AskNav desktop />
-            </div>
-          )}
+          <div className="w-[480px] min-w-0">
+            <AskNav desktop />
+          </div>
         </div>
       </header>
       {/* Phone only: the icon and name on a transparent line that scrolls away with the page. */}
@@ -327,88 +258,20 @@ function RootComponent() {
           />
         )}
       </main>
-      {classic ? (
-        <>
-          <nav
-            className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
-            style={{ gridTemplateColumns: `repeat(${bar.length + 1}, minmax(0, 1fr))` }}
+      <div className="pointer-events-none fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md space-y-1 lg:hidden">
+        {!online && (
+          <div
+            className="on-sky flex items-center justify-center gap-1.5 text-xs text-foreground/85"
+            role="status"
           >
-            {!online && (
-              <div
-                className="col-span-full flex items-center justify-center gap-1.5 border-b border-border py-1 text-xs text-muted-foreground"
-                role="status"
-              >
-                <CloudOff className="h-3.5 w-3.5" />
-                Offline{synced ? t(` · data from ${synced}`, ` · dati del ${synced}`) : ""}
-              </div>
-            )}
-            {bar.map((n) => (
-              <Link
-                key={n.to}
-                to={n.to}
-                activeOptions={{ exact: n.to === "/" }}
-                className={cn(
-                  "flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground",
-                  navClass(n.to, "text-primary"),
-                )}
-                activeProps={{ className: "text-primary" }}
-              >
-                <n.icon className="h-5 w-5" />
-                {n.label}
-              </Link>
-            ))}
-            <button
-              onClick={() => setMore(true)}
-              className={cn(
-                "flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground",
-                more && "text-primary",
-              )}
-            >
-              <Ellipsis className="h-5 w-5" />
-              {t("More", "Altro")}
-            </button>
-          </nav>
-          <Sheet open={more} onOpenChange={setMore}>
-            <SheetContent
-              side="bottom"
-              className="rounded-t-2xl pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
-            >
-              <SheetHeader>
-                <SheetTitle>{t("More", "Altro")}</SheetTitle>
-              </SheetHeader>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {rest.map((n) => (
-                  <Link
-                    key={n.to}
-                    to={n.to}
-                    onClick={() => setMore(false)}
-                    className="flex flex-col items-center gap-2 rounded-xl bg-secondary py-4 text-sm"
-                    activeProps={{ className: "text-primary" }}
-                  >
-                    <n.icon className="h-5 w-5" />
-                    {n.label}
-                  </Link>
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>
-        </>
-      ) : (
-        <div className="pointer-events-none fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md space-y-1 lg:hidden">
-          {!online && (
-            <div
-              className="on-sky flex items-center justify-center gap-1.5 text-xs text-foreground/85"
-              role="status"
-            >
-              <CloudOff className="h-3.5 w-3.5" />
-              Offline{synced ? t(` · data from ${synced}`, ` · dati del ${synced}`) : ""}
-            </div>
-          )}
-          <div className="pointer-events-auto">
-            <AskNav />
+            <CloudOff className="h-3.5 w-3.5" />
+            Offline{synced ? t(` · data from ${synced}`, ` · dati del ${synced}`) : ""}
           </div>
+        )}
+        <div className="pointer-events-auto">
+          <AskNav />
         </div>
-      )}
+      </div>
       <Legend garden={garden} />
       <DailyCheckIn />
       <Suspense fallback={null}>

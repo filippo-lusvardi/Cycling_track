@@ -1,7 +1,7 @@
 # Cirmolo
 
-A personal cycling dashboard built on [intervals.icu](https://intervals.icu): daily readiness and check-in, rides,
-calendar, power analysis, and GPS segments with maps and altimetry.
+A personal training dashboard for cycling or running, with or without [intervals.icu](https://intervals.icu): daily readiness and check-in, activities,
+calendar, analysis, and GPS segments with maps and altimetry.
 
 Cirmolo is a **web app (PWA)**. You sign in with an email and password; it runs in your browser, talks directly to
 intervals.icu with your own API key, and keeps your key and saved segments in your account (Firebase), so every
@@ -16,9 +16,9 @@ macOS and Windows.
 ## What you need
 
 - An **intervals.icu account** and its **API key** (intervals.icu → Settings → *Developer Settings* → API key), **or**
-  no intervals.icu at all: Cirmolo can keep your rides itself, from uploaded ride files (.fit)
+  no intervals.icu at all: Cirmolo can keep your activities itself, from uploaded activity files (.fit)
   (see [Without intervals.icu](#without-intervalsicu)).
-- The **web address of your Cirmolo site**, e.g. `https://ora-xxxx.pages.dev`. See
+- The **web address of your Cirmolo site**, e.g. `https://cirmolo-xxxx.pages.dev`. See
   [Hosting](#hosting-your-own-copy) to set one up (free, about 10 minutes). Phones need it, because installing an app on
   a phone requires HTTPS.
 
@@ -81,10 +81,10 @@ websites, which Safari may clear after a few weeks without use. If that ever hap
 Cirmolo opens on **Sign in**.
 
 1. **Create account** with your email and a password (at least 8 characters). *Forgot password?* sends a reset link.
-2. **intervals.icu**: paste your API key → **Save & connect**. It shows "Connected as *your name*". The key is saved
+2. **intervals.icu**: paste your API key → **Save & connect**. It shows "Connected to intervals.icu as *your name*". The key is saved
    in your account, so other devices pick it up when you sign in there.
 3. **Segment analysis**: choose how much history to analyse (1, 2, 5 years or all). The first time you open
-   **Segments**, each outdoor ride is downloaded once and analysed on the device. More history takes longer, and on a
+   **Segments**, each outdoor activity is downloaded once and analysed on the device. More history takes longer, and on a
    phone it uses mobile data, so a Wi-Fi connection is better for the first run.
 
 On every other device, just sign in with the same account.
@@ -97,7 +97,7 @@ the moon at night; the weather is your form). **Body** (weight and composition) 
 
 **Getting around:** at the foot of the screen (at the top on a desktop, where `/` opens it) are the tree, a line to ask on,
 and the sprout. Tap the line and type, in your own words and in either language: *sonno*, *vasi*, *marzo*, *gufo*, the
-name of a ride or a climb. You get up to three alternatives to choose from, closest to your thumb, ordered in part by your
+name of an activity or a climb. You get up to three alternatives to choose from, closest to your thumb, ordered in part by your
 season of the moment. With nothing typed it offers what fits right now, and says when there's nothing left for today. It
 all runs on the device, so it works offline and sends nothing anywhere.
 
@@ -107,11 +107,11 @@ Typing also gets answers. Parameters show their value in the row (*ftp*, *soglia
 giorni*, *mese scorso*, *ottobre*, *2025*) opens a **recap**: what happened, how the body was and what's planned, with arrows
 to the stretch before or after. A forest's name, once you've typed three letters, takes you into it.
 
-It also answers your own records and saves what you tell it: *best manghen*, *ultima manghen*, *quante volte manghen*, *best 20
+It also answers your own records and saves what you tell it: *best* + a climb's name, *ultima* + a climb's name, *quante volte* + a climb's name, *best 20
 min*, *best 10 km*, *ultima corsa*, *km quest'anno*, *uscita più lunga*, *prossima gara*, *cosa faccio oggi*, *perché*, *mangiare 3
-ore*. And *peso 68.2*, *grasso 14*, *sonno 7h 30*, *malato oggi*, *non più malato*, *2 brioche* each offer a row saying what will be
+ore*. And *peso 70*, *grasso 15*, *sonno 7h 30*, *malattia oggi*, *fine malattia*, *2 brioche* each offer a row saying what will be
 saved; choosing it saves (to intervals.icu, if you use it), and the message that follows has **Undo**. Times come from the
-rides already analysed on the device, within the history set in Settings.
+activities already analysed on the device, within the history set in Settings.
 
 *Plan domani* (or *plan sabato*, *plan 12 novembre*) opens the Calendar on that day, ready to choose a workout. *Guida* opens the
 Legend, whose **Search** tab explains all of this.
@@ -127,7 +127,6 @@ takes the colour of its zone, measured on grade-adjusted pace like the zones pan
 stays closed. A day, a week, a month, a longer stretch, and each sport keep their own layout, which follows your account.
 On the Tree, a week's branch opens that week's recap, and a month's name that month's. **All** lists every page, sorted by today, before
 and ahead. The **Legend** (type *legenda*, or a part of the tree) labels a sample tree and appears once on each device.
-Settings → General → *Classic menu* brings back the bottom bar and the floating switches.
 
 **The Garden** is where the sports you do grow (Settings → *How to read the garden*). It starts empty: the first activity
 of a new sport gives it a bed, with a vegetable picked at random among those not in use. Every session of those sports
@@ -139,18 +138,18 @@ activities and open it in the calendar.
 Tracking one sport only? Settings → *Show the Garden* turns it off: the Garden leaves the app and the sprouts leave the
 tree. Nothing is deleted.
 
-**The Tree** grows from your rides only; the Garden's sports show as a small sprout on that day's bark. Trunk and crown still count all your training. Besides seasons, sky and branches (Settings → *How to read
+**The Tree** grows from your main sport only; the Garden's sports show as a small sprout on that day's bark. Trunk and crown still count all your training. Besides seasons, sky and branches (Settings → *How to read
 the tree*), it shows:
 
 - **Knots** for days ill or injured, from *Sick* / *Injured* events in the intervals.icu calendar. Mark today from
   the crown's sheet, or a past run of rest days by tapping it.
 - **Wind** in the crown when a trend over several days is worth watching (HRV below your usual for a week, high
   fatigue or stress on most recent check-ins, short nights), before it shows in readiness.
-- **Today's ceiling** on easy and endurance days: the power and heart rate to stay under, from your intervals.icu
+- **Today's ceiling** on easy and endurance days: the power (or pace) and heart rate to keep to, from your
   zones.
 - **Quiet tree** (Settings → Tree) hides the scores on the tree until you tap.
-- **Morning check-in** (Settings → Tree) can be turned off: it's no longer asked, and the crown comes only from HRV,
-  sleep and form. A check-in skipped for a day works the same way: its part drops out and the others share its weight.
+- **Morning check-in** (Settings → Tree) can be turned off: it's no longer asked, and the crown comes from HRV,
+  sleep, form and how your activities felt. A check-in skipped for a day works the same way: its part drops out and the others share its weight.
 - **Training focus**: what to train in the current block (base, high aerobic, VO2max, anaerobic, sprint). It weighs
   every race in the next 20 weeks (A more than B and C, nearer more than later) against the gaps in your own power
   curve, puts the base first when it's weak, and tapers around races. Add races in **Calendar → a day → Add race** with
@@ -160,25 +159,19 @@ the tree*), it shows:
 **Updates** reach every device automatically: when a new version is published, Cirmolo shows a
 "New version available → Reload" message.
 
-### Moving from the GitHub gist
-
-Older versions synced saved segments through a secret GitHub gist. The first time you sign in on a device that still
-has the GitHub token, Cirmolo copies the gist's segments and place names into your account and forgets the token.
-The gist itself is left alone; delete it from [gist.github.com](https://gist.github.com) once you've checked.
-
 ---
 
 ## Without intervals.icu
 
 In **Settings → No intervals.icu account? → Use Cirmolo without intervals.icu** (after agreeing that Cirmolo stores
-your rides and health data), Cirmolo keeps everything in your account and computes what intervals.icu would:
+your activities and health data), Cirmolo keeps everything in your account and computes what intervals.icu would:
 training load (TSS from power and FTP, or from heart rate against threshold heart rate), fitness/fatigue/form,
 zones, power curves and eFTP.
 
 - **Settings → Athlete**: weight, FTP (leave empty to use the estimate from the last 42 days), threshold and max
-  heart rate. After changing them, **Recalculate all rides**.
-- **Ride files**: drop .fit files in Settings or in Calendar → *Log workout*. Garmin and Wahoo files, and Zwift's
-  (`Documents/Zwift/Activities`), all work. Delete a wrong one from the ride's page.
+  heart rate. After changing them, **Recalculate all activities**.
+- **Activity files**: drop .fit files in Settings or in Calendar → *Log workout*. Garmin and Wahoo files, and Zwift's
+  (`Documents/Zwift/Activities`), all work. Delete a wrong one from the activity's page.
 - HRV is typed in the daily check-in (nothing brings it in from the watch without intervals.icu).
 
 ---
@@ -232,7 +225,7 @@ several forests.
 - **Trees**: the forest's members as a little grove, each tree in today's season; tap one to see it whole.
 - **What's shared**: each member's own app publishes a copy of their tree into each forest when they open
   the Tree: the activities of the forest's sport they show there (everything else stays private), daily fitness/fatigue, sick days and today's crown. Heart rate and power
-  appear only on ride pages, with **Show my heart rate and power** on (off unless turned on).
+  appear only on activity pages and as average power on forest climbs, with **Show my heart rate and power** on (off unless turned on).
   Friends see that tree in plain bark, without numbers.
 - **Ride pages**: with **Show my ride maps** on for a forest (asked when joining, or under Members), members can
   open your shared rides of the last year: route and altitude profile without the first and last kilometre.
@@ -293,7 +286,7 @@ Cirmolo is a static site plus a free Firebase project for accounts.
    firebase deploy --only firestore:rules
    ```
 
-6. **Authentication → Settings → Authorized domains**: add your site's address (e.g. `ora-xxxx.pages.dev`).
+6. **Authentication → Settings → Authorized domains**: add your site's address (e.g. `cirmolo-xxxx.pages.dev`).
    Speed measurements (startup and screen-open times, custom traces only) appear under **Performance** in the
    Firebase console by themselves, about a day after the first visits; users can turn them off in Settings → Account.
 7. Set your name and a contact email at the top of `src/routes/privacy.tsx`: the privacy notice (linked from the
@@ -308,7 +301,7 @@ Cirmolo is a static site plus a free Firebase project for accounts.
    - Build command: `npm run build`
    - Output directory: `dist`
    - Environment variables: `NODE_VERSION` = `22`, plus the four `VITE_FIREBASE_*` values from `.env.local`
-4. **Save and Deploy**. You get an address like `https://ora-xxxx.pages.dev`. Every push to `main` redeploys
+4. **Save and Deploy**. You get an address like `https://cirmolo-xxxx.pages.dev`. Every push to `main` redeploys
    automatically, and installed copies pick up the update.
 
 No redirect rules are needed: Cloudflare Pages serves the app for every path, so links like `/rides/123` work when
@@ -333,7 +326,7 @@ npm run dev          # http://localhost:5173
 | `npm run preview` | Serve the production build locally (includes offline/PWA behaviour) |
 | `npm test` | Unit tests (Vitest) |
 | `npm run lint` | ESLint |
-| `npm run icons` | Regenerate the app icons from `public/icon.svg` |
+| `npm run icons` | Regenerate the app icons from `assets/icon-source.png` |
 
 To develop without touching the real project, run `firebase emulators:start` and start the app with
 `VITE_USE_EMULATORS=1 npm run dev`.
@@ -344,12 +337,12 @@ To develop without touching the real project, run `firebase emulators:start` and
 
 ```
 src/
-  routes/       pages (file-based routing: Tree, Garden, Rides, Calendar, Analysis, Segments, Settings)
+  routes/       pages (file-based routing: Tree, Garden, Activities, Calendar, Analysis, Segments, Settings)
   components/   UI pieces (maps, profiles, charts, check-in, …)
   hooks/        React hooks (segments, names, online state)
   components/nav/  the bar, the typed alternatives (logic in lib/ask.ts) and the legend
   lib/          logic: intervals.icu client, Firebase (firebase, cloud, account), readiness, climbs, segment engine …
-public/         icons, _redirects
+public/         icons
 ```
 
 ---

@@ -129,7 +129,7 @@ export function RaceForm({
       if (race) await updateRace(race.id, entry);
       else await createRace(entry);
       await qc.invalidateQueries({ queryKey: ["events"] });
-      toast.success(t("Race saved to intervals.icu", "Gara salvata su intervals.icu"));
+      toast.success(t("Race saved", "Gara salvata"));
       onSaved?.();
     } catch {
       toast.error(t("Couldn't save the race", "Impossibile salvare la gara"));

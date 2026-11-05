@@ -33,7 +33,7 @@ const queryClient = new QueryClient({
   },
 });
 
-// The last data fetched lives in IndexedDB so Today and the dashboards open offline.
+// The last data fetched lives in IndexedDB so the pages open offline.
 const persister = createAsyncStoragePersister({
   key: "cadence-query-cache",
   storage: { getItem: get, setItem: set, removeItem: del },

@@ -81,7 +81,7 @@ export const PAGE_LABEL: Record<Page, () => string> = {
   forest: () => t("Forest", "Bosco"),
   legend: () => t("Legend", "Legenda"),
   zones: () => t("Zones", "Zone"),
-  recap: () => "Recap",
+  recap: () => t("Recap", "Riepilogo"),
   programme: () => t("Plan", "Programma"),
   save: () => t("Save", "Salva"),
 };
@@ -192,9 +192,9 @@ function questions(): Entry[] {
       words: ["weight", "mass", "composition", "fat", "massa", "composizione", "grasso"],
     },
     {
-      id: "improving",
-      q: t("Am I improving?", "Sto migliorando?"),
-      also: `${"Am I improving?"} ${"Sto migliorando?"}`,
+      id: "analysis",
+      q: t("Analysis", "Analisi"),
+      also: `${"Analysis"} ${"Analisi"}`,
       page: "analysis",
       kind: "perf",
       dest: PAGE_DEST.analysis,
@@ -208,8 +208,8 @@ function questions(): Entry[] {
         "progressi",
         "potenza",
         "forma",
-        "analisi",
-        "analysis",
+        "improving",
+        "migliorando",
       ],
     },
     {
@@ -234,6 +234,8 @@ function questions(): Entry[] {
         "list",
         "history",
         "uscite",
+        "pedalata",
+        "pedalate",
         "giri",
         "corse",
         "storico",
@@ -507,7 +509,7 @@ function answers(data: AskData): Record<string, string> {
   const row = rows.find((w) => w.id === data.today);
   const then = rows.find((w) => w.id === addDays(data.today, -42));
   if (row?.ctl != null && then?.ctl != null)
-    out["improving"] = t(
+    out["analysis"] = t(
       `Fitness ${Math.round(row.ctl)}, ${Math.round(then.ctl)} six weeks ago`,
       `Fitness ${Math.round(row.ctl)}, era ${Math.round(then.ctl)} sei settimane fa`,
     );
@@ -574,7 +576,7 @@ export function allEntries(data: AskData): Entry[] {
     answer: [
       `${(c.length / 1000).toFixed(1)} km`,
       metres(c.gain),
-      c.rides ? t(`${c.rides} rides`, `${c.rides} passaggi`) : null,
+      c.rides ? t(`${c.rides} passes`, `${c.rides} passaggi`) : null,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -708,8 +710,16 @@ export function alternatives(
     if (score <= 0) continue;
     scored.push({ e, score });
   }
+  // The same row reached by two ways (a command and a phrase) counts once.
+  const seen = new Set<string>();
   return scored
     .sort((a, b) => b.score - a.score || a.e.q.length - b.e.q.length)
+    .filter(({ e }) => {
+      const key = `${e.q}|${JSON.stringify(e.dest)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .slice(0, max)
     .map(({ e }) => ({
       ...e,
@@ -744,7 +754,7 @@ export function nowEntries(m: Moment, entries: Entry[]): Entry[] {
       const e = entries.find((x) => x.id === id);
       return e ? [e] : [];
     });
-  const near = isLow(m.season) ? ["sleep", "week"] : ["improving", "climbs"];
+  const near = isLow(m.season) ? ["sleep", "week"] : ["climbs", "activities"];
   // With nothing else waiting, what today calls for comes first.
   const open = entries.some((e) => e.id === "do-today") ? ["do-today", near[0]!] : near;
   if (m.checkInDue) return pick("today", ...near);
@@ -761,7 +771,6 @@ export function barText(m: Moment) {
   if (dayIsDone(m)) return t("That's all for today", "Per oggi è tutto");
   if (m.checkInDue) return t("How am I today?", "Come sto oggi?");
   if (m.ride && !m.rideSeen) return t("How did today go?", "Com'è andata oggi?");
-  if (m.planned) return t("What's planned?", "Cosa c'è in programma?");
   return t("Ask the tree…", "Chiedi all'albero…");
 }
 

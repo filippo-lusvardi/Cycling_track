@@ -137,8 +137,8 @@ function Invite({ forest }: { forest: Forest }) {
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           {t(
-            "Send this link to friends or teammates. Whoever opens it asks to join, and any member can accept.",
-            "Manda questo link ad amici o compagni. Chi lo apre chiede di entrare, e qualsiasi membro può accettare.",
+            "Send this link to people you train with. Whoever opens it asks to join, and any member can accept.",
+            "Manda questo link a chi si allena con te. Chi lo apre chiede di entrare, e qualsiasi membro può accettare.",
           )}
         </p>
         {link ? (
@@ -293,8 +293,8 @@ function MySettings({ forest, me }: { forest: Forest; me: Member }) {
             </span>
             <span className="block text-xs text-muted-foreground">
               {t(
-                `On your shared ${w.rides} of the last year: average and max heart rate, average and max power, normalized power.`,
-                `Sulle tue ${w.uscite} condivise dell'ultimo anno: frequenza cardiaca media e massima, potenza media e massima, potenza normalizzata.`,
+                `On your shared ${w.rides} of the last year: average and max heart rate, average and max power, normalized power. Also your average power on the forest's climbs.`,
+                `Sulle tue ${w.uscite} condivise dell'ultimo anno: frequenza cardiaca media e massima, potenza media e massima, potenza normalizzata. Anche la tua potenza media sulle salite del bosco.`,
               )}
             </span>
           </span>

@@ -38,7 +38,3 @@ export async function flushWellnessQueue(): Promise<number> {
   if (q.length) await set(KEY, left);
   return sent;
 }
-
-export async function hasPendingFor(date: string) {
-  return (await pending()).some((p) => p.date === date);
-}

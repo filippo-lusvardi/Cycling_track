@@ -39,7 +39,6 @@ import { format, t } from "@/lib/i18n";
 export const Route = createFileRoute("/segments/$id")({
   validateSearch: (s: Record<string, unknown>): { sport?: MainSport } =>
     s["sport"] === "run" || s["sport"] === "ride" ? { sport: s["sport"] } : {},
-  head: () => ({ meta: [{ title: t("Segment — Cirmolo", "Segmento — Cirmolo") }] }),
   component: SegmentPage,
 });
 
@@ -530,7 +529,7 @@ function AllEfforts({
                         {format(parseISO(e.date), "d MMM yyyy")}
                         {i === 0 && (
                           <span className="inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                            <Trophy className="h-3 w-3" /> PR
+                            <Trophy className="h-3 w-3" /> {t("PR", "Record")}
                           </span>
                         )}
                       </span>
@@ -556,7 +555,7 @@ function AllEfforts({
                   </Link>
                   {i > 0 ? (
                     <button
-                      aria-label={t("Race against the PR", "Sfida il PR")}
+                      aria-label={t("Race against the PR", "Sfida il record")}
                       onClick={() => onRace(effortKey(e))}
                       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground active:bg-secondary/60"
                     >
@@ -600,7 +599,7 @@ function AllEfforts({
                       </Link>
                       {i === 0 && (
                         <span className="ml-2 inline-flex items-center gap-1 rounded bg-birch px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                          <Trophy className="h-3 w-3" /> PR
+                          <Trophy className="h-3 w-3" /> {t("PR", "Record")}
                         </span>
                       )}
                     </td>
@@ -615,8 +614,8 @@ function AllEfforts({
                     <td className="text-right">
                       {i > 0 && (
                         <button
-                          aria-label={t("Race against the PR", "Sfida il PR")}
-                          title={t("Race against the PR", "Sfida il PR")}
+                          aria-label={t("Race against the PR", "Sfida il record")}
+                          title={t("Race against the PR", "Sfida il record")}
                           onClick={() => onRace(effortKey(e))}
                           className="p-1 text-muted-foreground hover:text-primary"
                         >

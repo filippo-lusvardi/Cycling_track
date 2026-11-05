@@ -51,8 +51,6 @@ export const sportWords = (sport: MainSport) =>
         dellUscita: "dell'uscita",
       };
 
-export const otherSport = (sport: MainSport): MainSport => (sport === "ride" ? "run" : "ride");
-
 /** This device's main sport: cycling unless running was chosen. Changing it reloads the page (see MainSportPanel). */
 export const mainSport = (): MainSport =>
   readSetting<MainSport>(MAIN_SPORT) === "run" ? "run" : "ride";

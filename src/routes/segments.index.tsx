@@ -18,7 +18,6 @@ import { t } from "@/lib/i18n";
 export const Route = createFileRoute("/segments/")({
   validateSearch: (s: Record<string, unknown>): { sport?: MainSport } =>
     s["sport"] === "run" || s["sport"] === "ride" ? { sport: s["sport"] } : {},
-  head: () => ({ meta: [{ title: t("Segments — Cirmolo", "Segmenti — Cirmolo") }] }),
   component: Segments,
 });
 
@@ -30,7 +29,7 @@ const FILTER_LABEL: Record<(typeof FILTERS)[number], string> = {
   Auto: "Auto",
 };
 
-/** Lower-case without accents, so "coe" finds "Passo Coè" and "rovereto" finds "Rovereto → Pozzacchio". */
+/** Lower-case without accents, so "citta" finds "Città" and "col" finds "Côl". */
 const fold = (s: string) =>
   s
     .normalize("NFD")
@@ -171,8 +170,8 @@ function Segments() {
           <div className="flex gap-1 rounded-lg bg-secondary p-1">
             {(
               [
-                ["ride", t("Rides", "Bici")],
-                ["run", t("Runs", "Corsa")],
+                ["ride", t("Cycling", "Ciclismo")],
+                ["run", t("Running", "Corsa")],
               ] as const
             ).map(([s, label]) => (
               <button
@@ -410,10 +409,7 @@ function Segments() {
 
 const PHASE: Record<Status["phase"], string> = {
   idle: "",
-  listing: t(
-    "Checking intervals.icu for new activities",
-    "Controllo nuove attività su intervals.icu",
-  ),
+  listing: t("Checking for new activities", "Controllo nuove attività"),
   downloading: t("Downloading and analysing activities", "Download e analisi delle attività"),
   analysing: t("Matching segments to activities", "Abbinamento segmenti alle attività"),
   error: "",

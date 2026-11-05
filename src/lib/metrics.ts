@@ -216,19 +216,6 @@ export function rideMetrics(
   };
 }
 
-/** Training load from average power or heart rate alone, for rides with only summary numbers (no streams yet). */
-export function summaryLoad(
-  movingSecs: number,
-  np: number | null,
-  avgHr: number | null,
-  th: Thresholds,
-): number | null {
-  const hours = movingSecs / 3600;
-  if (np && th.ftp) return Math.round(hours * (np / th.ftp) ** 2 * 100);
-  if (avgHr && th.lthr) return Math.round(hours * (avgHr / th.lthr) ** 2 * 100);
-  return null;
-}
-
 const CTL_DAYS = 42;
 const ATL_DAYS = 7;
 

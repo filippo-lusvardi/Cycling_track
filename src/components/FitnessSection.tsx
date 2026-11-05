@@ -108,7 +108,7 @@ function FormSection({ days }: { days: number }) {
           hint={t("Fitness change / week", "Variazione fitness / settimana")}
         />
       </div>
-      <Panel title={t("Performance management", "Gestione della performance")}>
+      <Panel title={t("Performance management", "Carico e forma")}>
         {/* Fitness and fatigue share a scale; form has its own, with zones. Hovering one shows the same day on both. */}
         <div className="space-y-4">
           <MetricChart

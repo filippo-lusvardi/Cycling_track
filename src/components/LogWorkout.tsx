@@ -52,7 +52,7 @@ export function LogWorkoutForm({ date, onSaved }: { date: string; onSaved?: () =
     setBusy(true);
     try {
       await createManualActivity(entry);
-      toast.success(t("Workout added to intervals.icu", "Allenamento aggiunto su intervals.icu"));
+      toast.success(t("Workout added", "Allenamento aggiunto"));
       await qc.invalidateQueries({ queryKey: ["activities"] });
       onSaved?.();
     } catch {
@@ -87,7 +87,7 @@ export function LogWorkoutForm({ date, onSaved }: { date: string; onSaved?: () =
       </div>
       <div className="space-y-1">
         <Label htmlFor="lw-name">{t("Name", "Nome")}</Label>
-        <Input id="lw-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Leg day, easy run…", "Gambe, corsetta…")} />
+        <Input id="lw-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Leg day, easy run…", "Palestra, corsetta…")} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">

@@ -267,7 +267,7 @@ function LogForm({
     setBusy(true);
     try {
       await saveWellnessEntry(entry);
-      toast.success(t("Saved to intervals.icu", "Salvato su intervals.icu"));
+      toast.success(t("Saved", "Salvato"));
       await qc.invalidateQueries({ queryKey: ["wellness"] });
     } catch {
       toast.error(
@@ -310,7 +310,7 @@ function LogForm({
             <Input
               id="weight"
               inputMode="decimal"
-              placeholder="72.4"
+              placeholder="70"
               value={fields.weight}
               onChange={set("weight")}
             />
@@ -320,7 +320,7 @@ function LogForm({
             <Input
               id="bodyFat"
               inputMode="decimal"
-              placeholder="14.2"
+              placeholder="15"
               value={fields.bodyFat}
               onChange={set("bodyFat")}
             />
@@ -364,12 +364,12 @@ function LogForm({
         <p className="text-xs text-muted-foreground">
           {existing
             ? t(
-                "Change or empty a field to fix this day in your intervals.icu wellness log.",
-                "Modifica o svuota un campo per correggere questo giorno nel diario benessere di intervals.icu.",
+                "Change or empty a field to fix this day.",
+                "Modifica o svuota un campo per correggere questo giorno.",
               )
             : t(
-                "Entries are saved to your intervals.icu wellness log.",
-                "Le registrazioni vengono salvate nel diario benessere di intervals.icu.",
+                "Entries are saved to your account, or to intervals.icu if you use it.",
+                "Le registrazioni vengono salvate nel tuo account o, se lo usi, su intervals.icu.",
               )}
         </p>
       </form>

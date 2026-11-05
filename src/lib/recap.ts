@@ -2,7 +2,13 @@
 import { threeZone } from "./analysis";
 import { activityKind, type Kind } from "./activity-kind";
 import { daysIn, shiftSpan, type Span } from "./ask-when";
-import type { Activity, OffKind, PlannedEvent, Wellness } from "./intervals";
+import {
+  isPlanned,
+  type Activity,
+  type OffKind,
+  type PlannedEvent,
+  type Wellness,
+} from "./intervals";
 import { addDays } from "./training";
 
 export type Totals = { count: number; secs: number; km: number; climb: number; load: number };
@@ -125,12 +131,7 @@ export function buildRecap(input: {
 
   const planFrom = span.from > today ? span.from : today;
   const planned = events
-    .filter(
-      (e) =>
-        e.date >= planFrom &&
-        e.date <= span.to &&
-        (e.category === "WORKOUT" || /^RACE_[ABC]$/.test(e.category)),
-    )
+    .filter((e) => e.date >= planFrom && e.date <= span.to && isPlanned(e))
     // What was planned for today stops being news once today has an activity.
     .filter((e) => e.date !== today || !acts.some((a) => dayOf(a) === today))
     .sort((a, b) => a.date.localeCompare(b.date));

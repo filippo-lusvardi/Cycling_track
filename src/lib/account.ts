@@ -2,15 +2,9 @@
 // Firestore code (./cloud, segment sync) is imported on demand, so the first screen doesn't wait for its SDK.
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { clear, createStore } from "idb-keyval";
-import { toast } from "sonner";
 import { auth } from "./firebase";
-import { readGist, NAMES_FILE } from "./gist";
-import { t } from "./i18n";
-import type { SavedSegment } from "./segment-store";
 import {
   API_KEY,
-  GIST_ID,
-  GITHUB_TOKEN,
   LANGUAGE,
   NO_PERF,
   MAIN_SPORT,
@@ -53,7 +47,6 @@ export function sessionReady(): Promise<void> {
 
 async function startSession() {
   await pullProfile().catch((e) => console.warn("Profile sync failed", e));
-  await importGist().catch((e) => console.warn("Gist import failed", e));
   const { followSegments, syncSegments } = await import("@/hooks/use-segments");
   // Signed out while the import was loading: nothing to follow.
   if (!auth.currentUser) return;
@@ -98,27 +91,6 @@ async function pullProfile() {
   // Wording and pages are fixed for the page's lifetime, so another sport from the account means starting over.
   if (p.mainSport && (sport ?? "ride") !== p.mainSport) window.location.reload();
   return p;
-}
-
-/** One-off move from the GitHub gist that synced segments before accounts existed. */
-async function importGist() {
-  if (!readSetting<string>(GITHUB_TOKEN)) return;
-  const [{ syncSegments }, { writePlaces }] = await Promise.all([
-    import("@/hooks/use-segments"),
-    import("./cloud"),
-  ]);
-  const [segs, names] = await Promise.all([
-    readGist<SavedSegment[]>(),
-    readGist<Record<string, string | null>>(NAMES_FILE),
-  ]);
-  await syncSegments(segs ?? []);
-  if (names)
-    await writePlaces(Object.fromEntries(Object.entries(names).filter(([, v]) => v !== null)));
-  writeSetting(GITHUB_TOKEN, null);
-  writeSetting(GIST_ID, null);
-  toast.success(
-    t("Saved segments moved to your account", "Segmenti salvati spostati nel tuo account"),
-  );
 }
 
 /** Sign out and forget everything this device holds for the account, so the next user starts clean. */

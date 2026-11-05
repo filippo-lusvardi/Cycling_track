@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Activity, Wellness } from "../intervals";
-import { bestShared, racePair } from "./leaderboard";
+import { bestShared, racePair, timeDoc } from "./leaderboard";
 import { fingerprint, fromSnapshot, offStretches, toSharedRide, yearDocs } from "./snapshot";
 import { isShared, prefsOf } from "./visibility";
 
@@ -168,5 +168,22 @@ describe("racePair", () => {
     expect(racePair(board, "zed", "cy")).toEqual({ a: "ann", b: "cy" });
     expect(racePair(board, "zed", "ann")).toEqual({ a: "bob", b: "ann" });
     expect(racePair(board, "ann", "ann")).toEqual({ a: "bob", b: "ann" });
+  });
+});
+
+describe("a time published to a forest", () => {
+  const attempt = {
+    duration: 600,
+    date: "2026-11-01",
+    trackId: "a",
+    trackName: "A",
+    avgWatts: 251.4,
+  };
+  it("carries power only with the member's consent", () => {
+    expect(timeDoc(attempt as never, null, false).avgWatts).toBeNull();
+    expect(timeDoc(attempt as never, null, true).avgWatts).toBe(251);
+  });
+  it("never carries a run's power", () => {
+    expect(timeDoc({ ...attempt, sport: "run" } as never, null, true).avgWatts).toBeNull();
   });
 });

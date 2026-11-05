@@ -24,7 +24,7 @@ const track = (km: number) => {
 };
 const ride: SharedRide = {
   id: "r",
-  name: "Bondone",
+  name: "Monte Rosso",
   type: "Ride",
   start_date_local: "2026-10-12T09:00:00",
   moving_time: 3600,
@@ -54,7 +54,7 @@ describe("ride pages for the forest", () => {
   it("thins long routes and keeps the summary", () => {
     const p = ridePage(ride, track(60), true);
     expect(p.route!.lat.length).toBe(400);
-    expect(p.name).toBe("Bondone");
+    expect(p.name).toBe("Monte Rosso");
   });
 });
 

@@ -15,7 +15,13 @@ import { formatPace } from "@/lib/pace";
 import { byMain, mainSport } from "@/lib/sport";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { Activity, OffKind, PlannedEvent, Wellness } from "@/lib/intervals";
+import {
+  isFreeRide,
+  type Activity,
+  type OffKind,
+  type PlannedEvent,
+  type Wellness,
+} from "@/lib/intervals";
 import { createOffEvent, deleteEvent, updateOffEvent } from "@/lib/source";
 import { recentFeel } from "@/lib/felt";
 import { briochesFor, intakeTarget } from "@/lib/fuel";
@@ -125,7 +131,7 @@ function useOffChange() {
       else await deleteEvent(c.id);
       await qc.invalidateQueries({ queryKey: ["events"] });
       toast.success(
-        t("Saved to the intervals.icu calendar", "Salvato nel calendario di intervals.icu"),
+        t("Saved to the calendar", "Salvato nel calendario"),
       );
     } catch {
       toast.error(t("Couldn't save. Try again", "Impossibile salvare. Riprova"));
@@ -407,7 +413,7 @@ function ScoreDetails({
   return (
     <section className="space-y-3">
       <h3 className="text-sm font-medium text-muted-foreground">
-        {t("What's in the score", "Cosa c'è nel punteggio")}
+        {t("What's in the score", "Da cosa dipende il punteggio")}
       </h3>
       {r.components.map((c) => (
         <div
@@ -741,9 +747,13 @@ function PlanBody({ e }: { e: PlannedEvent }) {
     <div className="space-y-3 pb-2 text-sm">
       <p className="text-muted-foreground">
         {format(parseISO(e.date), "EEEE d MMMM")} ·{" "}
-        {e.category === "WORKOUT"
-          ? (e.type ?? t("Workout", "Allenamento"))
-          : e.category.replace("_", " ").toLowerCase()}
+        {isFreeRide(e)
+          ? e.type === "Run"
+            ? t("Run", "Corsa")
+            : t("Ride", "Uscita")
+          : e.category === "WORKOUT"
+            ? (e.type ?? t("Workout", "Allenamento"))
+            : e.category.replace("_", " ").toLowerCase()}
         {e.moving_time ? ` · ${formatDuration(e.moving_time)}` : ""}
         {e.icu_training_load ? ` · ${t("load", "carico")} ${e.icu_training_load}` : ""}
       </p>

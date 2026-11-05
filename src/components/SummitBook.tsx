@@ -172,7 +172,7 @@ function Entry({
               value={editing}
               onChange={(ev) => onEdit(ev.target.value)}
               onKeyDown={(ev) => ev.key === "Escape" && onEdit(null)}
-              placeholder={t("windy, with Marco…", "vento, con Marco…")}
+              placeholder={t("windy, in good company…", "vento, in compagnia…")}
             />
             <Button type="submit" size="sm">
               {t("Sign", "Firma")}
@@ -264,7 +264,7 @@ function Cover({
   const xOf = (d: number) => 4 + (d / (trace!.dist.at(-1) || 1)) * (W - 30);
   const near = alt ? trace!.dist.map((d, i) => [xOf(d), yOf(alt[i]!)] as const) : [];
   const nearLine = near.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const summit = near.reduce((m, p, i) => (alt![i]! > alt![m]! ? i : m), 0);
+  const summit = near.reduce((m, _, i) => (alt![i]! > alt![m]! ? i : m), 0);
   const [sx, sy] = near[summit] ?? [W * 0.8, H * 0.4];
   const range = (seed: string, top: number, depth: number) => {
     const ys = farRidge(`${place}${seed}`, 32, 1.4);

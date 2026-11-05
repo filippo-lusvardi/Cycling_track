@@ -37,7 +37,6 @@ import {
 import { BUCKETS, EFFORTS, durabilityVerdict } from "@/lib/durability";
 import { isBodyPlot, isPlot, PLOT_LABEL, RUN_PLOTS, type Plot, type RunPlot } from "@/lib/plots";
 import { DURABILITY_DAYS } from "@/lib/durability-data";
-import type { PowerCurve } from "@/lib/intervals";
 import {
   activitiesQuery,
   durabilityQuery,
@@ -67,7 +66,6 @@ export const Route = createFileRoute("/analysis")({
     ...(/^[1-7]$/.test(String(s["zone"] ?? "")) ? { zone: Number(s["zone"]) } : {}),
     ...(isPlot(s["plot"]) ? { plot: s["plot"] } : {}),
   }),
-  head: () => ({ meta: [{ title: t("Analysis — Cirmolo", "Analisi — Cirmolo") }] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(wellnessQuery(90)),
   component: Analysis,
 });
@@ -286,7 +284,7 @@ function PowerSection() {
           hint={
             fit42?.omni
               ? t("42 days, whole curve (OmPD)", "42 giorni, curva intera (OmPD)")
-              : t("42-day best, 3–20 min", "Migliore 42 giorni, 3–20 min")
+              : t("42-day best, 3–20 min", "Migliore degli ultimi 42 giorni, 3–20 min")
           }
         />
         <StatCard
@@ -407,7 +405,7 @@ function PowerSection() {
                   isAnimationActive={false}
                 />
                 <Line
-                  name={t("Best 42 days", "Migliore 42 giorni")}
+                  name={t("42-day best", "Migliore degli ultimi 42 giorni")}
                   dataKey="c42"
                   stroke="var(--fitness)"
                   strokeWidth={2}
@@ -505,8 +503,8 @@ function DurabilitySection() {
         <p className="py-6 text-center text-sm text-muted-foreground">
           {data.missingWeight
             ? t(
-                "Log your weight on the Body page: durability is measured per kg.",
-                "Registra il peso nella pagina Corpo: la durability si misura per kg.",
+                "Log your weight under Analysis → Body: durability is measured per kg.",
+                "Registra il peso in Analisi → Corpo: la durability si misura per kg.",
               )
             : t(
                 "No ride of 2 hours or more with power yet.",
