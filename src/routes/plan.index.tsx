@@ -13,6 +13,7 @@ import {
   PlanGate,
   REST,
   usePlanAction,
+  WorkoutTap,
 } from "@/components/plan/parts";
 import { Panel, StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
@@ -187,20 +188,32 @@ function ProposalCard({
         {t("A proposal for the next days", "Una proposta per i prossimi giorni")}
       </div>
       <p className="font-medium leading-snug">{WHY[proposal.review.reason]?.()}</p>
-      <div className="mt-3 space-y-2">
-        {proposal.changes.map((c) => (
-          <div key={c.date} className="flex items-center gap-3 text-sm">
-            <span className="eyebrow w-12 shrink-0">{format(parseISO(c.date), "EEE d")}</span>
-            <span className="min-w-0 flex-1">
-              {c.from && (
-                <span className="block text-xs text-muted-foreground line-through">
-                  {c.from.name}
-                </span>
-              )}
-              <span className="block font-medium">{c.to?.name ?? REST()}</span>
-            </span>
-          </div>
-        ))}
+      <div className="mt-3 space-y-1">
+        {proposal.changes.map((c) => {
+          const cls = "-mx-2 flex min-h-11 items-center gap-3 rounded-lg px-2 py-1 text-sm";
+          const inner = (
+            <>
+              <span className="eyebrow w-12 shrink-0">{format(parseISO(c.date), "EEE d")}</span>
+              <span className="min-w-0 flex-1">
+                {c.from && (
+                  <span className="block text-xs text-muted-foreground line-through">
+                    {c.from.name}
+                  </span>
+                )}
+                <span className="block font-medium">{c.to?.name ?? REST()}</span>
+              </span>
+            </>
+          );
+          return c.to ? (
+            <WorkoutTap key={c.date} date={c.date} workout={c.to} className={cls}>
+              {inner}
+            </WorkoutTap>
+          ) : (
+            <div key={c.date} className={cls}>
+              {inner}
+            </div>
+          );
+        })}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Button disabled={busy || !online} onClick={onAccept}>
@@ -306,6 +319,10 @@ function Row({ day, today }: { day: DayLine; today: string }) {
     <Link to="/rides/$id" params={{ id: day.actId }} className={cn(cls, "hover:bg-secondary/60")}>
       {inner}
     </Link>
+  ) : w ? (
+    <WorkoutTap date={day.date} workout={w} className={cls}>
+      {inner}
+    </WorkoutTap>
   ) : (
     <div className={cls}>{inner}</div>
   );

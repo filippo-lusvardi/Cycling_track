@@ -106,9 +106,17 @@ function Step({ step, ftp }: { step: WorkoutBlock; ftp: number }) {
 }
 
 /** Every step's power from the FTP, folded away until asked for: repeats stay one row, as they were written. */
-function StepWatts({ workout, ftp }: { workout: ParsedWorkout; ftp: number }) {
+function StepWatts({
+  workout,
+  ftp,
+  open,
+}: {
+  workout: ParsedWorkout;
+  ftp: number;
+  open?: boolean;
+}) {
   return (
-    <Collapsible className="mt-1">
+    <Collapsible className="mt-1" {...(open ? { defaultOpen: true } : {})}>
       <CollapsibleTrigger className="group flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
         {t("Power for each step", "Potenza di ogni passo")}
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
@@ -148,11 +156,14 @@ export function WorkoutPreview({
   text,
   type,
   compact = false,
+  stepsOpen,
   className,
 }: {
   text: string | null | undefined;
   type: string | null | undefined;
   compact?: boolean;
+  /** Each step's power showing from the start, not folded away. */
+  stepsOpen?: boolean;
   className?: string;
 }) {
   const th = useThresholds();
@@ -175,7 +186,7 @@ export function WorkoutPreview({
         </span>
       </div>
       {sport === "ride" && th.ftp && w.blocks.some((b) => b.power) && (
-        <StepWatts workout={w} ftp={th.ftp} />
+        <StepWatts workout={w} ftp={th.ftp} {...(stepsOpen ? { open: true } : {})} />
       )}
     </div>
   );

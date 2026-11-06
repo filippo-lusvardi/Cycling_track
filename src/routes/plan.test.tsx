@@ -28,6 +28,7 @@ function fakeIntervals(url: string, init?: RequestInit) {
   if (method !== "GET") writes.push({ method, url, body });
   let answer: unknown = [];
   const one = /\/events\/(\d+)/.exec(url);
+  if (/\/athlete\/0$/.test(url)) answer = { sportSettings: [{ types: ["Ride"], ftp: 250 }] };
   if (/\/events/.test(url)) {
     if (method === "POST") {
       const made = { id: nextId++, ...body };
@@ -99,6 +100,7 @@ describe("the plan page", () => {
     act(() => root.unmount());
     host.remove();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("starts a plan as one note, with nothing in Firestore, then puts the week on the calendar", async () => {
@@ -179,5 +181,77 @@ describe("the plan page", () => {
     await settle();
     const saved = String(events.find((e) => e["category"] === "NOTE")!["description"]);
     expect(saved).toContain('"week":[{"minutes":45');
+  });
+
+  it("opens a planned workout's blocks when its line is tapped", async () => {
+    show();
+    await settle();
+    await act(async () => button("Start the plan")!.click());
+    await settle();
+    expect(document.body.textContent).not.toContain("line: FTP");
+    const line = [...host.querySelectorAll("button")].find((b) =>
+      /\d+h|Endurance|Long/.test(b.textContent ?? ""),
+    );
+    await act(async () => line!.click());
+    await settle();
+    expect(document.body.textContent).toContain("line: FTP 250W");
+    // Each step's power is already showing: one that isn't the FTP line's.
+    expect(document.body.textContent).toMatch(/\b(?!250)\d{2,3}W/);
+  });
+
+  it("opens the workout a proposal would put in place", async () => {
+    // A Friday: the Saturday changed below is still to come, and a proposal only touches what is.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime("2026-11-06T09:00:00");
+    show();
+    await settle();
+    await act(async () => button("Start the plan")!.click());
+    await settle();
+    await act(async () => link("Settings")!.click());
+    await settle();
+    // The long day gone, so another has to take its place.
+    const less = host.querySelector<HTMLButtonElement>('[aria-label="Sat: less time"]')!;
+    while (!less.disabled) await act(async () => less.click());
+    await act(async () => button("From now on")!.click());
+    await settle();
+    await act(async () => link("Plan")!.click());
+    await settle();
+    expect(host.textContent).toContain("A proposal for the next days");
+    const card = [...host.querySelectorAll("div")].find(
+      (d) => d.className.includes("p-4") && d.textContent?.startsWith("A proposal"),
+    )!;
+    const change = [...card.querySelectorAll("button")].find(
+      (b) => !["Accept", "Leave it"].includes(b.textContent ?? ""),
+    );
+    await act(async () => change!.click());
+    await settle();
+    expect(document.body.textContent).toContain("line: FTP");
+  });
+
+  describe("on a phone", () => {
+    const wide = window.innerWidth;
+    beforeEach(() => {
+      window.innerWidth = 360;
+    });
+    afterEach(() => {
+      window.innerWidth = wide;
+    });
+
+    it("lists the days in a line each and opens one to change it", async () => {
+      show();
+      await settle();
+      expect(host.querySelector('[aria-label="Tue: more time"]')).toBeNull();
+      const tue = button("Tue")!;
+      await act(async () => tue.click());
+      expect(tue.getAttribute("aria-expanded")).toBe("true");
+      await act(async () =>
+        host.querySelector<HTMLButtonElement>('[aria-label="Tue: more time"]')!.click(),
+      );
+      expect(tue.textContent).toContain("1h 15m");
+      // Another day closes this one.
+      await act(async () => button("Wed")!.click());
+      expect(host.querySelector('[aria-label="Tue: more time"]')).toBeNull();
+      expect(host.querySelector('[aria-label="Wed: more time"]')).not.toBeNull();
+    });
   });
 });

@@ -2,14 +2,18 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Stepper } from "@/components/ui/stepper";
+import { WorkoutPreview } from "@/components/WorkoutPreview";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { usePlan } from "@/hooks/use-plan";
 import { format, t } from "@/lib/i18n";
 import type { PlanContext } from "@/lib/plan/engine";
 import type { StoredPlan } from "@/lib/plan/store";
-import type { DayPlan, Phase, PlanGoal } from "@/lib/plan/types";
+import type { DayPlan, Phase, PlanGoal, PlanWorkout } from "@/lib/plan/types";
 import type { Race } from "@/lib/races";
 import { mainSport } from "@/lib/sport";
 import { formatDuration } from "@/lib/training";
@@ -47,6 +51,139 @@ export function stepMinutes(minutes: number, dir: 1 | -1) {
   return minutes <= SHORTEST ? 0 : minutes - STEP;
 }
 
+/** Indoor or out, and whether it's the long day. */
+function DayToggles({
+  day,
+  set,
+  wide,
+}: {
+  day: DayPlan;
+  set: (patch: Partial<DayPlan>) => void;
+  /** Filling the width, rather than as small as their words. */
+  wide?: boolean;
+}) {
+  return (
+    <span className={wide ? "grid grid-cols-2 gap-1" : "ml-auto flex gap-1"}>
+      <button
+        type="button"
+        onClick={() => set({ indoor: !day.indoor })}
+        className="min-h-10 rounded-full border border-border px-2.5 text-xs text-muted-foreground"
+      >
+        {day.indoor ? INDOOR() : OUTDOOR()}
+      </button>
+      <button
+        type="button"
+        aria-pressed={day.long}
+        onClick={() => set({ long: !day.long })}
+        className={cn(
+          "min-h-10 rounded-full border px-2.5 text-xs",
+          day.long
+            ? "border-transparent bg-secondary text-foreground"
+            : "border-border text-muted-foreground",
+        )}
+      >
+        {t("Long", "Lungo")}
+      </button>
+    </span>
+  );
+}
+
+function DayStepper({
+  name,
+  day,
+  set,
+  wide,
+}: {
+  name: string;
+  day: DayPlan;
+  set: (patch: Partial<DayPlan>) => void;
+  wide?: boolean;
+}) {
+  return (
+    <Stepper
+      compact
+      less={t(`${name}: less time`, `${name}: meno tempo`)}
+      more={t(`${name}: more time`, `${name}: più tempo`)}
+      canLess={day.minutes > 0}
+      canMore={day.minutes < LONGEST}
+      onLess={() => set({ minutes: stepMinutes(day.minutes, -1) })}
+      onMore={() => set({ minutes: stepMinutes(day.minutes, 1) })}
+    >
+      <span
+        aria-live="polite"
+        className={cn(
+          "stat-num text-center text-sm font-semibold",
+          wide ? "flex-1" : "w-[4.25rem]",
+          !day.minutes && "font-normal text-muted-foreground",
+        )}
+      >
+        {dayTime(day)}
+      </span>
+    </Stepper>
+  );
+}
+
+const dayTime = (day: DayPlan) => (day.minutes ? formatDuration(day.minutes * 60) : REST());
+
+/** On the phone: a line per day, so the week reads at a glance, and one day open to change it. */
+function PhoneDays({
+  week,
+  set,
+}: {
+  week: DayPlan[];
+  set: (i: number, patch: Partial<DayPlan>) => void;
+}) {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <div className="divide-y divide-border rounded-xl border border-border bg-card px-3">
+      {week.map((d, i) => {
+        const name = dayNames()[i]!;
+        const isOpen = open === i;
+        const details = d.minutes
+          ? [d.indoor ? INDOOR() : OUTDOOR(), d.long ? t("Long", "Lungo") : null]
+              .filter(Boolean)
+              .join(" · ")
+          : "";
+        return (
+          <div key={i}>
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              onClick={() => setOpen(isOpen ? null : i)}
+              className="flex min-h-12 w-full items-center gap-3 text-left"
+            >
+              <span className="eyebrow w-8 shrink-0">{name}</span>
+              <span
+                className={cn(
+                  "stat-num text-sm font-semibold",
+                  !d.minutes && "font-normal text-muted-foreground",
+                )}
+              >
+                {dayTime(d)}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                {details}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                  isOpen && "rotate-180",
+                )}
+              />
+            </button>
+            {isOpen && (
+              <div className="space-y-1.5 pb-2.5">
+                <DayStepper name={name} day={d} set={(patch) => set(i, patch)} wide />
+                {d.minutes > 0 && <DayToggles day={d} set={(patch) => set(i, patch)} wide />}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DayEditor({
   week,
   onChange,
@@ -54,8 +191,10 @@ export function DayEditor({
   week: DayPlan[];
   onChange: (w: DayPlan[]) => void;
 }) {
+  const phone = useIsMobile();
   const set = (i: number, patch: Partial<DayPlan>) =>
     onChange(week.map((d, n) => (n === i ? { ...d, ...patch } : d)));
+  if (phone) return <PhoneDays week={week} set={set} />;
   return (
     <div className="rounded-xl border border-border bg-card p-1">
       {week.map((d, i) => {
@@ -63,53 +202,48 @@ export function DayEditor({
         return (
           <div key={i} className="flex min-h-12 flex-wrap items-center gap-2 rounded-lg px-2 py-1">
             <span className="eyebrow w-8 shrink-0">{day}</span>
-            <Stepper
-              compact
-              less={t(`${day}: less time`, `${day}: meno tempo`)}
-              more={t(`${day}: more time`, `${day}: più tempo`)}
-              canLess={d.minutes > 0}
-              canMore={d.minutes < LONGEST}
-              onLess={() => set(i, { minutes: stepMinutes(d.minutes, -1) })}
-              onMore={() => set(i, { minutes: stepMinutes(d.minutes, 1) })}
-            >
-              <span
-                aria-live="polite"
-                className={cn(
-                  "stat-num w-[4.25rem] text-center text-sm font-semibold",
-                  !d.minutes && "font-normal text-muted-foreground",
-                )}
-              >
-                {d.minutes ? formatDuration(d.minutes * 60) : REST()}
-              </span>
-            </Stepper>
-            {d.minutes > 0 && (
-              <span className="ml-auto flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => set(i, { indoor: !d.indoor })}
-                  className="min-h-10 rounded-full border border-border px-2.5 text-xs text-muted-foreground"
-                >
-                  {d.indoor ? INDOOR() : OUTDOOR()}
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={d.long}
-                  onClick={() => set(i, { long: !d.long })}
-                  className={cn(
-                    "min-h-10 rounded-full border px-2.5 text-xs",
-                    d.long
-                      ? "border-transparent bg-secondary text-foreground"
-                      : "border-border text-muted-foreground",
-                  )}
-                >
-                  {t("Long", "Lungo")}
-                </button>
-              </span>
-            )}
+            <DayStepper name={day} day={d} set={(patch) => set(i, patch)} />
+            {d.minutes > 0 && <DayToggles day={d} set={(patch) => set(i, patch)} />}
           </div>
         );
       })}
     </div>
+  );
+}
+
+/** A planned workout's line, which opens its blocks and powers when tapped. */
+export function WorkoutTap({
+  date,
+  workout,
+  className,
+  children,
+}: {
+  date: string;
+  workout: PlanWorkout;
+  className?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const place = workout.type === "VirtualRide" ? INDOOR() : OUTDOOR();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn("w-full text-left hover:bg-secondary/60", className)}
+      >
+        {children}
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+      <ResponsiveDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={workout.name}
+        description={`${format(parseISO(date), "EEEE d MMMM")} · ${place}`}
+      >
+        <WorkoutPreview text={workout.description} type={workout.type} stepsOpen />
+      </ResponsiveDialog>
+    </>
   );
 }
 
