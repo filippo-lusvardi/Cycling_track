@@ -25,7 +25,8 @@ import {
   Bytes,
 } from "firebase/firestore";
 import { get as idbGet, set as idbSet } from "idb-keyval";
-import { DUR } from "../analysis";
+import { DUR, mmp } from "../analysis";
+import { streamBuckets } from "../distribution";
 import { briochesIn } from "../brioches";
 import { ratingIn } from "../plan/rating";
 import { readProfile, saveProfile } from "../cloud";
@@ -511,6 +512,56 @@ export async function getPowerCurveRange(from: string, to: string): Promise<Powe
     label: `${from} – ${to}`,
     secs: DUR,
     watts: bestCurve(rides.map((a) => a.curve)).map((w) => w ?? 0),
+  };
+}
+
+export async function getHistograms(id: string) {
+  const s = await getStreams(id);
+  return { power: streamBuckets(s.watts, "power"), hr: streamBuckets(s.heartrate, "hr") };
+}
+
+/** Heart-rate curves need each ride's streams, stored apart, so only the latest are read. */
+const HR_CURVE_ACTIVITIES = 60;
+
+async function hrCurveOf(rides: Stored[]): Promise<{ watts: number[]; capped?: number }> {
+  const newest = [...rides].sort((a, b) => dayOf(b).localeCompare(dayOf(a)));
+  const read = newest.slice(0, HR_CURVE_ACTIVITIES);
+  const curves: (number | null)[][] = [];
+  for (const a of read) if (a.hasStreams) curves.push(mmp((await getStreams(a.id)).heartrate, DUR));
+  return {
+    watts: bestCurve(curves).map((w) => w ?? 0),
+    ...(newest.length > read.length ? { capped: read.length } : {}),
+  };
+}
+
+export async function getHrCurves(sport: MainSport = "ride"): Promise<PowerCurve[]> {
+  const rides = (await allRides()).filter((a) => isSport(a, sport));
+  const today = isoDate(new Date());
+  const within = (days: number) => rides.filter((a) => dayOf(a) >= addDays(today, -days));
+  return Promise.all(
+    (
+      [
+        ["42d", t("Last 42 days", "Ultimi 42 giorni"), within(42)],
+        ["1y", t("Last year", "Ultimo anno"), within(365)],
+        ["all", t("All time", "Di sempre"), rides],
+      ] as const
+    ).map(async ([id, label, list]) => ({ id, label, secs: DUR, ...(await hrCurveOf([...list])) })),
+  );
+}
+
+export async function getHrCurveRange(
+  from: string,
+  to: string,
+  sport: MainSport = "ride",
+): Promise<PowerCurve | null> {
+  const rides = (await allRides()).filter(
+    (a) => isSport(a, sport) && dayOf(a) >= day.parse(from) && dayOf(a) <= day.parse(to),
+  );
+  return {
+    id: `r.${from}.${to}`,
+    label: `${from} – ${to}`,
+    secs: DUR,
+    ...(await hrCurveOf(rides)),
   };
 }
 

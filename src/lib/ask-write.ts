@@ -1,7 +1,7 @@
 // What the rows that save do, each returning how to undo it. Through the same paths as the check-in, the crown's sheet
 // and the ride's page, so nothing is written any differently from typing than from tapping.
 import type { QueryClient } from "@tanstack/react-query";
-import type { WriteAction } from "./ask-intents";
+import { LOGGED_IN_BATCH, type WriteAction } from "./ask-intents";
 import { withBrioches } from "./brioches";
 import { readSetting, writeSetting } from "./settings";
 import { isFreeRide, type ManualActivity, type OffKind } from "./intervals";
@@ -24,7 +24,12 @@ import { addDays } from "./training";
 import { offToggle } from "./tree";
 import { saveWellnessOrQueue } from "./wellness-queue";
 
-export type WriteResult = { queued: boolean; undo: () => Promise<void> };
+export type WriteResult = {
+  queued: boolean;
+  undo: () => Promise<void>;
+  /** What was created, when something was. */
+  id?: string;
+};
 
 let last: { label: string; run: () => Promise<void> } | null = null;
 
@@ -66,6 +71,34 @@ async function toggleOff(off: OffKind, today: string) {
 
 export async function runWrite(a: WriteAction, qc: QueryClient): Promise<WriteResult> {
   if (a.kind === "undo") throw new Error("Undoing goes through undoLast");
+  if (a.kind === "batch") {
+    // In order, the activity first so a brioche can land on it. If one fails, what's done is taken back: all or nothing.
+    const done: WriteResult[] = [];
+    const ordered = [...a.parts].sort(
+      (x, y) => Number(y.action.kind === "log") - Number(x.action.kind === "log"),
+    );
+    let newId: string | undefined;
+    try {
+      for (const part of ordered) {
+        const step =
+          part.action.kind === "brioche" && part.action.activityId === LOGGED_IN_BATCH
+            ? { ...part.action, activityId: newId ?? "" }
+            : part.action;
+        const r = await runWrite(step, qc);
+        done.push(r);
+        if (r.id) newId = r.id;
+      }
+    } catch (e) {
+      for (const r of done.reverse()) await r.undo().catch(() => {});
+      throw e;
+    }
+    return {
+      queued: done.some((r) => r.queued),
+      undo: async () => {
+        for (const r of [...done].reverse()) await r.undo();
+      },
+    };
+  }
   if (a.kind === "wellness") {
     const refresh = () => qc.invalidateQueries({ queryKey: ["wellness"] });
     let before: number | null = null;
@@ -124,6 +157,7 @@ export async function runWrite(a: WriteAction, qc: QueryClient): Promise<WriteRe
     await refresh();
     return {
       queued: false,
+      ...(id ? { id } : {}),
       undo: async () => {
         if (!id) throw new Error("The new activity's id wasn't returned");
         await deleteActivity(id);

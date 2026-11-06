@@ -61,3 +61,22 @@ export function rideSeries(s: Streams, points = 500): SeriesPoint[] {
   }
   return out;
 }
+
+/**
+ * The heart-rate y axis: from 80 bpm, or from the activity's lowest reading when that is under 80.
+ * A 0 is a sensor dropout, not a reading. Ticks are spelled out because Recharts would round the start down.
+ */
+export function hrAxis(
+  activity: (number | null)[],
+  top: number | null,
+): { domain: [number, number]; ticks: number[] } {
+  let low = 80;
+  for (const x of activity) if (x != null && x > 0 && x < low) low = x;
+  const from = Math.floor(low);
+  const step = (top ?? from) - from > 100 ? 40 : 20;
+  const to = Math.max(from + step, Math.ceil((top ?? from) / step) * step);
+  const ticks = [from];
+  for (let v = (Math.floor(from / step) + 1) * step; v <= to; v += step)
+    if (v - from >= step / 2) ticks.push(v);
+  return { domain: [from, to], ticks };
+}

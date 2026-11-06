@@ -8,6 +8,9 @@ import {
   getRideZones,
   getThresholds,
   getWorkouts,
+  getHistograms,
+  getHrCurveRange,
+  getHrCurves,
   getPowerCurveRange,
   getPowerCurves,
   getStreams,
@@ -152,6 +155,29 @@ export const powerCurveRangeQuery = (from: string, to: string) =>
   queryOptions({
     queryKey: ["power-curve-range", from, to],
     queryFn: () => getPowerCurveRange(from, to),
+    staleTime: 30 * 60_000,
+  });
+
+export const histogramsQuery = (id: string) =>
+  queryOptions({
+    // Versioned: the first version read an intervals.icu endpoint and could keep empty answers.
+    queryKey: ["histograms", 2, id],
+    queryFn: () => getHistograms(id),
+    staleTime: Infinity,
+  });
+
+export const hrCurvesQuery = (sport: MainSport) =>
+  queryOptions({
+    queryKey: ["hr-curves", sport],
+    queryFn: () => getHrCurves(sport),
+    staleTime: 30 * 60_000,
+  });
+
+/** One stretch's highest heart rate, read only when a phrase asks for it. */
+export const hrCurveRangeQuery = (from: string, to: string, sport: MainSport) =>
+  queryOptions({
+    queryKey: ["hr-curve-range", from, to, sport],
+    queryFn: () => getHrCurveRange(from, to, sport),
     staleTime: 30 * 60_000,
   });
 

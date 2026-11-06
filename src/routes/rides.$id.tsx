@@ -17,6 +17,8 @@ import { RouteMap, type MapLine, type MapPin } from "@/components/RouteMap";
 import { RunSplits } from "@/components/RunSplits";
 import { Panel, StatCard } from "@/components/StatCard";
 import { WorkoutBlocks } from "@/components/WorkoutBlocks";
+import { RideDistribution } from "@/components/Distribution";
+import type { DistMetric } from "@/lib/distribution";
 import { ZoneBar } from "@/components/ZoneBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,8 +70,13 @@ import { activityKind, KINDS } from "@/lib/activity-kind";
 import { format, t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/rides/$id")({
-  validateSearch: (s: Record<string, unknown>): { delete?: boolean } =>
-    s["delete"] === "1" || s["delete"] === 1 || s["delete"] === true ? { delete: true } : {},
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { delete?: boolean; focus?: "distribution"; metric?: DistMetric } => ({
+    ...(s["delete"] === "1" || s["delete"] === 1 || s["delete"] === true ? { delete: true } : {}),
+    ...(s["focus"] === "distribution" ? { focus: "distribution" as const } : {}),
+    ...(s["metric"] === "power" || s["metric"] === "hr" ? { metric: s["metric"] } : {}),
+  }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(activityQuery(params.id)),
   component: RideDetail,
 });
@@ -282,7 +289,9 @@ function RideDetail() {
           </div>
           <Sections
             layout={layout}
-            isOpen={(id) => id === "charts" && chartsNow}
+            isOpen={(id) =>
+              (id === "charts" && chartsNow) || (id === "zones" && asked.focus === "distribution")
+            }
             onToggle={(id) => id === "charts" && setChartsNow(false)}
             hints={{
               intervals: intervals.length ? String(intervals.length) : undefined,
@@ -308,19 +317,24 @@ function RideDetail() {
                   ) : null;
                 }
                 case "zones":
-                  return isRun ? (
-                    runZones?.some((v) => v > 0) ? (
-                      <Panel
-                        title={t("Time in pace zones (GAP)", "Tempo nelle zone di passo (GAP)")}
-                      >
-                        <ZoneBar secs={runZones} names={RUN_ZONE_NAMES} />
-                      </Panel>
-                    ) : null
-                  ) : a.zoneTimes.some((v) => v > 0) ? (
-                    <Panel title={t("Time in power zones", "Tempo nelle zone di potenza")}>
-                      <ZoneBar secs={a.zoneTimes} />
-                    </Panel>
-                  ) : null;
+                  return (
+                    <div className="space-y-4">
+                      {isRun && runZones?.some((v) => v > 0) && (
+                        <Panel
+                          title={t("Time in pace zones (GAP)", "Tempo nelle zone di passo (GAP)")}
+                        >
+                          <ZoneBar secs={runZones} names={RUN_ZONE_NAMES} />
+                        </Panel>
+                      )}
+                      <RideDistribution
+                        a={a}
+                        streams={streams}
+                        sport={isRun ? "run" : "ride"}
+                        {...(asked.metric ? { initial: asked.metric } : {})}
+                        focused={asked.focus === "distribution"}
+                      />
+                    </div>
+                  );
                 case "splits":
                   return streams ? (
                     <RunSplits streams={streams} threshold={runThreshold} tops={zoneTops().pace} />

@@ -16,7 +16,7 @@ import { wbal } from "@/lib/analysis";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { gapStreams } from "@/lib/gap";
 import { formatPace, stepsPerMinute } from "@/lib/pace";
-import { rideSeries, type SeriesPoint } from "@/lib/ride-series";
+import { hrAxis, rideSeries, type SeriesPoint } from "@/lib/ride-series";
 import { isSport } from "@/lib/sport";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,8 @@ type Metric = {
   summary?: string;
   /** Fixed y range instead of 0 → auto. */
   yDomain?: [number, number];
+  /** Where the y axis starts and its ticks, instead of 0 → auto; zooming in still fits the data shown. */
+  yAxis?: { domain: [number, number]; ticks: number[] };
 };
 
 const peak = (xs: (number | null)[]) =>
@@ -164,6 +166,7 @@ export function RideCharts({
             avg: a.average_heartrate,
             max: a.max_heartrate ?? peak(streams.heartrate),
             digits: 0,
+            yAxis: hrAxis(streams.heartrate, peak(data.map((p) => p.hr))),
           },
           {
             key: "cadence",
@@ -362,7 +365,8 @@ const Chart = memo(function Chart({
             stroke="var(--muted-foreground)"
             fontSize={11}
             allowDecimals={false}
-            domain={m.yDomain ?? (fit ? ["auto", "auto"] : [0, "auto"])}
+            domain={m.yDomain ?? (fit ? ["auto", "auto"] : (m.yAxis?.domain ?? [0, "auto"]))}
+            {...(m.yAxis && !fit ? { ticks: m.yAxis.ticks, allowDataOverflow: true } : {})}
             {...(m.format ? { tickFormatter: m.format } : {})}
           />
           {/* Cursor line and dot only; the value shows in the header. */}

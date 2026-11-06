@@ -8,6 +8,7 @@ import { t } from "./i18n";
 import { API_KEY, GARMIN, readSetting, RUN_THRESHOLD_ICU, writeSetting } from "./settings";
 import { runSummary, summaryRunLoad, type RunSummary } from "./run-metrics";
 import type { RideRef } from "./segment-engine";
+import { streamBuckets, type Bucket } from "./distribution";
 import { trackFromStreams, type TrackLike } from "./segments";
 import { isOutdoorActivity, isSport, knownRunThreshold, type MainSport } from "./sport";
 import { parseWorkout } from "./workout";
@@ -88,6 +89,8 @@ export type Activity = {
   joules?: number | null;
   average_speed: number | null;
   zoneTimes: number[];
+  /** Seconds in each heart-rate zone, when intervals.icu gives them. */
+  hrZoneTimes?: number[];
   decoupling: number | null;
   efficiency: number | null;
   /** Recorded on a home trainer (indoor), even when the type says Ride. */
@@ -182,6 +185,9 @@ const pickRawActivity = (a: Record<string, unknown>): Activity => ({
   joules: (a["icu_joules"] as number) ?? null,
   average_speed: (a["average_speed"] as number) ?? null,
   zoneTimes: zoneSecs(a),
+  ...(Array.isArray(a["icu_hr_zone_times"])
+    ? { hrZoneTimes: a["icu_hr_zone_times"] as number[] }
+    : {}),
   decoupling: (a["decoupling"] as number) ?? null,
   efficiency: (a["icu_efficiency_factor"] as number) ?? null,
   trainer: !!a["trainer"],
@@ -465,6 +471,50 @@ export async function getRideWatts(id: string): Promise<(number | null)[]> {
   return rows.find((r) => r.type === "watts")?.data ?? [];
 }
 
+export type Histograms = { power: Bucket[]; hr: Bucket[] };
+
+// A recap asks for many at once: a few at a time is plenty, and kinder to intervals.icu.
+const HIST_AT_ONCE = 4;
+let histRunning = 0;
+const histWaiting: (() => void)[] = [];
+async function histSlot<T>(run: () => Promise<T>): Promise<T> {
+  if (histRunning >= HIST_AT_ONCE) await new Promise<void>((go) => histWaiting.push(go));
+  histRunning++;
+  try {
+    return await run();
+  } finally {
+    histRunning--;
+    histWaiting.shift()?.();
+  }
+}
+
+/**
+ * Time per bucket of power and heart rate for one activity, worked out here from its streams and kept on this device:
+ * finished activities don't change. Only these two streams are read, or the full copy if it's already here.
+ */
+export async function getHistograms(rawId: string): Promise<Histograms> {
+  const id = idSchema.parse(rawId);
+  const key = `hist:v2:${id}`;
+  const hit = await idbGet<Histograms>(key).catch(() => undefined);
+  if (hit) return hit;
+  const full = await idbGet<RideStreams>(`streams:v2:${id}`).catch(() => undefined);
+  let watts = full?.watts;
+  let heartrate = full?.heartrate;
+  if (!full) {
+    const rows = await histSlot(() =>
+      icu<StreamRow[]>(`/activity/${id}/streams.json?types=watts,heartrate`),
+    );
+    watts = rows.find((r) => r.type === "watts")?.data;
+    heartrate = rows.find((r) => r.type === "heartrate")?.data;
+  }
+  const out = {
+    power: streamBuckets(watts ?? [], "power"),
+    hr: streamBuckets(heartrate ?? [], "hr"),
+  };
+  idbSet(key, out).catch(() => {});
+  return out;
+}
+
 /** Outdoor rides and runs (not trainer or virtual) in a date range, for the segment engine. */
 export async function listOutdoorRides(from: string, to: string): Promise<RideRef[]> {
   const { oldest, newest } = rangeSchema.parse({ oldest: from, newest: to });
@@ -514,21 +564,61 @@ export async function downloadRideTrack(ref: RideRef): Promise<Track | null> {
   return s.lat.length ? trackFromStreams(ref, s) : null;
 }
 
-export type PowerCurve = { id: string; label: string; secs: number[]; watts: number[] };
+/** Best value per length. On a heart-rate curve, `watts` holds bpm. */
+export type PowerCurve = {
+  id: string;
+  label: string;
+  secs: number[];
+  watts: number[];
+  /** The activities that set each value, as intervals.icu gives them. */
+  activityIds?: string[];
+  /** Read only from this many latest activities (Cirmolo's own store). */
+  capped?: number;
+};
 
-async function powerCurves(curves: string) {
+async function readCurves(
+  path: "power-curves" | "hr-curves",
+  curves: string,
+  type: "Ride" | "Run",
+) {
   const r = await icu<{ list: Record<string, unknown>[] }>(
-    `/athlete/0/power-curves.json?curves=${curves}&type=Ride`,
+    `/athlete/0/${path}.json?curves=${curves}&type=${type}`,
   );
   return r.list.map((c) => ({
     id: String(c["id"]),
     label: String(c["label"] ?? c["id"]),
     secs: (c["secs"] as number[]) ?? [],
-    watts: (c["watts"] as number[]) ?? (c["values"] as number[]) ?? [],
+    watts:
+      (path === "hr-curves" ? (c["values"] as number[]) : (c["watts"] as number[])) ??
+      (c["values"] as number[]) ??
+      (c["watts"] as number[]) ??
+      [],
+    ...(Array.isArray(c["activity_id"]) ? { activityIds: c["activity_id"] as string[] } : {}),
   })) as PowerCurve[];
 }
 
+const powerCurves = (curves: string) => readCurves("power-curves", curves, "Ride");
+const curveType = (sport: "ride" | "run") => (sport === "run" ? "Run" : "Ride");
+
 export const getPowerCurves = () => powerCurves("42d,1y,all");
+
+/** The highest heart rate held for each length, in the same stretches as the power curves. */
+export const getHrCurves = (sport: "ride" | "run" = "ride") =>
+  readCurves("hr-curves", "42d,1y,all", curveType(sport));
+
+/** The highest heart rate held for each length in one stretch of days. */
+export async function getHrCurveRange(
+  from: string,
+  to: string,
+  sport: "ride" | "run" = "ride",
+): Promise<PowerCurve | null> {
+  const [curve] = await readCurves(
+    "hr-curves",
+    `r.${day.parse(from)}.${day.parse(to)}`,
+    curveType(sport),
+  );
+  return curve ?? null;
+}
 
 /** The best power of one stretch of days. */
 export async function getPowerCurveRange(from: string, to: string): Promise<PowerCurve | null> {

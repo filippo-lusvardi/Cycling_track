@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rideSeries } from "./ride-series";
+import { hrAxis, rideSeries } from "./ride-series";
 
 const ride = (
   secs: number,
@@ -49,5 +49,32 @@ describe("ride series", () => {
     expect(pedalled[3]!.cadence).toBeCloseTo(85);
     expect(rideSeries({ ...base, cadence: base.time.map(() => 0) }, 60)[3]!.cadence).toBeNull();
     expect(rideSeries(base, 60)[3]!.cadence).toBeNull();
+  });
+});
+
+describe("hrAxis", () => {
+  it("starts at 80 when the activity never drops below it", () => {
+    expect(hrAxis([95, 120, 163], 163)).toEqual({
+      domain: [80, 180],
+      ticks: [80, 100, 120, 140, 160, 180],
+    });
+  });
+  it("starts at the activity's lowest reading when that is under 80", () => {
+    const { domain, ticks } = hrAxis([73.4, 120, 150], 150);
+    expect(domain).toEqual([73, 160]);
+    expect(ticks).toEqual([73, 100, 120, 140, 160]);
+  });
+  it("takes the lowest from the whole activity, even when only a stretch of it is shown", () => {
+    expect(hrAxis([70, 150, 170], 170).domain[0]).toBe(70);
+  });
+  it("ignores nulls and sensor dropouts", () => {
+    expect(hrAxis([0, null, 110, 150], 150).domain[0]).toBe(80);
+  });
+  it("keeps a usable range when the heart rate stays low", () => {
+    expect(hrAxis([60, 70], 70)).toEqual({ domain: [60, 80], ticks: [60, 80] });
+    expect(hrAxis([], null).domain).toEqual([80, 100]);
+  });
+  it("thins the ticks out over a wide range", () => {
+    expect(hrAxis([85, 195], 195).ticks).toEqual([80, 120, 160, 200]);
   });
 });

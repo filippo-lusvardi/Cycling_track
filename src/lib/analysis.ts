@@ -218,6 +218,13 @@ export function valueAt(c: PowerCurve | undefined, d: number): number | null {
   return i >= 0 && c.watts[i] ? c.watts[i]! : null;
 }
 
+/** The activity that set a curve's value at this length, when the curve says. */
+export function whoSet(c: PowerCurve | undefined, d: number): string | null {
+  if (!c?.activityIds) return null;
+  const i = c.secs.findIndex((s) => s >= d);
+  return (i >= 0 && c.activityIds[i]) || null;
+}
+
 export type CurveFit =
   | (OmPD & { omni: true })
   | { cp: number; wPrime: number; pmax: null; a: 0; r2: number; omni: false };

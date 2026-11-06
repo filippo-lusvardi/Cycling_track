@@ -2,6 +2,7 @@
 // list of questions and words in both languages, plus your own rides, climbs, races and months. Among equally good
 // matches your season of the moment decides which comes first, and the less you've typed, the more it decides.
 import { parseISO } from "date-fns";
+import type { AskDetail } from "./ask-detail";
 import type { WriteAction } from "./ask-intents";
 import { paramEntries, type ParamData } from "./ask-params";
 import { near } from "./ask-sentence";
@@ -63,6 +64,8 @@ export type Entry = {
   exact?: boolean;
   /** Ahead of what's otherwise equal (a saved climb over a detected one). */
   boost?: number;
+  /** There's something to explore: choosing it opens here, in the panel. */
+  detail?: AskDetail;
 };
 
 export type Alt = Entry & { ghost: string | null };

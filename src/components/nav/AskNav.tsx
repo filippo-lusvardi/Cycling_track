@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useCallback,
   useId,
   useMemo,
   useRef,
@@ -39,6 +40,7 @@ import { isCheckedIn, useCheckInState } from "@/components/CheckIn";
 import { Bird, Owl, Squirrel } from "@/components/tree/Critters";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { useNow } from "@/hooks/use-now";
+import { MAX_PINS, usePins } from "@/hooks/use-pins";
 import { useSegmentNames } from "@/hooks/use-segment-names";
 import { useSegmentLibrary } from "@/hooks/use-segments";
 import { useSuggestInput } from "@/hooks/use-suggest-input";
@@ -81,11 +83,14 @@ import {
   type MemberTree,
   type MemberTrees,
 } from "@/lib/ask-members";
+import { askNeeds, mergeNeeds } from "@/lib/ask-compare";
+import { curveKey, type CurveRead, type RideSignal } from "@/lib/ask-efforts";
 import { pastAsked, pastRows, pastWindow } from "@/lib/ask-past";
+import type { Here } from "@/lib/ask-read";
 import { correctCommand, simplify } from "@/lib/ask-sentence";
 import { lastSaved, rememberUndo, runWrite, undoLast } from "@/lib/ask-write";
 import { t } from "@/lib/i18n";
-import { isPlanned, type Wellness } from "@/lib/intervals";
+import { isPlanned, type Histograms, type Wellness } from "@/lib/intervals";
 import type { RunData } from "@/lib/run-data";
 import { attemptsIn } from "@/lib/segment-index";
 import { crownFor } from "@/lib/tree";
@@ -93,12 +98,16 @@ import {
   activitiesQuery,
   allActivitiesQuery,
   eventsQuery,
+  histogramsQuery,
+  hrCurveRangeQuery,
+  hrCurvesQuery,
   offEventsQuery,
   powerCurveRangeQuery,
   powerCurvesQuery,
   racesQuery,
   rideZonesQuery,
   runDataQuery,
+  streamsQuery,
   thresholdsQuery,
   wellnessQuery,
   wellnessRangeQuery,
@@ -115,8 +124,10 @@ import {
 } from "@/lib/settings";
 import { hasSource, sourceKind } from "@/lib/source";
 import { addDays, isoDate } from "@/lib/training";
+import { spanTitle } from "@/lib/ask-when";
 import type { Season } from "@/lib/tree";
 import { cn } from "@/lib/utils";
+import { AnswerCard, BatchCard, PinButton } from "./AskAnswer";
 import { openLegend } from "./legend-store";
 
 const PILL =
@@ -442,6 +453,10 @@ function AskBody({
 }) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
+  // An answer opened here in the panel, and a line that saves several things waiting to be confirmed.
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [batch, setBatch] = useState<Entry | null>(null);
+  const { pins, isPinned, toggle: togglePin } = usePins();
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
   useEffect(() => input.current?.focus(), []);
@@ -450,6 +465,8 @@ function AskBody({
   const runs = sport === "run" || analysisBoth();
   const enabled = hasSource();
   const { data: acts } = useQuery({ ...allActivitiesQuery(), enabled });
+  const lib = useSegmentLibrary({ sync: false });
+  const nameOf = useSegmentNames(lib.list);
   const { data: wellness } = useQuery({ ...wellnessQuery(90), enabled });
   const { data: races } = useQuery({ ...racesQuery(today), enabled });
   const { data: events } = useQuery({
@@ -467,6 +484,33 @@ function AskBody({
     ...offEventsQuery({ oldest: addDays(today, -90), newest: today }),
     enabled,
   });
+  // What the page being read is, for a question that names nothing.
+  const location = useRouterState({ select: (s) => s.location });
+  const here: Here | null = useMemo(() => {
+    const ride = /^\/rides\/([^/]+)/.exec(location.pathname)?.[1];
+    if (ride) return { kind: "ride", id: ride };
+    if (!/^\/recap\/?$/.test(location.pathname)) return null;
+    const { from, to } = location.search as { from?: string; to?: string };
+    return from && to ? { kind: "recap", from, to, q: spanTitle({ from, to }, today) } : null;
+  }, [location.pathname, location.search, today]);
+  const climbsRead = useMemo(
+    () =>
+      lib.list.map((c) => ({
+        id: c.id,
+        name: nameOf(c),
+        length: c.length,
+        gain: c.gain,
+        saved: c.saved,
+        attempts: attemptsIn(lib.efforts[c.effortsKey], sport),
+      })),
+    [lib.list, lib.efforts, nameOf, sport],
+  );
+  // What this question needs read: nothing, until it's asked.
+  const needs = useMemo(() => {
+    const d = { today, sport, acts, climbs: climbsRead, here };
+    // An empty field shows what's pinned, so that's what is read.
+    return q.trim() ? askNeeds(q, d) : mergeNeeds(pins.map((p) => askNeeds(p, d)));
+  }, [q, pins, today, sport, acts, climbsRead, here]);
   const period = useMemo(
     () => (sport === "run" ? null : powerPeriodAsked(q, today)),
     [q, today, sport],
@@ -482,12 +526,67 @@ function AskBody({
         : undefined,
     [period, range.data, range.isError],
   );
+  const curveQueries = useQueries({
+    queries: needs.curves.map((c) => ({
+      ...(c.metric === "power"
+        ? powerCurveRangeQuery(c.from, c.to)
+        : hrCurveRangeQuery(c.from, c.to, c.sport)),
+      enabled,
+    })) as ReturnType<typeof powerCurveRangeQuery>[],
+  });
+  const curvesKey = curveQueries.map((r) => `${r.dataUpdatedAt}/${r.isError}`).join();
+  const curveReads = useMemo(
+    () =>
+      Object.fromEntries(
+        needs.curves.flatMap((c, i): [string, CurveRead][] => {
+          const r = curveQueries[i];
+          if (r?.isError) return [[curveKey(c), { curve: null, failed: true }]];
+          return r?.data !== undefined ? [[curveKey(c), { curve: r.data }]] : [];
+        }),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `curveQueries` changes with `curvesKey`.
+    [needs.curves, curvesKey],
+  );
+  const histQueries = useQueries({
+    queries: needs.histIds.map((id) => ({ ...histogramsQuery(id), enabled })),
+  });
+  const histKey = histQueries.map((r) => `${r.dataUpdatedAt}/${r.isError}`).join();
+  const histograms = useMemo(
+    () =>
+      Object.fromEntries(
+        needs.histIds.flatMap((id, i): [string, Histograms | null][] => {
+          const r = histQueries[i];
+          if (r?.isError) return [[id, null]];
+          return r?.data ? [[id, r.data]] : [];
+        }),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `histQueries` changes with `histKey`.
+    [needs.histIds, histKey],
+  );
+  const { data: hrCurves } = useQuery({
+    ...hrCurvesQuery(needs.hrCurves ?? sport),
+    enabled: enabled && !!needs.hrCurves,
+  });
+  const streamReads = useQueries({
+    queries: needs.rideIds.map((id) => ({ ...streamsQuery(id), enabled })),
+  });
+  const signalsKey = streamReads.map((r) => `${r.dataUpdatedAt}/${r.isError}`).join();
+  const signals = useMemo(
+    () =>
+      Object.fromEntries(
+        needs.rideIds.flatMap((id, i): [string, RideSignal | null][] => {
+          const r = streamReads[i];
+          if (r?.isError) return [[id, null]];
+          return r?.data ? [[id, { watts: r.data.watts, heartrate: r.data.heartrate }]] : [];
+        }),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `streamReads` changes with `signalsKey`.
+    [needs.rideIds, signalsKey],
+  );
   const qc = useQueryClient();
   const suggest = useSuggestInput();
   const zones = sport === "run" ? runZones : rideZones;
   const [checkIn] = useLocalStore(CHECK_IN, true);
-  const lib = useSegmentLibrary({ sync: false });
-  const nameOf = useSegmentNames(lib.list);
   const { forests, members } = useForestNames(q.trim().length >= 3);
   const data: AskData = useMemo(
     () => ({
@@ -570,6 +669,12 @@ function AskBody({
       acts,
       curves,
       rangeCurve,
+      curveReads,
+      hrCurves,
+      signals,
+      histograms,
+      zoneTops: zones,
+      here,
       offEvents,
       events,
       suggest,
@@ -579,13 +684,7 @@ function AskBody({
       runs: qc
         .getQueryData<RunData>(runDataQuery().queryKey)
         ?.runs.map((r) => ({ id: r.a.id, bests: r.s.bests, date: r.date, curve: r.s.paceCurve })),
-      climbs: lib.list.map((c) => ({
-        id: c.id,
-        name: nameOf(c),
-        length: c.length,
-        saved: c.saved,
-        attempts: attemptsIn(lib.efforts[c.effortsKey], sport),
-      })),
+      climbs: climbsRead,
     }),
     [
       today,
@@ -593,12 +692,16 @@ function AskBody({
       acts,
       curves,
       rangeCurve,
+      curveReads,
+      hrCurves,
+      signals,
+      histograms,
+      zones,
+      here,
       offEvents,
       events,
       qc,
-      lib.list,
-      lib.efforts,
-      nameOf,
+      climbsRead,
       rideZones,
       wellness,
       suggest,
@@ -642,8 +745,8 @@ function AskBody({
     ]),
   );
   const treesKey = memberTrees.map((r) => r.dataUpdatedAt).join();
-  const found = useMemo(() => {
-    const among = (text: string) =>
+  const among = useCallback(
+    (text: string) =>
       alternatives(text, moment.season, [
         ...hintRows(text),
         ...pastRows(text, past),
@@ -652,7 +755,11 @@ function AskBody({
         ...whenEntries(text, today).filter((e) => e.exact),
         ...(moment.ride ? [todayRideEntry(moment.ride)] : []),
         ...entries,
-      ]);
+      ]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `trees` changes with `treesKey`.
+    [today, moment.season, moment.ride, entries, intentData, past, members, treesKey],
+  );
+  const found = useMemo(() => {
     const literal = among(q);
     if (literal.length) return literal;
     // A sentence gets a second reading, for what it comes down to.
@@ -668,8 +775,7 @@ function AskBody({
     // Then one slip on the command word; only here, so a word that means something else keeps its meaning.
     const fixed = correctCommand(q);
     return fixed ? among(fixed).map((e) => ({ ...e, ghost: null })) : reading;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `trees` changes with `treesKey`.
-  }, [q, today, moment.season, moment.ride, entries, intentData, past, members, treesKey]);
+  }, [q, among]);
   const now = useMemo(() => nowEntries(moment, entries), [moment, entries]);
   const nothing = typed && !found.length;
   const explained = useMemo(
@@ -677,10 +783,72 @@ function AskBody({
     [nothing, q, intentData],
   );
   const maybe = nothing ? entries.filter((e) => e.id === "planned" || e.id === "today") : [];
-  const list: Entry[] = typed ? (nothing ? (explained.length ? explained : maybe) : found) : now;
+  // At an empty field: what's pinned, answered live, and the day's own question next to the thumb.
+  const pinnedRows = useMemo(
+    () =>
+      typed
+        ? []
+        : pins.flatMap((p) => {
+            const row = among(p)[0];
+            return row && row.dest.kind !== "write" ? [{ ...row, pinQuery: p }] : [];
+          }),
+    [typed, pins, among],
+  );
+  const list: Entry[] = typed
+    ? nothing
+      ? explained.length
+        ? explained
+        : maybe
+      : found
+    : pinnedRows.length
+      ? [...now.slice(0, 1), ...pinnedRows]
+      : now;
+  const opened = openId
+    ? (found.find((e) => e.id === openId) ?? found.find((e) => e.detail))
+    : null;
+  const showing = opened?.detail ? opened : null;
   const ghost = typed ? (found[0]?.ghost ?? null) : null;
 
   useEffect(() => setActive(0), [q]);
+
+  // Back from an open answer, or a line waiting to be confirmed, before anything closes.
+  useEffect(() => {
+    if (!openId && !batch) return;
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setOpenId(null);
+      setBatch(null);
+      input.current?.focus();
+    };
+    window.addEventListener("keydown", onEsc, true);
+    return () => window.removeEventListener("keydown", onEsc, true);
+  }, [openId, batch]);
+
+  const pick = (e: Entry & { pinQuery?: string }) => {
+    if (e.pinQuery && e.detail) setQ(e.pinQuery);
+    if (e.detail) {
+      // The keyboard goes, leaving the room to the answer.
+      setOpenId(e.id);
+      input.current?.blur();
+      return;
+    }
+    if (e.dest.kind === "write" && e.dest.action.kind === "batch") {
+      setBatch(e);
+      input.current?.blur();
+      return;
+    }
+    onChoose(e);
+  };
+  const pinIt = (query: string) => {
+    if (!togglePin(query))
+      toast(t(`${MAX_PINS} at most: unpin one first`, `Al massimo ${MAX_PINS}: togline prima una`));
+  };
+  const pinnable = (e: Entry) =>
+    !!e.exact &&
+    (e.value != null || e.answer != null) &&
+    e.page !== "save" &&
+    !e.id.startsWith("note-");
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
@@ -691,7 +859,7 @@ function AskBody({
       setActive((a) => Math.max(a - 1, 0));
     } else if (e.key === "Enter" && list[active]) {
       e.preventDefault();
-      onChoose(list[active]);
+      pick(list[active]);
     } else if (e.key === "Tab" && ghost && !e.shiftKey) {
       e.preventDefault();
       setQ(q.trimEnd() + ghost);
@@ -722,7 +890,15 @@ function AskBody({
             <input
               ref={input}
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setOpenId(null);
+                setBatch(null);
+              }}
+              onFocus={() => {
+                setOpenId(null);
+                setBatch(null);
+              }}
               onKeyDown={onKey}
               role="combobox"
               aria-expanded={list.length > 0}
@@ -745,10 +921,31 @@ function AskBody({
           {t("All", "Tutto")}
         </button>
       </div>
+      {showing && (
+        <AnswerCard
+          entry={showing}
+          answer={spanAnswer(showing, data)}
+          acts={acts ?? []}
+          pinned={isPinned(q)}
+          onPin={() => pinIt(q)}
+          onAsk={setQ}
+          onOpen={() => onChoose(showing)}
+        />
+      )}
+      {batch?.dest.kind === "write" && batch.dest.action.kind === "batch" && (
+        <BatchCard
+          parts={batch.dest.action.parts}
+          dayLabel={spanTitle({ from: batch.dest.action.day, to: batch.dest.action.day }, today)}
+          onSave={(parts) => {
+            const action = batch.dest as { action: WriteAction & { kind: "batch" } };
+            onChoose({ ...batch, dest: { kind: "write", action: { ...action.action, parts } } });
+          }}
+        />
+      )}
       <div
         className={cn(
           "rounded-xl border border-border bg-card p-1 shadow-lg",
-          !list.length && "hidden",
+          (!list.length || showing || batch) && "hidden",
         )}
       >
         {nothing && !explained.length && (
@@ -759,39 +956,64 @@ function AskBody({
         <div id={listId} role="listbox" className="flex flex-col-reverse lg:flex-col">
           {list.map((e, i) => {
             const answer = spanAnswer(e, data);
+            const pinQuery = (e as Entry & { pinQuery?: string }).pinQuery;
+            const pinFor = typed ? (pinnable(e) ? q.trim() : null) : (pinQuery ?? null);
+            const dayRow = !typed && pinnedRows.length > 0 && i === 0;
             return (
-              <button
-                key={e.id}
-                id={`${listId}-${i}`}
-                role="option"
-                aria-selected={i === active}
-                tabIndex={-1}
-                onClick={() => onChoose(e)}
-                onMouseEnter={() => setActive(i)}
-                className={cn(
-                  "flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors",
-                  i === active && typed ? "bg-secondary" : "hover:bg-secondary",
-                )}
-              >
-                <Tile e={e} />
-                <span className="min-w-0 flex-1">
-                  <span className="block font-medium leading-snug">
-                    <Marked text={e.q} query={typed && !nothing ? q : ""} />
-                  </span>
-                  {answer && (
-                    <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
-                      {answer}
-                    </span>
+              <div key={pinQuery ? `pin-${pinQuery}` : e.id} className="flex items-center">
+                <div className="min-w-0 flex-1">
+                  {pinQuery && (i === 1 || i === list.length - 1) && (
+                    <div
+                      className={cn(
+                        "eyebrow px-3 pb-1 pt-2",
+                        // The list runs from the field outwards, so the heading sits at the far end on a phone.
+                        i === list.length - 1 ? (i === 1 ? "" : "lg:hidden") : "hidden lg:block",
+                      )}
+                    >
+                      {t("Pinned", "Fissate")}
+                    </div>
                   )}
-                </span>
-                {e.id.startsWith("note-") ? null : e.value ? (
-                  <span className="stat-num shrink-0 text-sm font-semibold">{e.value}</span>
-                ) : (
-                  <span className={cn("eyebrow shrink-0", e.page === "save" && "text-primary")}>
-                    {PAGE_LABEL[e.page]()}
-                  </span>
+                  {dayRow && <div className="mx-3 my-1 border-t border-border lg:hidden" />}
+                  <button
+                    id={`${listId}-${i}`}
+                    role="option"
+                    aria-selected={i === active}
+                    tabIndex={-1}
+                    onClick={() => pick(e)}
+                    onMouseEnter={() => setActive(i)}
+                    className={cn(
+                      "flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors",
+                      i === active && typed ? "bg-secondary" : "hover:bg-secondary",
+                    )}
+                  >
+                    <Tile e={e} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium leading-snug">
+                        <Marked text={e.q} query={typed && !nothing ? q : ""} />
+                      </span>
+                      {answer && (
+                        <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+                          {answer}
+                        </span>
+                      )}
+                    </span>
+                    {e.id.startsWith("note-") ? null : e.value ? (
+                      <span className="stat-num shrink-0 text-sm font-semibold">{e.value}</span>
+                    ) : (
+                      <span className={cn("eyebrow shrink-0", e.page === "save" && "text-primary")}>
+                        {PAGE_LABEL[e.page]()}
+                      </span>
+                    )}
+                  </button>
+                </div>
+                {pinFor && (
+                  <PinButton
+                    on={isPinned(pinFor)}
+                    onToggle={() => pinIt(pinFor)}
+                    label={isPinned(pinFor) ? t("Unpin", "Togli dalle fissate") : t("Pin", "Fissa")}
+                  />
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

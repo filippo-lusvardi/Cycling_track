@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { parseISO } from "date-fns";
@@ -6,7 +6,9 @@ import { allActivitiesQuery } from "@/lib/queries";
 import { ActivityRow } from "@/components/ActivityRow";
 import { Panel, StatCard } from "@/components/StatCard";
 import { activityKind, KINDS, type Kind } from "@/lib/activity-kind";
-import { formatDuration } from "@/lib/training";
+import { applyFilter, filterFromSearch, filterTitle, type ActivityFilter } from "@/lib/ask-filter";
+import type { Activity } from "@/lib/intervals";
+import { formatDuration, isoDate } from "@/lib/training";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format, t } from "@/lib/i18n";
@@ -26,12 +28,58 @@ function groupByMonth<T extends { start_date_local: string }>(acts: T[]): [strin
 }
 
 export const Route = createFileRoute("/rides/")({
+  validateSearch: (s: Record<string, unknown>): { filter?: string } & Record<string, unknown> =>
+    s["filter"] == null ? {} : s,
   loader: ({ context }) => context.queryClient.ensureQueryData(allActivitiesQuery()),
   component: Rides,
 });
 
+/** A list asked for by typing: only that, in the order asked, and one tap back to everything. */
+function FilteredRides({ f, data }: { f: ActivityFilter; data: Activity[] }) {
+  const found = useMemo(() => applyFilter(data, f), [data, f]);
+  const [limit, setLimit] = useState(PAGE);
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link to="/rides" search={{}} className="eyebrow hover:text-foreground">
+          {t("All activities", "Tutte le attività")}
+        </Link>
+        <h1 className="on-sky text-3xl font-bold tracking-tight">
+          {filterTitle(f, isoDate(new Date()))}
+        </h1>
+      </div>
+      <Panel title={`${found.length} ${t("activities", "attività")}`}>
+        {found.length ? (
+          <div className="-mx-3 -my-1">
+            {found.slice(0, limit).map((a) => (
+              <ActivityRow key={a.id} a={a} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("Nothing found", "Nessun risultato")}</p>
+        )}
+        {found.length > limit && (
+          <Button
+            variant="secondary"
+            className="mt-3 w-full"
+            onClick={() => setLimit(limit + PAGE)}
+          >
+            {t("Show more", "Mostra altre")}
+          </Button>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
 function Rides() {
+  const search = Route.useSearch();
   const { data } = useSuspenseQuery(allActivitiesQuery());
+  const f = useMemo(() => filterFromSearch(search), [search]);
+  return f ? <FilteredRides f={f} data={data} /> : <AllRides data={data} />;
+}
+
+function AllRides({ data }: { data: Activity[] }) {
   const [kind, setKind] = useState<Kind | null>(null);
   // Only the kinds you actually have, most frequent first; they double as the colour legend.
   const kinds = useMemo(() => {

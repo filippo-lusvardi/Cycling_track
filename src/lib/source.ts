@@ -21,6 +21,9 @@ type Source = Pick<
   | "downloadRideTrack"
   | "getPowerCurves"
   | "getPowerCurveRange"
+  | "getHrCurves"
+  | "getHistograms"
+  | "getHrCurveRange"
   | "createManualActivity"
   | "deleteActivity"
   | "getEvents"
@@ -73,6 +76,9 @@ export const listOutdoorRides = via("listOutdoorRides");
 export const downloadRideTrack = via("downloadRideTrack");
 export const getPowerCurves = via("getPowerCurves");
 export const getPowerCurveRange = via("getPowerCurveRange");
+export const getHrCurves = via("getHrCurves");
+export const getHistograms = via("getHistograms");
+export const getHrCurveRange = via("getHrCurveRange");
 export const createManualActivity = via("createManualActivity");
 export const deleteActivity = via("deleteActivity");
 export const getEvents = via("getEvents");

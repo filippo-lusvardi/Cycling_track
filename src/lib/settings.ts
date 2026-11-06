@@ -45,6 +45,9 @@ export const NO_PERF = "cadence_no_perf";
 
 /** How each person has arranged the recap and activity pages. Follows the account. */
 export const LAYOUTS = "cadence_layouts";
+
+/** The questions kept at hand in the bar. Follows the account. */
+export const PINNED = "cadence_pinned";
 /** The legend has been shown once on this device. */
 export const LEGEND_SEEN = "cadence_legend_seen";
 /** The last activity opened on this device, so today's isn't asked about once it has been read. */

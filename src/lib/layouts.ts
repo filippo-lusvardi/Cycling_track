@@ -204,6 +204,7 @@ export function recapSections(kind: LayoutKind): SectionDef[] {
       ],
     },
     { id: "mix", label: () => t("Intensity", "Intensità") },
+    { id: "distribution", label: () => t("Distribution", "Distribuzione") },
     {
       id: "activities",
       label: () => (long ? t("The longest", "Le più lunghe") : t("Activities", "Attività")),
@@ -245,7 +246,7 @@ export function activitySections(kind: LayoutKind): SectionDef[] {
     },
     {
       id: "zones",
-      label: () => (run ? t("Pace zones", "Zone di passo") : t("Power zones", "Zone di potenza")),
+      label: () => (run ? t("Pace zones", "Zone di passo") : t("Distribution", "Distribuzione")),
     },
     run
       ? { id: "splits", label: () => t("Splits", "Parziali") }

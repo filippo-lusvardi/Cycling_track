@@ -354,6 +354,88 @@ export const ASK_GUIDE: GuideItem[] = [
     ],
   },
   {
+    id: "efforts",
+    term: t("Efforts", "Sforzi"),
+    text: t(
+      "Power, heart rate, pace or speed, for any day, stretch or ride, with the words in any order. On an activity or a recap, what you ask is about that page.",
+      "Potenza, FC, passo o velocità, per qualsiasi giorno, periodo o attività, con le parole in qualsiasi ordine. Su un'attività o un riepilogo, quello che chiedi riguarda quella pagina.",
+    ),
+    points: [
+      t("power today 3m", "potenza oggi 3 min"),
+      t("hr yesterday 5m", "fc ieri 5 min"),
+      t("20 min power march", "20 min potenza marzo"),
+      t("hr last activity 5m", "fc ultima attività 5 min"),
+      t("avg hr this week", "fc media questa settimana"),
+      t("speed march", "velocità marzo"),
+    ],
+  },
+  {
+    id: "distribution",
+    term: t("Distribution", "Distribuzione"),
+    text: t(
+      "How the time was spread over power and heart rate, for an activity or a stretch.",
+      "Come si è distribuito il tempo tra potenza e FC, per un'attività o un periodo.",
+    ),
+    points: [
+      t("hr distribution this week", "distribuzione fc questa settimana"),
+      t("power distribution last activity", "distribuzione potenza ultima attività"),
+      t("zones march", "zone marzo"),
+    ],
+  },
+  {
+    id: "time-at",
+    term: t("Time at", "Tempo a"),
+    text: t(
+      "How long in a zone, or past a value, on a day or a stretch.",
+      "Quanto tempo in una zona o oltre un valore, in un giorno o un periodo.",
+    ),
+    points: [
+      t("time in z2 this week", "tempo in z2 questa settimana"),
+      t("time above 160 bpm today", "tempo sopra 160 bpm oggi"),
+    ],
+  },
+  {
+    id: "lists",
+    term: t("Lists", "Elenchi"),
+    text: t(
+      "Your own activities that match, opened on their own list.",
+      "Le tue attività che corrispondono, aperte in un elenco tutto loro.",
+    ),
+    points: [
+      t("activities over 50 km", "attività sopra 50 km"),
+      t("top 5 by climbing 2026", "top 5 per dislivello 2026"),
+      t("indoor activities march", "attività indoor marzo"),
+    ],
+  },
+  {
+    id: "together",
+    term: t("Several together", "Più cose insieme"),
+    text: t(
+      "Several questions in one line, the time said once. A line that saves several things shows each part before saving.",
+      "Più domande in una riga, con il periodo detto una volta sola. Una riga che salva più cose le mostra una per una prima di salvare.",
+    ),
+    points: [
+      t("km and climbing march", "km e dislivello marzo"),
+      t("tired, weight 70", "stanco, peso 70"),
+    ],
+  },
+  {
+    id: "pinned",
+    term: t("Pinned", "Fissate"),
+    text: t(
+      "The pin beside an answer keeps it at hand: up to three, answered afresh whenever you open the empty field.",
+      "La puntina accanto a una risposta la tiene a portata di mano: fino a tre, aggiornate ogni volta che apri il campo vuoto.",
+    ),
+  },
+  {
+    id: "climb-ahead",
+    term: t("A climb ahead", "Una salita davanti"),
+    text: t(
+      "How long a climb takes, or what power it asks for, from your curve, your weight and your own passes. A range, never to the second.",
+      "Quanto ci metti su una salita, o che potenza chiede, dalla tua curva, dal tuo peso e dai tuoi passaggi. Un intervallo, mai al secondo.",
+    ),
+  },
+  {
     id: "charts",
     term: t("One chart", "Un grafico"),
     text: t(

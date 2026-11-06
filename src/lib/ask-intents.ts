@@ -2,8 +2,24 @@
 // word and what follows it. Everything here is your own data; nothing is written unless a row saying so is chosen.
 import { parseISO } from "date-fns";
 import { activityKind } from "./activity-kind";
-import { curveFit, omPD, valueAt } from "./analysis";
+import { curveFit, omPD, valueAt, whoSet } from "./analysis";
 import { norm, type Dest, type Entry } from "./ask";
+import { climbPredictRows } from "./ask-climb";
+import { compareQuestions, manyCommand, manyParts } from "./ask-compare";
+import { curveOf, lengthChips, openWords } from "./ask-detail";
+import { distributionRows } from "./ask-distribution";
+import { effortRows, type CurveRead, type RideSignal } from "./ask-efforts";
+import { filterRows } from "./ask-filter";
+import { timeRows } from "./ask-time";
+import type { Histograms } from "./intervals";
+import {
+  matchClimbs,
+  namesTime,
+  plain,
+  SPORT_WORDS,
+  type Here,
+  type IntentClimb,
+} from "./ask-read";
 import { command, near, simplify } from "./ask-sentence";
 import {
   daysIn,
@@ -52,6 +68,8 @@ import { addDays, formatClock, formatDuration, loadFromRpe } from "./training";
 import { morningWellness, offEventOn, rideRecords } from "./tree";
 import type { WorkoutKind } from "./workout-templates";
 
+export { matchClimbs, namesTime, SPORT_WORDS, type IntentClimb };
+
 export type WellnessField =
   "weight" | "bodyFat" | "sleepSecs" | "hrv" | "sleepQuality" | "fatigue" | "stress" | "mood";
 export type WriteAction =
@@ -70,16 +88,13 @@ export type WriteAction =
     }
   | { kind: "log"; entry: ManualActivity; label: string }
   | { kind: "undo"; label: string }
+  | { kind: "batch"; parts: BatchPart[]; day: string; label: string }
   | { kind: "remove-plan"; event: PlannedEvent; label: string }
   | { kind: "move-plan"; id: string; from: string; to: string; label: string };
 
-export type IntentClimb = {
-  id: string;
-  name: string;
-  length: number;
-  saved: boolean;
-  attempts: Attempt[];
-};
+/** One thing in a line that saves several. A brioche can go on the activity logged in the same line: `activityId: "$log"`. */
+export type BatchPart = { title: string; detail: string; action: WriteAction };
+export const LOGGED_IN_BATCH = "$log";
 
 export type IntentData = {
   today: string;
@@ -91,6 +106,17 @@ export type IntentData = {
   curves?: PowerCurve[] | undefined;
   /** The best power of a stretch a phrase asked about, once it's been read. */
   rangeCurve?: (Span & { curve: PowerCurve | null; failed?: boolean }) | undefined;
+  /** The curves of the stretches a question is about, by `curveKey`; and those "fc 3 min" reads. */
+  curveReads?: Record<string, CurveRead> | undefined;
+  hrCurves?: PowerCurve[] | undefined;
+  /** Each activity's histogram, by id, once read; null when it couldn't be. */
+  histograms?: Record<string, Histograms | null> | undefined;
+  /** Zone tops, for zones worked out from histograms. */
+  zoneTops?: { power: number[]; hr: number[] } | undefined;
+  /** The streams of the rides a question is about, by id, once read; null when they couldn't be. */
+  signals?: Record<string, RideSignal | null> | undefined;
+  /** The page being read: a question that names nothing is about it. */
+  here?: Here | null | undefined;
   /** The running analysis, only if it's already been done. */
   runs?:
     | { id: string; bests: (number | null)[]; date?: string; curve?: (number | null)[] }[]
@@ -120,27 +146,10 @@ const route = (
   ...(params ? { params } : {}),
 });
 const write = (action: WriteAction): Dest => ({ kind: "write", action });
-const plain = (s: string) => norm(s).trim().replace(/\s+/g, " ");
 const number = (s: string) => Number(s.replace(",", "."));
 const dayText = (date: string) => format(parseISO(date.slice(0, 10)), "d MMM yyyy");
 const passes = (n: number) =>
   t(n === 1 ? "1 pass" : `${n} passes`, n === 1 ? "1 passaggio" : `${n} passaggi`);
-
-/** Climbs whose name holds every word typed, the closest first. */
-export function matchClimbs(climbs: IntentClimb[], rest: string) {
-  const words = rest.split(" ").filter(Boolean);
-  const scored = climbs.flatMap((c) => {
-    const name = plain(c.name);
-    const parts = name.split(/[ ']/);
-    if (
-      !words.every((w) => parts.some((p) => p.startsWith(w)) || (w.length >= 3 && name.includes(w)))
-    )
-      return [];
-    const start = name.startsWith(words.join(" ")) ? 20 : 0;
-    return [{ c, score: start + (c.saved ? 10 : 0) + Math.min(c.attempts.length, 9) }];
-  });
-  return scored.sort((a, b) => b.score - a.score || a.c.name.localeCompare(b.c.name)).slice(0, 3);
-}
 
 const climbDest = (c: IntentClimb, sport: MainSport) =>
   route("/segments/$id", { sport }, { id: c.id });
@@ -257,6 +266,25 @@ function bestLength(text: string, bare: boolean) {
 const isPower = (said: string | null) => !!said && /^(potenza|power|watt)/.test(said);
 const isPace = (said: string | null) => !!said && /^(passo|pace)$/.test(said);
 
+/** A curve to look at in the panel, with the other lengths a tap away. */
+function curveDetail(
+  curve: PowerCurve | undefined,
+  secs: number,
+  word: string,
+  opensRide: boolean,
+) {
+  const view = curveOf(curve, secs, "W");
+  return view
+    ? {
+        detail: {
+          view,
+          lengths: lengthChips(secs, (l) => `${word} ${l}`),
+          open: opensRide ? openWords.ride() : openWords.curve(),
+        },
+      }
+    : {};
+}
+
 function bestPower(d: IntentData, body: string, span?: WhenCandidate): Entry[] {
   const { said, text } = bestWords(body);
   if (d.sport === "run" || isPace(said)) return [];
@@ -296,15 +324,24 @@ function bestPower(d: IntentData, body: string, span?: WhenCandidate): Entry[] {
   const year = valueAt(c1y, dur.secs);
   const best = ever ?? year ?? now;
   if (best == null) return [];
+  // The ride that set it, when the curve says and it's one this device knows; else the curve itself.
+  const setBy = whoSet(ever != null ? cAll : year != null ? c1y : c42, dur.secs);
+  const ride = setBy ? d.acts?.find((a) => a.id === setBy) : undefined;
   return [
     {
       ...base,
+      ...(ride
+        ? { page: "ride" as const, dest: route("/rides/$id", undefined, { id: ride.id }) }
+        : {}),
+      ...curveDetail(ever != null ? cAll : year != null ? c1y : c42, dur.secs, "miglior", !!ride),
       q: t(`Best ${dur.label}`, `Miglior ${dur.label}`),
       value: `${Math.round(best)} W`,
       answer:
         ever != null
           ? [
               t("All time", "Di sempre"),
+              ride?.name ?? null,
+              ride ? dayText(ride.start_date_local) : null,
               year != null ? t(`year ${Math.round(year)} W`, `anno ${Math.round(year)} W`) : null,
               now != null
                 ? t(`42 days ${Math.round(now)} W`, `42 giorni ${Math.round(now)} W`)
@@ -395,15 +432,6 @@ function bestRun(d: IntentData, body: string, span?: WhenCandidate): Entry[] {
     },
   ];
 }
-
-export const SPORT_WORDS: [RegExp, (a: Activity) => boolean][] = [
-  [/^(uscita|pedalata|ride|giro|bici|bike)$/, (a) => isSport(a, "ride")],
-  [/^(corsa|run)$/, (a) => isSport(a, "run")],
-  [/^(nuoto|nuotata|swim)$/, (a) => activityKind(a) === "swim"],
-  [/^(camminata|escursione|walk|hike)$/, (a) => /walk|hike/i.test(a.type ?? "")],
-  [/^(palestra|forza|gym|strength)$/, (a) => /weight|workout/i.test(a.type ?? "")],
-  [/^(attivita|activity|seduta|session)$/, () => true],
-];
 
 function lastActivity(d: IntentData, rest: string): Entry[] {
   const hit = SPORT_WORDS.find(([re]) => re.test(rest));
@@ -805,20 +833,6 @@ function matchDays(rest: string, today: string): WhenCandidate[] {
   ];
   const seen = new Set<string>();
   return hits.filter((c) => (seen.has(c.from) ? false : (seen.add(c.from), true)));
-}
-
-/** Whether these words, all of them, name a time: any day or stretch, past or ahead. */
-export function namesTime(phrase: string, today: string) {
-  const typed = plain(phrase);
-  return whenCandidates(phrase, today).find(
-    (c) =>
-      c.exact ||
-      plain(c.q) === typed ||
-      (!typed.includes(" ") &&
-        plain(c.also ?? "")
-          .split(" ")
-          .includes(typed)),
-  );
 }
 
 /** A stretch of time named at the end of what's typed, and what's before it. */
@@ -1598,6 +1612,7 @@ function powerRows(d: IntentData, dur: { secs: number; label: string }): Entry[]
   const rows: Entry[] = [
     {
       ...base,
+      ...curveDetail(c42 && now != null ? c42 : c1y, dur.secs, "potenza", false),
       value: `${Math.round(shown)} W`,
       answer: [
         read !== dur.secs ? t(`read at ${clockOf(read)}`, `letti sui ${clockOf(read)}`) : null,
@@ -1963,6 +1978,8 @@ export function intentEntries(query: string, d: IntentData): Entry[] {
     ];
   const saved = writes(d, s);
   if (saved.length) return saved;
+  const batch = batchRows(query, s, d);
+  if (batch.length) return batch;
 
   const deleting = deleteRows(d, s);
   if (deleting) return deleting;
@@ -1976,15 +1993,139 @@ export function intentEntries(query: string, d: IntentData): Entry[] {
   const changed = changeRows(d, s);
   if (changed) return changed;
 
+  const many = manyRows(manyCommand(query), d);
+  if (many.length) return many;
   const rows = readRows(s, d);
   if (rows.length) return rows;
   // As a sentence, what it comes down to; only reading, so a sentence never saves anything.
   const said = simplify(query);
-  return said && said !== s ? readRows(said, d) : [];
+  if (!said || said === s) return [];
+  return manyRows(said, d).length ? manyRows(said, d) : readRows(said, d);
+}
+
+/** Several questions in one line: each must answer alone, and something with that very name stays itself. */
+function manyRows(s: string, d: IntentData): Entry[] {
+  const parts = manyParts(s, d.today);
+  if (!parts) return [];
+  const whole = plain(s);
+  if (d.acts?.some((a) => a.name && plain(a.name) === whole)) return [];
+  if (d.climbs.some((c) => plain(c.name) === whole)) return [];
+  const rows = parts.map((p) => readRows(p, d)[0]);
+  if (rows.some((r) => !r || r.id === "climb-none")) return [];
+  return (rows as Entry[]).map((r, i) => ({
+    ...r,
+    id: `${r.id}-${i}`,
+    exact: true,
+    boost: parts.length - i,
+  }));
+}
+
+const BATCH_SPLIT = /\s*,\s+|\s+(?:e|and)\s+/;
+
+/**
+ * "ieri 2h con Marco, gambe pesanti, 1 brioche": each part resolved on its own through what already saves one thing, then
+ * offered together to confirm. Every part has to mean something, or it isn't this.
+ */
+function batchRows(query: string, s: string, d: IntentData): Entry[] {
+  const parts = s.split(BATCH_SPLIT);
+  const raws = query.trim().split(BATCH_SPLIT);
+  if (parts.length < 2 || parts.length > 6 || parts.length !== raws.length) return [];
+  const firstWords = parts[0]!.split(" ");
+  const at = splitTime(firstWords, d.today);
+  const wholeDay = at && at.when.from === at.when.to && at.when.from <= d.today;
+  if (at && !wholeDay) return [];
+  const day = wholeDay ? at.when.from : d.today;
+  // The time goes with every part; said once at the start, only the first holds its words.
+  const dayWords =
+    at && at.name[0] > 0 ? firstWords.slice(0, at.name[0]) : at ? firstWords.slice(at.name[1]) : [];
+  const stripDay = (p: string, i: number) =>
+    i === 0 && at ? firstWords.slice(at.name[0], at.name[1]).join(" ") : p;
+  const out: BatchPart[] = [];
+  let logged = false;
+  for (const [i, part] of parts.entries()) {
+    const text = stripDay(part, i).trim();
+    const raw =
+      i === 0 && at ? raws[0]!.split(/\s+/).slice(at.name[0], at.name[1]).join(" ") : raws[i]!;
+    if (!text) return [];
+    const title = cap(raw.trim());
+    const brioche = /^(\d{1,2}) brioch(?:e|es|i)$/.exec(text);
+    if (brioche) {
+      const count = Number(brioche[1]);
+      if (count > 20) return [];
+      out.push({
+        title,
+        detail: "",
+        action: { kind: "brioche", activityId: "", count, label: title },
+      });
+      continue;
+    }
+    const one = writes(d, text)[0];
+    if (one && one.dest.kind === "write") {
+      const action = one.dest.action;
+      if (action.kind === "off" && day !== d.today) return [];
+      if (action.kind === "wellness") {
+        const scale = SCALE_NAMES[action.field as ScaleField] ? ` (${action.value} / 4)` : "";
+        out.push({ title, detail: `${one.q}${scale}`, action: { ...action, date: day } });
+        continue;
+      }
+      if (action.kind === "off") {
+        out.push({ title, detail: one.q, action });
+        continue;
+      }
+      return [];
+    }
+    // A length and something else: an activity. "Con Marco" alone is your own sport.
+    const named = /^(?:con|with) /.test(text) || / (?:con|with) /.test(text);
+    const noKind = named && !logKind(text.split(" ").filter((w) => !/^\d/.test(w)))?.type;
+    const sport = d.sport === "run" ? t("Run", "Corsa") : t("Ride", "Uscita");
+    const logText = noKind ? `${sport.toLowerCase()} ${text}` : text;
+    const row = (logRows(
+      d,
+      [...dayWords, logText].join(" "),
+      [...dayWords, noKind ? `${sport.toLowerCase()} ${raw.trim()}` : raw.trim()].join(" "),
+      true,
+    ) ?? [])[0];
+    if (!row || row.dest.kind !== "write" || row.dest.action.kind !== "log" || logged) return [];
+    logged = true;
+    out.push({ title, detail: row.answer ?? "", action: row.dest.action });
+  }
+  // A brioche goes on what's logged here, or else on that day's activity.
+  const ofDay = (d.acts ?? []).find((a) => a.start_date_local.slice(0, 10) === day);
+  for (const p of out) {
+    if (p.action.kind !== "brioche") continue;
+    if (!logged && !ofDay) return [];
+    p.action = { ...p.action, activityId: logged ? LOGGED_IN_BATCH : ofDay!.id };
+    p.detail = logged
+      ? t("On the activity above", "Sull'attività qui sopra")
+      : t(`On ${ofDay!.name ?? "the activity"}`, `Su ${ofDay!.name ?? "l'attività"}`);
+  }
+  if (out.length < 2) return [];
+  const label = t(`Save ${out.length} things`, `Salva ${out.length} cose`);
+  return [
+    saveRow("save-batch", label, out.map((p) => p.title).join(" · "), {
+      kind: "batch",
+      parts: out,
+      day,
+      label,
+    }),
+  ];
 }
 
 /** The rows that only read. */
 function readRows(typed: string, d: IntentData): Entry[] {
+  const comparing = compareQuestions(typed, d);
+  if (comparing.length) return comparing;
+  const listed = filterRows(typed, d);
+  if (listed.length) return listed;
+  const timed = timeRows(typed, d);
+  if (timed.length) return timed;
+  const spread = distributionRows(typed, d);
+  if (spread.length) return spread;
+  const effort = effortRows(typed, d);
+  if (effort.length) return effort;
+  const climbAhead = climbPredictRows(typed, d);
+  if (climbAhead.length) return climbAhead;
+
   const most =
     /^(?:potenza massima|massima potenza|max power|watt massimi|massimi watt) (.+)$/.exec(typed);
   const s = most

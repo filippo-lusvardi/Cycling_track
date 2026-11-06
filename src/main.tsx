@@ -40,7 +40,13 @@ const persister = createAsyncStoragePersister({
 });
 
 // Streams have their own cache and race tracks come from the segment store, so neither goes in the snapshot.
-const NOT_PERSISTED = new Set(["plan-compare", "streams", "effort-track", "run-data"]);
+const NOT_PERSISTED = new Set([
+  "plan-compare",
+  "streams",
+  "effort-track",
+  "run-data",
+  "histograms",
+]);
 
 navigator.storage?.persist?.().catch(() => {});
 // The old tile cache held opaque responses that Chrome counts as ~7 MB each; tiles now live in map-tiles-v2.

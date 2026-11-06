@@ -299,8 +299,12 @@ function readRange(s: string, today: string): WhenCandidate | null {
       s,
     );
   if (!m) return null;
-  const a = rangeEnd(m[1]!);
   const b = rangeEnd(m[2]!);
+  // "dal 3 al 5 marzo": the first day is in the month the phrase ends on.
+  const a =
+    /^\d{1,2}$/.test(m[1]!) && b?.m != null
+      ? rangeEnd(`${m[1]} ${m[2]!.replace(/^\d{1,2} /, "")}`)
+      : rangeEnd(m[1]!);
   if (!a || !b) return null;
   const now = parts(today);
   // Without any year, the latest stretch that has ended, or is ending, by this month.
@@ -361,7 +365,8 @@ function read(query: string, today: string): WhenCandidate[] {
     }
   }
   const ahead = /^(?:tra|fra|in)\s+(\d{1,3})(?:\s+([a-z]+))?$/.exec(s);
-  if (ahead) {
+  // "in 3 novembre" is a date, not three days from now: only a unit of time counts here.
+  if (ahead && (!ahead[2] || unit(ahead[2]))) {
     const n = Number(ahead[1]);
     const u = unit(ahead[2]) ?? "d";
     const date = addDays(today, n * (u === "d" ? 1 : u === "w" ? 7 : 30));

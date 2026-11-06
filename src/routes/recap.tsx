@@ -1,4 +1,6 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { RecapDistribution } from "@/components/Distribution";
+import type { DistMetric } from "@/lib/distribution";
 import { createFileRoute, Link, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
@@ -22,13 +24,20 @@ import { offDays } from "@/lib/tree";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const Route = createFileRoute("/recap")({
-  validateSearch: (s: Record<string, unknown>): { from?: string; to?: string } =>
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { from?: string; to?: string; focus?: "distribution"; metric?: DistMetric } =>
     typeof s["from"] === "string" &&
     typeof s["to"] === "string" &&
     DATE.test(s["from"]) &&
     DATE.test(s["to"]) &&
     s["from"] <= s["to"]
-      ? { from: s["from"], to: s["to"] }
+      ? {
+          from: s["from"],
+          to: s["to"],
+          ...(s["focus"] === "distribution" ? { focus: "distribution" as const } : {}),
+          ...(s["metric"] === "power" || s["metric"] === "hr" ? { metric: s["metric"] } : {}),
+        }
       : {},
   loader: ({ context }) => context.queryClient.ensureQueryData(allActivitiesQuery()),
   component: RecapPage,
@@ -270,6 +279,7 @@ function RecapPage() {
           )}
           <Sections
             layout={layout}
+            isOpen={(id) => id === "distribution" && search.focus === "distribution"}
             hints={{
               planned: r.planned.length ? String(r.planned.length) : undefined,
               sports: r.byKind.length
@@ -403,6 +413,15 @@ function RecapPage() {
                         </span>
                       </div>
                     </Panel>
+                  ) : null;
+                case "distribution":
+                  return r.acts.length ? (
+                    <RecapDistribution
+                      acts={r.acts}
+                      days={daysIn(span)}
+                      {...(search.metric ? { initial: search.metric } : {})}
+                      focused={search.focus === "distribution"}
+                    />
                   ) : null;
                 case "activities":
                   return r.acts.length ? (

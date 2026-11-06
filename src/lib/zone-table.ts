@@ -1,5 +1,6 @@
 // Zones as rows to read: number, name and range. The Zone tab and the typed answers both use these.
 import { ZONE_NAMES } from "./analysis";
+import { t } from "./i18n";
 import { formatPace } from "./pace";
 import { paceZoneTops, RUN_ZONE_NAMES } from "./run-metrics";
 import type { MainSport } from "./sport";
@@ -24,7 +25,12 @@ function fromTops(tops: number[], unit: string, names: readonly string[]): ZoneR
 
 export const powerRows = (tops: number[]) => fromTops(tops, "W", ZONE_NAMES);
 
-export const hrRows = (tops: number[], sport: MainSport) => fromTops(tops, "bpm", zoneNames(sport));
+/** Heart-rate zones by name: "FTP" means nothing for a heart rate, so Z4 reads as threshold on the bike too. */
+export const hrZoneNames = (sport: MainSport): readonly string[] =>
+  zoneNames(sport).map((n, i) => (i === 3 ? t("Threshold", "Soglia") : n));
+
+export const hrRows = (tops: number[], sport: MainSport) =>
+  fromTops(tops, "bpm", hrZoneNames(sport));
 
 /** Pace runs the other way: zone 1 is the slowest, and its top is the speed where it ends. */
 export function paceRows(threshold: number, pct?: number[] | null): ZoneRow[] {

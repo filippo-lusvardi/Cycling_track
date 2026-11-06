@@ -165,3 +165,14 @@ describe("more ways to say time", () => {
     expect(first("marco 2025")).toBeUndefined();
   });
 });
+
+describe("in + number", () => {
+  it("is time ahead only with a unit of time", () => {
+    const ahead = (q: string) => whenCandidates(q, "2026-11-06").some((c) => c.id === "ahead");
+    expect(ahead("in 3 giorni")).toBe(true);
+    expect(ahead("in 3 settimane")).toBe(true);
+    expect(ahead("in 3")).toBe(true);
+    expect(ahead("in 3 novembre")).toBe(false);
+    expect(ahead("in 3 marzo")).toBe(false);
+  });
+});

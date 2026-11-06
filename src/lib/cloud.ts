@@ -36,6 +36,8 @@ export type Profile = {
   gardenCrops?: string | null;
   /** How the recap and activity pages are arranged, as JSON. */
   layouts?: string | null;
+  /** The questions kept at hand in the bar, as JSON. */
+  pinned?: string | null;
   /** Where training data comes from: intervals.icu (default) or Cirmolo's own store (uploaded ride files). */
   source?: "intervals" | "native" | null;
   // For accounts without intervals.icu, what its athlete settings would hold.
