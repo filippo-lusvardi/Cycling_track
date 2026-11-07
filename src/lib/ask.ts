@@ -298,6 +298,15 @@ function questions(): Entry[] {
       words: ["giorni", "days", "obiettivo", "goal"],
     },
     {
+      id: "plan-season",
+      q: t("My season", "La mia stagione"),
+      also: `${"My season"} ${"La mia stagione"}`,
+      page: "plan",
+      kind: "plan",
+      dest: route("/plan/settings", { goal: "season" }),
+      words: ["season", "stagione", "goals", "obiettivi", "races", "gare"],
+    },
+    {
       id: "workouts",
       q: t("My workouts", "I miei allenamenti"),
       also: `${"My workouts"} ${"I miei allenamenti"}`,

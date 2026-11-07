@@ -8,6 +8,9 @@ import { layoutWeek } from "./layout";
 import { groupWeeks, outline } from "./outline";
 import { weekShape } from "./phase";
 import {
+  editedMonths,
+  monthsFrom,
+  nextTarget,
   periodsOf,
   racesChanged,
   seasonFocus,
@@ -409,5 +412,53 @@ describe("a whole season, week by week", () => {
       }
       hardBefore = hard.slice(-1);
     }
+  });
+});
+
+describe("choosing a season", () => {
+  const with_ = (date: string, priority: "A" | "B") =>
+    ({
+      id: date,
+      date,
+      name: `Race ${date}`,
+      priority,
+      notes: "",
+      type: "Ride",
+      info: null,
+    }) as Race;
+  const season = { months: ["2027-05", "2027-06", "2027-09"], kinds: [] } as PlanSeason;
+
+  it("offers twelve months across the new year", () => {
+    const months = monthsFrom("2026-11");
+    expect(months).toHaveLength(12);
+    expect(months[2]).toBe("2027-01");
+    expect(months[11]).toBe("2027-10");
+  });
+
+  it("keeps a period under way when editing, and lets go of those over", () => {
+    expect(
+      editedMonths(["2026-01", "2026-09", "2026-10", "2026-11"], ["2026-11"], "2026-11"),
+    ).toEqual(["2026-09", "2026-10", "2026-11"]);
+    // This month unticked: the period is over, however it began.
+    expect(editedMonths(["2026-10", "2026-11"], ["2027-05"], "2026-11")).toEqual(["2027-05"]);
+  });
+
+  it("heads for the next period, until an earlier or real A race says otherwise", () => {
+    expect(nextTarget(season, [], "2026-11-09")).toEqual({ month: "2027-05-01" });
+    const inside = with_("2027-06-06", "A");
+    expect(nextTarget(season, [inside], "2026-11-09")).toEqual({ race: inside });
+    const before = with_("2027-03-20", "A");
+    expect(nextTarget(season, [before, inside], "2026-11-09")).toEqual({ race: before });
+    // A B race moves nothing.
+    expect(nextTarget(season, [with_("2027-03-20", "B")], "2026-11-09")).toEqual({
+      month: "2027-05-01",
+    });
+  });
+
+  it("heads for nothing inside a period with no A race left, or after the last", () => {
+    expect(nextTarget(season, [], "2027-05-20")).toBeNull();
+    expect(nextTarget(season, [], "2027-10-01")).toBeNull();
+    const later = with_("2027-06-06", "A");
+    expect(nextTarget(season, [later], "2027-05-20")).toEqual({ race: later });
   });
 });

@@ -1,7 +1,8 @@
-import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useSearch } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DayEditor, GoalPicker, PlanGate, usePlanAction } from "@/components/plan/parts";
+import { SeasonEditor } from "@/components/plan/season";
 import { Button } from "@/components/ui/button";
 import { useOnline } from "@/hooks/use-online";
 import { mondayOf } from "@/lib/focus";
@@ -9,10 +10,17 @@ import { t } from "@/lib/i18n";
 import { deletePlan } from "@/lib/plan/actions";
 import type { PlanContext } from "@/lib/plan/engine";
 import { goalRace } from "@/lib/plan/phase";
+import { editedMonths } from "@/lib/plan/season";
 import { savePlan, type StoredPlan } from "@/lib/plan/store";
-import type { DayPlan } from "@/lib/plan/types";
+import type { DayPlan, PlanSeason } from "@/lib/plan/types";
+import { suggestVolume } from "@/lib/plan/volume";
 
-export const Route = createFileRoute("/plan/settings")({ component: PlanSettingsRoute });
+export const Route = createFileRoute("/plan/settings")({
+  component: PlanSettingsRoute,
+  validateSearch: (s: Record<string, unknown>): { goal?: "season" | undefined } => ({
+    goal: s["goal"] === "season" ? "season" : undefined,
+  }),
+});
 
 function Settings({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
   const online = useOnline();
@@ -26,6 +34,54 @@ function Settings({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
     note.weekOverride?.monday === monday ? note.weekOverride.week : note.settings.week;
   const [draft, setDraft] = useState(current);
   const changed = JSON.stringify(draft) !== JSON.stringify(current);
+  // Choosing a season asks for its months first: the goal changes only once they're saved.
+  const asked = useSearch({ strict: false })["goal"] === "season";
+  const onSeason = note.settings.goal === "season";
+  const [choosing, setChoosing] = useState(asked && !onSeason);
+  const seasonRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (asked) seasonRef.current?.scrollIntoView?.({ block: "center" });
+  }, [asked]);
+  const thisMonth = today.slice(0, 7);
+  const saved = note.settings.season;
+  const shownMonths = (saved?.months ?? []).filter((m) => m >= thisMonth);
+  const [months, setMonths] = useState(shownMonths);
+  const [kinds, setKinds] = useState<PlanSeason["kinds"]>(saved?.kinds ?? []);
+  const seasonChanged =
+    choosing ||
+    [...months].sort().join() !== [...shownMonths].sort().join() ||
+    [...kinds].sort().join() !== [...(saved?.kinds ?? [])].sort().join();
+  function saveSeason() {
+    const picked = { months: editedMonths(saved?.months ?? [], months, thisMonth), kinds };
+    const settings = { ...note.settings, goal: "season" as const, season: picked };
+    // The climb is automatic and starts from where the plan is: only its top is worked out, and only once.
+    const peakSeconds =
+      saved?.peakSeconds ??
+      suggestVolume({
+        acts: input.acts,
+        today,
+        settings,
+        races: input.races,
+        state: ctx.note.state,
+        fallbackSeconds: ctx.note.state.weeklySeconds,
+      }).peakSeconds;
+    return act(
+      async () => {
+        await savePlan(
+          {
+            ...note,
+            settings: { ...settings, season: { ...picked, peakSeconds } },
+            replan: true,
+            lastFill: null,
+          },
+          today,
+          stored,
+        );
+        setChoosing(false);
+      },
+      t("Couldn't save", "Impossibile salvare"),
+    );
+  }
   const saveDays = (week: DayPlan[], always: boolean) =>
     act(
       () =>
@@ -69,10 +125,13 @@ function Settings({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
         </div>
       </section>
       <GoalPicker
-        goal={note.settings.goal}
+        goal={choosing ? "season" : note.settings.goal}
         race={goalRace(input.races, today)}
         busy={busy || !online}
-        onChange={(goal) =>
+        onChange={(goal) => {
+          if (goal === "season") return setChoosing(true);
+          setChoosing(false);
+          if (goal === note.settings.goal) return;
           void act(
             () =>
               savePlan(
@@ -81,9 +140,27 @@ function Settings({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
                 stored,
               ),
             t("Couldn't save", "Impossibile salvare"),
-          )
-        }
+          );
+        }}
       />
+      {(choosing || onSeason) && (
+        <div ref={seasonRef} className="space-y-3">
+          <SeasonEditor
+            first={thisMonth}
+            months={months}
+            kinds={kinds}
+            onMonths={setMonths}
+            onKinds={setKinds}
+          />
+          <Button
+            className="w-full"
+            disabled={busy || !online || !months.length || !seasonChanged}
+            onClick={() => void saveSeason()}
+          >
+            {t("Save the season", "Salva la stagione")}
+          </Button>
+        </div>
+      )}
       {deleting ? (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="font-medium leading-snug">
@@ -130,8 +207,10 @@ function Settings({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
 }
 
 function PlanSettingsRoute() {
+  const search =
+    useSearch({ strict: false })["goal"] === "season" ? { goal: "season" as const } : {};
   return (
-    <PlanGate none={() => <Navigate to="/plan" />}>
+    <PlanGate none={() => <Navigate to="/plan" search={search} />}>
       {(stored, ctx) => <Settings stored={stored} ctx={ctx} />}
     </PlanGate>
   );

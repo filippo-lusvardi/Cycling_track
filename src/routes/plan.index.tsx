@@ -1,6 +1,6 @@
 import { WorkoutIcon } from "@/components/WorkoutIcon";
 import { useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { Check, Minus, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
@@ -16,6 +16,13 @@ import {
   usePlanAction,
   WorkoutTap,
 } from "@/components/plan/parts";
+import {
+  SeasonEditor,
+  SeasonPanel,
+  SeasonRoad,
+  useSeasonVolume,
+  VolumeCard,
+} from "@/components/plan/season";
 import { Panel, StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { useOnline } from "@/hooks/use-online";
@@ -35,11 +42,13 @@ import type { NoteWeek } from "@/lib/plan/note";
 import { outline, type OutlineWeek } from "@/lib/plan/outline";
 import { goalRace, weekShape } from "@/lib/plan/phase";
 import { pastWeekLines, sessionLines } from "@/lib/plan/progress";
+import { nextTarget, seasonOver, seenRacesOf } from "@/lib/plan/season";
 import { needsExperience, startState, type Experience } from "@/lib/plan/start-level";
 import { savePlan, type StoredPlan } from "@/lib/plan/store";
 import type {
   DayPlan,
   PlanGoal,
+  PlanSeason,
   PlanSettings,
   PlannedDay,
   PlanWorkout,
@@ -49,7 +58,12 @@ import { comingBack, morningGate } from "@/lib/suggest";
 import { addDays, formatDuration } from "@/lib/training";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/plan/")({ component: PlanRoute });
+export const Route = createFileRoute("/plan/")({
+  component: PlanRoute,
+  validateSearch: (s: Record<string, unknown>): { goal?: "season" | undefined } => ({
+    goal: s["goal"] === "season" ? "season" : undefined,
+  }),
+});
 
 const WHY: Partial<Record<ReviewReason, () => string>> = {
   failed: () =>
@@ -79,8 +93,13 @@ const WHY: Partial<Record<ReviewReason, () => string>> = {
     ),
   "days-changed": () =>
     t(
-      "You changed your days, so the week follows.",
-      "Hai cambiato i giorni, quindi la settimana si adatta.",
+      "You changed your plan's settings, so the week follows.",
+      "Hai cambiato le impostazioni del piano, quindi la settimana si adatta.",
+    ),
+  "races-changed": () =>
+    t(
+      "Your races changed. Here's how the next days change.",
+      "Le tue gare sono cambiate. Ecco come cambiano i prossimi giorni.",
     ),
 };
 
@@ -92,10 +111,29 @@ const START_WEEK: DayPlan[] = [0, 60, 60, 60, 0, 180, 90].map((minutes, i) => ({
 
 function Setup({ onStarted }: { onStarted: () => Promise<unknown> }) {
   const { input, today, calendar } = usePlan();
-  const [goal, setGoal] = useState<PlanGoal>("fitter");
+  const asked = useSearch({ strict: false })["goal"] === "season";
+  const [goal, setGoal] = useState<PlanGoal>(asked ? "season" : "fitter");
   const [week, setWeek] = useState(START_WEEK);
   const [experience, setExperience] = useState<Experience>("new");
+  const [months, setMonths] = useState<string[]>([]);
+  const [kinds, setKinds] = useState<PlanSeason["kinds"]>([]);
   const [busy, setBusy] = useState(false);
+  const seasonSettings: PlanSettings = { goal: "season", week, season: { months, kinds } };
+  const volume = useSeasonVolume({
+    acts: input?.acts ?? [],
+    today,
+    settings: seasonSettings,
+    races: input?.races ?? [],
+    usual: input
+      ? startState({
+          today,
+          acts: input.acts,
+          settings: seasonSettings,
+          experience,
+          comingBack: comingBack(input),
+        }).weeklySeconds
+      : 0,
+  });
   if (!input) return null;
   const race = goalRace(input.races, today);
   const ask = needsExperience(input.acts, today);
@@ -105,7 +143,14 @@ function Setup({ onStarted }: { onStarted: () => Promise<unknown> }) {
     ["experienced", t("I've trained for years", "Mi alleno da anni")],
   ];
   async function start() {
-    const settings: PlanSettings = { goal, week };
+    const onSeason = goal === "season";
+    const settings: PlanSettings = onSeason
+      ? {
+          goal,
+          week,
+          season: { months, kinds, peakSeconds: volume.suggestion.peakSeconds },
+        }
+      : { goal, week };
     setBusy(true);
     try {
       const state = startState({
@@ -114,6 +159,7 @@ function Setup({ onStarted }: { onStarted: () => Promise<unknown> }) {
         settings,
         experience,
         comingBack: comingBack(input!),
+        ...(onSeason ? { weeklySeconds: volume.start } : {}),
       });
       const note = {
         settings,
@@ -121,6 +167,7 @@ function Setup({ onStarted }: { onStarted: () => Promise<unknown> }) {
         sessions: [],
         reviews: [],
         undo: [],
+        ...(onSeason ? { seenRaces: seenRacesOf(input!.races, today) } : {}),
       };
       const id = await savePlan(note, today, null);
       await fillNow({ id, date: today, note }, { note, input: input!, calendar }, today);
@@ -133,11 +180,23 @@ function Setup({ onStarted }: { onStarted: () => Promise<unknown> }) {
       setBusy(false);
     }
   }
-  const canStart = week.some((d) => d.minutes > 0) && (goal !== "race" || !!race);
+  const canStart =
+    week.some((d) => d.minutes > 0) &&
+    (goal !== "race" || !!race) &&
+    (goal !== "season" || months.length > 0);
   return (
     <div className="space-y-3">
       <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Your plan", "Il tuo piano")}</h1>
       <GoalPicker goal={goal} race={race} busy={false} onChange={setGoal} />
+      {goal === "season" && (
+        <SeasonEditor
+          first={today.slice(0, 7)}
+          months={months}
+          kinds={kinds}
+          onMonths={setMonths}
+          onKinds={setKinds}
+        />
+      )}
       <section>
         <div className="eyebrow on-sky mb-1">{t("When you can ride", "Quando puoi pedalare")}</div>
         <DayEditor week={week} onChange={setWeek} />
@@ -163,6 +222,7 @@ function Setup({ onStarted }: { onStarted: () => Promise<unknown> }) {
           </div>
         </section>
       )}
+      {goal === "season" && months.length > 0 && <VolumeCard volume={volume} />}
       <Button className="w-full" disabled={busy || !canStart} onClick={() => void start()}>
         {t("Start the plan", "Inizia il piano")}
       </Button>
@@ -506,6 +566,15 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
   const monday = mondayOf(today);
   const shape = weekShape(monday, note.settings, input.races, state);
   const race = note.settings.goal === "race" ? goalRace(input.races, today) : null;
+  const season = note.settings.goal === "season" ? note.settings.season : undefined;
+  const seasonDone =
+    note.settings.goal === "season" && (!season || seasonOver(season, input.races, today));
+  const target = season ? nextTarget(season, input.races, today) : null;
+  const towards = target
+    ? "race" in target
+      ? target.race.name
+      : format(parseISO(target.month), "MMMM").toLowerCase()
+    : race?.name;
   const ahead = outline(monday, note.settings.goal, input.races, state, note.settings);
   const past = pastWeekLines(wide, scores, oldest);
 
@@ -553,7 +622,7 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
         <div className="min-w-0">
           <div className="eyebrow on-sky">
             {shape.recovery ? t("Recovery", "Scarico") : PHASE[shape.phase]()}
-            {race ? ` · ${t("towards", "verso")} ${race.name}` : ""}
+            {towards ? ` · ${t("towards", "verso")} ${towards}` : ""}
           </div>
           <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Plan", "Piano")}</h1>
         </div>
@@ -625,6 +694,21 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
           </Button>
         </div>
       )}
+      {seasonDone && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="font-medium leading-snug">
+            {t(
+              "The season is over. Meanwhile the plan goes on with no date.",
+              "La stagione è finita. Intanto il piano continua senza una data.",
+            )}
+          </p>
+          <Button asChild variant="outline" className="mt-3 w-full">
+            <Link to="/plan/settings" search={{ goal: "season" }}>
+              {t("Set up the next one", "Prepara la prossima")}
+            </Link>
+          </Button>
+        </div>
+      )}
       <Panel title={t("These days", "Questi giorni")}>
         <div className="-mx-3 -my-1">
           {rows.map((d) => (
@@ -647,8 +731,26 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
           {t("Undo the last change", "Annulla l'ultima modifica")}
         </Button>
       )}
+      {season && !seasonDone && <SeasonPanel season={season} races={input.races} today={today} />}
       {past.length > 0 && <PastWeeks weeks={past} />}
-      <Road past={past} ahead={ahead} monday={monday} started={note.state.startedOn} race={race} />
+      {season && !seasonDone ? (
+        <SeasonRoad
+          ahead={ahead}
+          season={season}
+          races={input.races}
+          monday={monday}
+          started={note.state.startedOn}
+          target={target}
+        />
+      ) : (
+        <Road
+          past={past}
+          ahead={ahead}
+          monday={monday}
+          started={note.state.startedOn}
+          race={race}
+        />
+      )}
     </div>
   );
 }

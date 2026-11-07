@@ -228,6 +228,100 @@ describe("the plan page", () => {
     expect(document.body.textContent).toContain("line: FTP");
   });
 
+  const months = () =>
+    [...host.querySelectorAll<HTMLButtonElement>("button[aria-pressed]")].filter((b) =>
+      /\d{4}$/.test(b.getAttribute("aria-label") ?? ""),
+    );
+  const savedNote = () => String(events.find((e) => e["category"] === "NOTE")!["description"]);
+
+  it("starts a season once a month is chosen, and shows it on the page", async () => {
+    show();
+    await settle();
+    expect(months()).toHaveLength(0);
+    await act(async () => button("A season")!.click());
+    expect(months()).toHaveLength(12);
+    expect(button("Start the plan")!.disabled).toBe(true);
+    expect(host.textContent).toContain("Choose at least one month.");
+    await act(async () => months()[6]!.click());
+    await act(async () => months()[7]!.click());
+    await act(async () => button("Granfondo")!.click());
+    expect(host.textContent).toContain("Start from");
+    await act(async () => button("Start the plan")!.click());
+    await settle();
+
+    const saved = savedNote();
+    expect(saved).toContain('"goal":"season"');
+    expect(saved).toContain('"kinds":["granfondo"]');
+    expect(saved).toContain('"peakSeconds":');
+    expect(host.textContent).toContain("The season");
+    expect(host.textContent).toContain("Granfondo · no dates yet");
+    expect(host.textContent).toContain("towards");
+    expect(button("Add a race")).toBeDefined();
+    expect(events.some((e) => e["category"] === "WORKOUT")).toBe(true);
+  });
+
+  it("opens the setup on the season when typing asks for it", async () => {
+    show("/plan?goal=season");
+    await settle();
+    expect(months()).toHaveLength(12);
+  });
+
+  it("changes a plan's goal to a season only once its months are saved", async () => {
+    show();
+    await settle();
+    await act(async () => button("Start the plan")!.click());
+    await settle();
+    await act(async () => link("Settings")!.click());
+    await settle();
+    await act(async () => button("A season")!.click());
+    expect(savedNote()).toContain('"goal":"fitter"');
+    expect(button("Save the season")!.disabled).toBe(true);
+    await act(async () => months()[6]!.click());
+    await act(async () => button("Save the season")!.click());
+    await settle();
+    expect(savedNote()).toContain('"goal":"season"');
+    expect(savedNote()).toContain('"peakSeconds":');
+    expect(savedNote()).toContain('"replan":true');
+  });
+
+  it("leaves the goal alone when the season is given up on", async () => {
+    show();
+    await settle();
+    await act(async () => button("Start the plan")!.click());
+    await settle();
+    await act(async () => link("Settings")!.click());
+    await settle();
+    await act(async () => button("A season")!.click());
+    await act(async () => button("Get better")!.click());
+    expect(button("Save the season")).toBeUndefined();
+    await settle();
+    expect(savedNote()).toContain('"goal":"fitter"');
+  });
+
+  it("offers the next season once this one is over", async () => {
+    show();
+    await settle();
+    await act(async () => button("A season")!.click());
+    await act(async () => months()[0]!.click());
+    await act(async () => button("Start the plan")!.click());
+    await settle();
+    const note = events.find((e) => e["category"] === "NOTE")!;
+    note["description"] = String(note["description"]).replace(
+      /"months":\["[^"]+"\]/,
+      '"months":["2020-05"]',
+    );
+    act(() => root.unmount());
+    root = createRoot(host);
+    show();
+    await settle();
+    expect(host.textContent).toContain("The season is over");
+    expect(host.textContent).not.toContain("Add a race");
+    await act(async () => link("Set up the next one")!.click());
+    await settle();
+    expect(months()).toHaveLength(12);
+    expect(months().every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
+  });
+
   describe("on a phone", () => {
     const wide = window.innerWidth;
     beforeEach(() => {

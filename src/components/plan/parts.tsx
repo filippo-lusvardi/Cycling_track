@@ -249,6 +249,11 @@ export function WorkoutTap({
 
 const goalRows = (race: Race | null): [PlanGoal, string, string][] => [
   [
+    "season",
+    t("A season", "Una stagione"),
+    t("The months and kinds of race; the dates later", "I mesi e il tipo di gare, le date dopo"),
+  ],
+  [
     "race",
     t("A race", "Una gara"),
     race

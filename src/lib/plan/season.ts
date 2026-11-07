@@ -20,6 +20,8 @@ const ENDURANCE_FROM = 35;
 const SHORT_UP_TO = 10;
 const LONG_SHARE_ENDURANCE = 0.45;
 const LONG_SHARE_SHORT = 0.3;
+/** C: weeks from the start of a count with no recovery week due. */
+const FIRST_WEEKS_FREE = 2;
 
 const nextMonth = (month: string) => {
   const [y, m] = month.split("-").map(Number) as [number, number];
@@ -76,8 +78,8 @@ export function seasonWeek(
   const afterMain = mains.some((d) => d < monday && d >= addDays(monday, -7));
   // So the week after that isn't another one, whatever the count says.
   const justRecovered = mains.some((d) => d < addDays(monday, -7) && d >= addDays(monday, -14));
-  // A plan doesn't start with one: the first week should be the volume agreed.
-  const noneDue = justRecovered || monday <= state.cycleStart;
+  // C: nor does a plan start with one. The weeks are counted back from the target, so one could fall a few days in.
+  const noneDue = justRecovered || monday < addDays(state.cycleStart, FIRST_WEEKS_FREE * 7);
   const periods = periodsOf(season);
   const open = (p: Period) => !ahead.some((d) => d >= p.from && d <= p.to);
 
@@ -192,4 +194,47 @@ export function racesChanged(seen: string[] | undefined, races: Race[], today: s
     now.some((line) => !seen.includes(line)) ||
     seen.some((line) => line.slice(0, 10) >= today && !now.includes(line))
   );
+}
+
+/** The twelve months from this one on, for choosing a season. */
+export const monthsFrom = (first: string) => {
+  const out = [first];
+  while (out.length < 12) out.push(nextMonth(out[out.length - 1]!));
+  return out;
+};
+
+/**
+ * The months to store when a season is edited. The editor only shows months still to come, so a period under way keeps its past
+ * months, and with them the count of its recovery weeks. Periods already over are of no more use, and go.
+ */
+export function editedMonths(stored: string[], picked: string[], thisMonth: string) {
+  const running: string[] = [];
+  if (picked.includes(thisMonth)) {
+    const past = [...stored].filter((m) => m < thisMonth).sort();
+    let joined = thisMonth;
+    for (const m of past.reverse()) {
+      if (nextMonth(m) !== joined) break;
+      running.push(m);
+      joined = m;
+    }
+  }
+  return [...new Set([...running, ...picked])].sort();
+}
+
+/** What the season is heading for now: the earlier of the next A race and the next period with none. Null inside a period with no A race left, and once it's over. */
+export function nextTarget(
+  season: PlanSeason,
+  races: Race[],
+  today: string,
+): { race: Race } | { month: string } | null {
+  const mains = races
+    .filter((r) => r.priority === "A" && raceSport(r) === "ride" && r.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const open = (p: Period) => !mains.some((r) => r.date >= p.from && r.date <= p.to);
+  const periods = periodsOf(season).filter(open);
+  if (periods.some((p) => p.from <= today && today <= p.to)) return null;
+  const race = mains[0];
+  const period = periods.find((p) => p.from > today);
+  if (race && (!period || race.date <= period.from)) return { race };
+  return period ? { month: period.from } : null;
 }

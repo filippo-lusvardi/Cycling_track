@@ -214,6 +214,29 @@ blocks in the Calendar and on the Tree; heart-rate targets are drawn approximate
 
 ---
 
+## Training plan
+
+**Plan** (type *piano*) builds your cycling weeks from the days and hours you have, and adjusts them from how your rides went.
+Sessions already on the calendar change only when you accept a proposal.
+
+The goal can be one race, getting better, staying well, or **a season** (type *stagione*). Choose a season in winter, when the
+calendars aren't out yet:
+
+- **The months your goals are in**: tap them on the strip. Months next to each other make one period, and you can have more
+  than one.
+- **The kinds of race**, if you know them. They set what the hard sessions work on and how long the long ride is.
+- **Hours a week**: where you start and how far you climb. The start is suggested from last year's best four weeks and the
+  time left. You can aim 5–15% over that best month, shown in hours, and your free days limit it. The climb then happens by itself.
+
+Add real races as they come out, and they take over from the guess. The plan only tapers for a real A race: a period with no dated race
+stays sharp and doesn't taper. When you add or move a race, you see how the next days would change before anything does. Change the
+months and kinds in **Plan → Settings**.
+
+The volume rules are conventions, not proven numbers: see `Docs/workout-suggestions-evidence.md`, section 10. A device on an older
+version of the app can't read a season plan, so update every device before you start one.
+
+---
+
 ## Forest
 
 **Forest** (type *bosco*, or find it under *All*) is where friends and teammates grow their trees side by side. You can be in
