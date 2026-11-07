@@ -15,6 +15,7 @@ describe("the route tree", () => {
     ["/plan", "/plan/"],
     ["/plan/", "/plan/"],
     ["/plan/settings", "/plan/settings"],
+    ["/chart", "/chart"],
   ])("%s opens its page", (path, id) => {
     expect(router.matchRoutes(path).at(-1)?.routeId).toBe(id);
   });

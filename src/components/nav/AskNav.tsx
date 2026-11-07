@@ -2,7 +2,13 @@
 // the keyboard up; typing narrows things down to a few alternatives to choose from. Drawn with what the app already has:
 // the floating switch's pill, the Activities rows, the More sheet.
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQueries,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
@@ -26,6 +32,7 @@ import {
   CalendarRange,
 } from "lucide-react";
 import {
+  type CSSProperties,
   useEffect,
   useCallback,
   useId,
@@ -83,8 +90,11 @@ import {
   type MemberTree,
   type MemberTrees,
 } from "@/lib/ask-members";
-import { askNeeds, mergeNeeds } from "@/lib/ask-compare";
-import { curveKey, type CurveRead, type RideSignal } from "@/lib/ask-efforts";
+import { chartAsked, chartWellnessSpan } from "@/lib/ask-chart";
+import { askKey, askNeeds, mergeNeeds } from "@/lib/ask-compare";
+import { completeWords, typedRows } from "@/lib/ask-complete";
+import { heldAnswer, holdable, HOLD_MS, type Held } from "@/lib/ask-hold";
+import { curveKey, effortFollow, type CurveRead, type RideSignal } from "@/lib/ask-efforts";
 import { pastAsked, pastRows, pastWindow } from "@/lib/ask-past";
 import type { Here } from "@/lib/ask-read";
 import { correctCommand, simplify } from "@/lib/ask-sentence";
@@ -127,7 +137,7 @@ import { addDays, isoDate } from "@/lib/training";
 import { spanTitle } from "@/lib/ask-when";
 import type { Season } from "@/lib/tree";
 import { cn } from "@/lib/utils";
-import { AnswerCard, BatchCard, PinButton } from "./AskAnswer";
+import { AnswerCard, BatchCard, FollowRow, PinButton } from "./AskAnswer";
 import { openLegend } from "./legend-store";
 
 const PILL =
@@ -505,12 +515,43 @@ function AskBody({
       })),
     [lib.list, lib.efforts, nameOf, sport],
   );
+  // The half word at the end, finished when only one way of finishing it means anything.
+  const completed = useMemo(() => {
+    const d = { today, sport, acts, climbs: climbsRead, here };
+    return !q.trim() || askKey(q, d) ? null : completeWords(q, (c) => askKey(c, d));
+  }, [q, today, sport, acts, climbsRead, here]);
   // What this question needs read: nothing, until it's asked.
   const needs = useMemo(() => {
     const d = { today, sport, acts, climbs: climbsRead, here };
     // An empty field shows what's pinned, so that's what is read.
-    return q.trim() ? askNeeds(q, d) : mergeNeeds(pins.map((p) => askNeeds(p, d)));
-  }, [q, pins, today, sport, acts, climbsRead, here]);
+    return q.trim()
+      ? askNeeds(completed?.query ?? q, d)
+      : mergeNeeds(pins.map((p) => askNeeds(p, d)));
+  }, [q, completed, pins, today, sport, acts, climbsRead, here]);
+  // A chart's days, which can go well past the 90 kept here; what's pinned counts when the field is empty.
+  const chartDays = useMemo(() => {
+    const spans = (q.trim() ? [completed?.query ?? q] : pins).flatMap((p) => {
+      const asked = chartAsked(p, { today, sport });
+      const span = asked && chartWellnessSpan(asked, today);
+      return span ? [span] : [];
+    });
+    return spans.length
+      ? {
+          oldest: spans.reduce((x, s) => (s.from < x ? s.from : x), spans[0]!.from),
+          newest: spans.reduce((x, s) => (s.to > x ? s.to : x), spans[0]!.to),
+        }
+      : null;
+  }, [q, completed, pins, today, sport]);
+  const chartRead = useQuery({
+    ...wellnessRangeQuery(chartDays ?? { oldest: "", newest: "" }),
+    enabled: enabled && !!chartDays,
+    // Another stretch keeps what's drawn until its own days arrive.
+    placeholderData: keepPreviousData,
+  });
+  const chartWellness = useMemo(
+    () => (chartDays ? { days: chartRead.data, failed: chartRead.isError } : undefined),
+    [chartDays, chartRead.data, chartRead.isError],
+  );
   const period = useMemo(
     () => (sport === "run" ? null : powerPeriodAsked(q, today)),
     [q, today, sport],
@@ -670,6 +711,8 @@ function AskBody({
       curves,
       rangeCurve,
       curveReads,
+      chartWellness,
+      forestNames: forests.map((f) => f.name),
       hrCurves,
       signals,
       histograms,
@@ -693,6 +736,8 @@ function AskBody({
       curves,
       rangeCurve,
       curveReads,
+      chartWellness,
+      forests,
       hrCurves,
       signals,
       histograms,
@@ -759,28 +804,27 @@ function AskBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `trees` changes with `treesKey`.
     [today, moment.season, moment.ride, entries, intentData, past, members, treesKey],
   );
-  const found = useMemo(() => {
-    const literal = among(q);
-    if (literal.length) return literal;
-    // A sentence gets a second reading, for what it comes down to.
-    const said = simplify(q);
-    const reading =
-      said && said !== q.trim().toLowerCase()
-        ? among(said)
-            // Only reading: nothing is ever saved from a sentence.
-            .filter((e) => e.dest.kind !== "write")
-            .map((e) => ({ ...e, ghost: null }))
-        : literal;
-    if (reading.length) return reading;
-    // Then one slip on the command word; only here, so a word that means something else keeps its meaning.
-    const fixed = correctCommand(q);
-    return fixed ? among(fixed).map((e) => ({ ...e, ghost: null })) : reading;
-  }, [q, among]);
+  const found = useMemo(() => typedRows(q, among, completed), [q, among, completed]);
+  // Words that read as nothing are given a moment, in case they're on their way to something.
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    setPaused(false);
+    const wait = setTimeout(() => setPaused(true), HOLD_MS);
+    return () => clearTimeout(wait);
+  }, [q]);
+  const [held, setHeld] = useState<Held | null>(null);
+  const answer = holdable(found[0]) ? found[0] : null;
+  useEffect(() => {
+    if (answer) setHeld({ q: completed?.query ?? q, row: answer });
+    else if (!q.trim()) setHeld(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `answer` comes from `found`, which changes with these.
+  }, [found, q, completed]);
+  const holding = heldAnswer(held, q, found, paused);
   const now = useMemo(() => nowEntries(moment, entries), [moment, entries]);
-  const nothing = typed && !found.length;
+  const nothing = typed && !found.length && !holding;
   const explained = useMemo(
-    () => (nothing ? explainRows(q, intentData) : []),
-    [nothing, q, intentData],
+    () => (nothing && paused ? explainRows(q, intentData) : []),
+    [nothing, paused, q, intentData],
   );
   const maybe = nothing ? entries.filter((e) => e.id === "planned" || e.id === "today") : [];
   // At an empty field: what's pinned, answered live, and the day's own question next to the thumb.
@@ -795,18 +839,25 @@ function AskBody({
     [typed, pins, among],
   );
   const list: Entry[] = typed
-    ? nothing
-      ? explained.length
-        ? explained
-        : maybe
-      : found
+    ? holding
+      ? [holding]
+      : nothing
+        ? explained.length
+          ? explained
+          : maybe
+        : found
     : pinnedRows.length
       ? [...now.slice(0, 1), ...pinnedRows]
       : now;
   const opened = openId
     ? (found.find((e) => e.id === openId) ?? found.find((e) => e.detail))
     : null;
-  const showing = opened?.detail ? opened : null;
+  // A chart is what was asked for, so it's there as soon as the words make one, with the field still open to go on typing.
+  const drawn = typed && (holding ?? found[0])?.id === "chart" ? (holding ?? found[0]!) : null;
+  const showing = opened?.detail ? opened : drawn;
+  // What could be asked next, by the thumb.
+  const shown = showing ?? (typed ? list[0] : undefined);
+  const follow = shown?.follow ?? (shown && typed ? effortFollow(q, shown, intentData) : []);
   const ghost = typed ? (found[0]?.ghost ?? null) : null;
 
   useEffect(() => setActive(0), [q]);
@@ -921,16 +972,22 @@ function AskBody({
           {t("All", "Tutto")}
         </button>
       </div>
+      {follow.length > 0 && <FollowRow chips={follow} onAsk={setQ} />}
       {showing && (
-        <AnswerCard
-          entry={showing}
-          answer={spanAnswer(showing, data)}
-          acts={acts ?? []}
-          pinned={isPinned(q)}
-          onPin={() => pinIt(q)}
-          onAsk={setQ}
-          onOpen={() => onChoose(showing)}
-        />
+        // The card's own ground stays solid, so only what's on it dims, not what's behind it.
+        <div className="rounded-xl bg-card">
+          <div className={cn("transition-opacity duration-150", holding && "opacity-60")}>
+            <AnswerCard
+              entry={showing}
+              answer={spanAnswer(showing, data)}
+              acts={acts ?? []}
+              pinned={isPinned(q)}
+              onPin={() => pinIt(q)}
+              onAsk={setQ}
+              onOpen={() => onChoose(showing)}
+            />
+          </div>
+        </div>
       )}
       {batch?.dest.kind === "write" && batch.dest.action.kind === "batch" && (
         <BatchCard
@@ -953,7 +1010,11 @@ function AskBody({
             {t("I don't know that yet. Maybe:", "Non lo so ancora. Forse:")}
           </div>
         )}
-        <div id={listId} role="listbox" className="flex flex-col-reverse lg:flex-col">
+        <div
+          id={listId}
+          role="listbox"
+          className={cn("flex flex-col-reverse lg:flex-col", holding && "opacity-60")}
+        >
           {list.map((e, i) => {
             const answer = spanAnswer(e, data);
             const pinQuery = (e as Entry & { pinQuery?: string }).pinQuery;
@@ -1110,9 +1171,10 @@ function Asker({
           style={
             all
               ? undefined
-              : {
+              : ({
                   bottom: `calc(${inset}px + 0.5rem + ${inset ? "0px" : "env(safe-area-inset-bottom)"})`,
-                }
+                  "--keyboard": `${inset}px`,
+                } as CSSProperties)
           }
         >
           <DialogPrimitive.Title className="sr-only">

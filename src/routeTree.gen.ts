@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as CalendarRouteImport } from './routes/calendar'
+import { Route as ChartRouteImport } from './routes/chart'
 import { Route as GardenRouteImport } from './routes/garden'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -45,6 +46,11 @@ const AnalysisRoute = AnalysisRouteImport.update({
 const CalendarRoute = CalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChartRoute = ChartRouteImport.update({
+  id: '/chart',
+  path: '/chart',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GardenRoute = GardenRouteImport.update({
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
+  '/chart': typeof ChartRoute
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
@@ -171,6 +178,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
+  '/chart': typeof ChartRoute
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
+  '/chart': typeof ChartRoute
   '/garden': typeof GardenRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
@@ -222,6 +231,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analysis'
     | '/calendar'
+    | '/chart'
     | '/garden'
     | '/login'
     | '/privacy'
@@ -246,6 +256,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analysis'
     | '/calendar'
+    | '/chart'
     | '/garden'
     | '/login'
     | '/privacy'
@@ -270,6 +281,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analysis'
     | '/calendar'
+    | '/chart'
     | '/garden'
     | '/login'
     | '/privacy'
@@ -295,6 +307,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalysisRoute: typeof AnalysisRoute
   CalendarRoute: typeof CalendarRoute
+  ChartRoute: typeof ChartRoute
   GardenRoute: typeof GardenRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -337,6 +350,13 @@ declare module '@tanstack/react-router' {
       path: '/calendar'
       fullPath: '/calendar'
       preLoaderRoute: typeof CalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chart': {
+      id: '/chart'
+      path: '/chart'
+      fullPath: '/chart'
+      preLoaderRoute: typeof ChartRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/garden': {
@@ -479,6 +499,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalysisRoute: AnalysisRoute,
   CalendarRoute: CalendarRoute,
+  ChartRoute: ChartRoute,
   GardenRoute: GardenRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,

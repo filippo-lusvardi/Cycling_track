@@ -35,7 +35,7 @@ type Metric = {
   summary?: string;
   /** Fixed y range instead of 0 → auto. */
   yDomain?: [number, number];
-  /** Where the y axis starts and its ticks, instead of 0 → auto; zooming in still fits the data shown. */
+  /** Where the y axis starts and its ticks, instead of 0 → auto; only this axis fits the data shown when zoomed in. */
   yAxis?: { domain: [number, number]; ticks: number[] };
 };
 
@@ -50,7 +50,7 @@ const avgOf = (xs: (number | null)[]) => {
 /**
  * Speed, power, heart rate and cadence along the ride, stacked on one distance axis; hovering one shows the same spot on all.
  * With a `work` selected, the charts zoom to that stretch and the averages are the work's own.
- * They also zoom along distance together (drag, or pinch on a phone), and the y axes fit what's shown.
+ * They also zoom along distance together (drag, or pinch on a phone), and heart rate's y axis fits what's shown; the others keep their start.
  * With `cp` (critical power and W′ from the power curve), a fourth chart shows W′ balance: the anaerobic reserve left.
  */
 export function RideCharts({
@@ -336,7 +336,7 @@ const Chart = memo(function Chart({
   m: Metric;
   xAxis: boolean;
   domain: [number, number] | null;
-  /** Fit the y axis to the data shown instead of starting at 0 (when zoomed in). */
+  /** Zoomed in: a metric with its own `yAxis` fits the data shown. */
   fit: boolean;
   /** The stretch (km) being dragged to zoom. */
   selection: [number, number] | null;
@@ -348,7 +348,13 @@ const Chart = memo(function Chart({
   return (
     <div className={xAxis ? "h-36" : "h-28"}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} syncId="ride" margin={{ left: -20, right: 4, top: 4 }} {...handlers}>
+        <AreaChart
+          data={data}
+          syncId="ride"
+          // Room for half a label above and below, on charts with no distance axis under them.
+          margin={{ left: -20, right: 4, top: 8, bottom: xAxis ? 0 : 8 }}
+          {...handlers}
+        >
           <CartesianGrid stroke="var(--border)" vertical={false} />
           <XAxis
             dataKey="km"
@@ -365,7 +371,11 @@ const Chart = memo(function Chart({
             stroke="var(--muted-foreground)"
             fontSize={11}
             allowDecimals={false}
-            domain={m.yDomain ?? (fit ? ["auto", "auto"] : (m.yAxis?.domain ?? [0, "auto"]))}
+            // Every label, or Recharts drops the lowest as not fitting: the axis would seem to start above it.
+            interval={0}
+            domain={
+              m.yDomain ?? (m.yAxis ? (fit ? ["auto", "auto"] : m.yAxis.domain) : [0, "auto"])
+            }
             {...(m.yAxis && !fit ? { ticks: m.yAxis.ticks, allowDataOverflow: true } : {})}
             {...(m.format ? { tickFormatter: m.format } : {})}
           />

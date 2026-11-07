@@ -2,7 +2,7 @@
 // list of questions and words in both languages, plus your own rides, climbs, races and months. Among equally good
 // matches your season of the moment decides which comes first, and the less you've typed, the more it decides.
 import { parseISO } from "date-fns";
-import type { AskDetail } from "./ask-detail";
+import type { AskChip, AskDetail } from "./ask-detail";
 import type { WriteAction } from "./ask-intents";
 import { paramEntries, type ParamData } from "./ask-params";
 import { near } from "./ask-sentence";
@@ -66,6 +66,8 @@ export type Entry = {
   boost?: number;
   /** There's something to explore: choosing it opens here, in the panel. */
   detail?: AskDetail;
+  /** What could be asked next, each a question in words: the row above the field. */
+  follow?: AskChip[];
 };
 
 export type Alt = Entry & { ghost: string | null };
@@ -735,7 +737,11 @@ export function alternatives(
     .slice(0, max)
     .map(({ e }) => ({
       ...e,
-      ghost: norm(e.q).startsWith(joined) ? e.q.slice(query.trimEnd().length) : null,
+      // A chart's title isn't a way of finishing the sentence: Tab would write it into the question.
+      ghost:
+        !e.id.startsWith("chart") && norm(e.q).startsWith(joined)
+          ? e.q.slice(query.trimEnd().length)
+          : null,
     }));
 }
 

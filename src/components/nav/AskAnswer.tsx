@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ChartPanels } from "@/components/ChartPanels";
 import { MiniDistribution } from "@/components/Distribution";
 import type { Entry } from "@/lib/ask";
 import type { AskChip, CurveView } from "@/lib/ask-detail";
@@ -103,6 +104,31 @@ function Chip({
   );
 }
 
+/** What could be asked next, by the thumb. Tapping keeps the keyboard up: the sentence is still being written. */
+export function FollowRow({ chips, onAsk }: { chips: AskChip[]; onAsk: (q: string) => void }) {
+  return (
+    <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]" role="group">
+      {chips.map((c) => (
+        <button
+          key={c.label}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onAsk(c.query)}
+          aria-pressed={!!c.on}
+          className={cn(
+            "stat-num inline-flex min-h-8 shrink-0 items-center rounded-full px-3 text-xs",
+            c.on
+              ? "bg-primary text-primary-foreground"
+              : "border border-border bg-card text-foreground",
+          )}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function PinButton({
   on,
   onToggle,
@@ -149,7 +175,8 @@ export function AnswerCard({
   const view = detail.view;
   return (
     <div
-      className="rounded-xl border border-border bg-card p-3 shadow-lg"
+      // A chart opens with the keyboard still up: what doesn't fit above it scrolls, instead of leaving the screen.
+      className="max-h-[calc(100dvh-var(--keyboard,0px)-7.5rem)] overflow-y-auto [scrollbar-width:none] rounded-xl border border-border bg-card p-3 shadow-lg"
       role="region"
       aria-label={entry.q}
     >
@@ -172,6 +199,8 @@ export function AnswerCard({
       <div className="mt-2">
         {view.kind === "curve" ? (
           <Curve view={view} />
+        ) : view.kind === "chart" ? (
+          <ChartPanels view={view} />
         ) : (
           <>
             {view.other && (

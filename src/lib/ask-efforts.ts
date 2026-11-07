@@ -13,6 +13,7 @@ import {
 } from "./ask-detail";
 import type { Dest, Entry } from "./ask";
 import {
+  takeLength,
   readAsk,
   activityDay,
   type Asked,
@@ -553,4 +554,26 @@ export function askedRows(a: Asked, d: EffortData): Entry[] {
   if (a.shape === "marks") return marksRow(a, d);
   if (!a.target) return a.metric === "hr" ? hrAllRow(a, d, a.length!) : [];
   return bestRow(a, d, a.length!);
+}
+
+const EFFORT_WORD = /^(?:potenza|power|watts?|fc|hr|bpm|battiti)$/;
+
+/** What an effort still lacks, as questions: a length, or a time. */
+export function effortFollow(query: string, row: { exact?: boolean | undefined }, d: EffortData) {
+  if (!row.exact) return [];
+  const said = command(query);
+  const lengths = () => ["5m", "20m", "60m"].map((l) => ({ label: l, query: `${said} ${l}` }));
+  const times = () => [
+    { label: t("today", "oggi"), query: `${said} oggi` },
+    { label: t("yesterday", "ieri"), query: `${said} ieri` },
+    { label: t("this month", "questo mese"), query: `${said} questo mese` },
+  ];
+  if (EFFORT_WORD.test(said)) return lengths();
+  // A word and a length, with no time: the ones that answer from all your curves.
+  const { length, rest } = takeLength(` ${said} `);
+  if (length && EFFORT_WORD.test(rest.trim())) return times();
+  const a = askedIn(query, d);
+  if (!a || (a.metric !== "power" && a.metric !== "hr") || a.shape === "mean" || a.shape === "max")
+    return [];
+  return !a.length ? lengths() : !a.target ? times() : [];
 }

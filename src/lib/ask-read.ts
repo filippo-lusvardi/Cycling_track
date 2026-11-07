@@ -172,7 +172,7 @@ function sized(secs: number, label: string): Length | null {
 }
 
 /** A length written with its unit, out of the phrase. A bare number is read later: it may be part of a date. */
-function takeLength(s: string): { length: Length | null; rest: string } {
+export function takeLength(s: string): { length: Length | null; rest: string } {
   // "1h30" and "1h 30m" are one length, and "1h 30" at the end; "1h 6 novembre" is an hour and a date.
   const both =
     /(?:^| )(\d{1,2}) ?h(?:ours?)?(\d{1,2})(?: ?(?:m|min|mins|minuti|minutes?))?(?= |$)/.exec(s) ??

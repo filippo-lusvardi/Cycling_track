@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { correctCommand, simplify } from "./ask-sentence";
+import { command, correctCommand, simplify } from "./ask-sentence";
 
 describe("sentences into phrases", () => {
   it.each([
@@ -40,5 +40,18 @@ describe("one slip on a command word", () => {
     expect(correctCommand("regista 1h palestra")).toBe("registra 1h palestra");
     expect(correctCommand("migliore 5 min")).toBeNull();
     expect(correctCommand("banana split")).toBeNull();
+  });
+});
+
+describe("a number on its way to a decimal", () => {
+  it.each([
+    ["peso 68.", "peso 68"],
+    ["peso 68,", "peso 68"],
+    ["peso 68 .", "peso 68"],
+    ["peso 68.2", "peso 68.2"],
+    ["peso 68,2", "peso 68,2"],
+    ["quanti km ho fatto.", "quanti km ho fatto"],
+  ])("%s reads as %s", (typed, read) => {
+    expect(command(typed)).toBe(read);
   });
 });

@@ -1,7 +1,10 @@
 // Sentences into the short phrases the bar reads: "quanti km ho fatto a settembre 2025" is "km settembre 2025". Only ever a
 // second attempt, when what's typed means nothing as it stands, and never for what writes.
 
-/** As typed, but keeping what numbers need: "68.2", "12/11", "14%". */
+/**
+ * As typed, but keeping what numbers need: "68.2", "12/11", "14%". A dot or comma at the very end is dropped: "peso 68." is
+ * on its way to a decimal, and until it gets there it still means 68.
+ */
 export const command = (s: string) =>
   s
     .toLowerCase()
@@ -9,7 +12,8 @@ export const command = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9'.,%/ ]/g, " ")
     .trim()
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    .replace(/ ?[.,]$/, "");
 
 /** One slip of the finger at most. */
 export function near(a: string, b: string) {

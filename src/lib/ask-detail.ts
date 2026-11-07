@@ -27,8 +27,36 @@ export type DistributionView = {
   other?: string | undefined;
 };
 
+export type ChartPoint = {
+  label: string;
+  value: number | null;
+  /** The same period of the second stretch, when two are compared. */
+  other?: number | null;
+  /** Still going, so it isn't comparable yet. */
+  open?: boolean;
+};
+
+export type ChartPanel = {
+  title: string;
+  unit: string;
+  digits: number;
+  draw: "bars" | "line" | "points";
+  points: ChartPoint[];
+  ticks: number[];
+  /** The two stretches' names, when two are compared. */
+  names?: [string, string];
+};
+
+export type ChartView = {
+  kind: "chart";
+  /** Different measures are always different charts, stacked on the same periods. */
+  panels: ChartPanel[];
+  note?: string;
+  loading?: boolean;
+};
+
 export type AskDetail = {
-  view: CurveView | DistributionView;
+  view: CurveView | DistributionView | ChartView;
   lengths?: AskChip[];
   prev?: AskChip;
   now?: string;

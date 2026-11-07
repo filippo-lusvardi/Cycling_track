@@ -1,5 +1,6 @@
 // "power 20m oggi vs settimana scorsa", "hr 5m marzo vs aprile", "distribuzione marzo vs aprile": any question, side by side.
 import type { Entry } from "./ask";
+import { chartAsked, chartCurves, chartWordAlone } from "./ask-chart";
 import { askedDistributionRows, distributionAsked } from "./ask-distribution";
 import { askedIn, askedRows, effortNeeds, needsOfAsked, type EffortNeeds } from "./ask-efforts";
 import {
@@ -156,8 +157,19 @@ export function manyParts(s: string, today: string): string[] | null {
 
 export const mergeNeeds = merge;
 
+/** What these words read as, whatever the data says: two phrases with one key ask the same thing. Null when they ask nothing. */
+export function askKey(query: string, d: TimeData): string | null {
+  if (chartWordAlone(query)) return "chart-of-what";
+  const chart = chartAsked(query, d);
+  if (chart) return `chart:${JSON.stringify(chart)}`;
+  const read = questionIn(query, d);
+  return read ? JSON.stringify(read) : null;
+}
+
 /** What a question needs read before it can answer, so nothing is read until it's asked. */
 export function askNeeds(query: string, d: TimeData): AskNeeds {
+  const chart = chartAsked(query, d);
+  if (chart) return { ...NO_NEEDS, curves: chartCurves(chart, d) };
   const many = manyParts(manyCommand(query), d.today);
   if (many) return merge(many.map((p) => askNeeds(p, d)));
   for (const s of [command(query), simplify(query)]) {

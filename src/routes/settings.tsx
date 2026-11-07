@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } fr
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Panel } from "@/components/StatCard";
+import { FocusPanel } from "@/components/tree/TreeSheets";
+import { useFocus } from "@/hooks/use-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +34,12 @@ import { deleteUserData, saveProfile } from "@/lib/cloud";
 import { auth } from "@/lib/firebase";
 import { format, lang, setLang, t } from "@/lib/i18n";
 import { getAthlete, hasSource, saveThresholds, sourceKind } from "@/lib/source";
-import { activitiesQuery, wellnessQuery } from "@/lib/queries";
+import {
+  activitiesQuery,
+  allActivitiesQuery,
+  wellnessQuery,
+  wellnessRangeQuery,
+} from "@/lib/queries";
 import {
   ACCURACY_MIN_RIDES,
   HRV_BAND_DAYS,
@@ -56,6 +63,7 @@ import {
   readSetting,
   writeSetting,
 } from "@/lib/settings";
+import type { Activity, Wellness } from "@/lib/intervals";
 import type { SourceKind } from "@/lib/source";
 import { rideZonesQuery, runDataQuery, thresholdsQuery } from "@/lib/queries";
 import { formatPace, parsePace } from "@/lib/pace";
@@ -83,6 +91,38 @@ const CATEGORY_LABEL: Record<Category, () => string> = {
 
 /** Cards side by side on a desktop, each at its own height. */
 const GRID = "grid items-start gap-6 lg:grid-cols-2";
+
+/** The training block: what it trains, why it was chosen, the races ahead, and choosing it by hand. */
+function TrainingBlock() {
+  const today = isoDate(new Date());
+  const { data: acts } = useQuery(allActivitiesQuery());
+  const oldest = acts?.length
+    ? acts[acts.length - 1]!.start_date_local.slice(0, 10)
+    : addDays(today, -365);
+  const { data: wellness } = useQuery({
+    ...wellnessRangeQuery({ oldest, newest: today }),
+    enabled: !!acts,
+  });
+  // Only on full data: the block is remembered, so one worked out from nothing would stick.
+  return acts && wellness ? <LoadedBlock acts={acts} wellness={wellness} today={today} /> : null;
+}
+
+function LoadedBlock({
+  acts,
+  wellness,
+  today,
+}: {
+  acts: Activity[];
+  wellness: Wellness[];
+  today: string;
+}) {
+  const focus = useFocus(acts, wellness, today);
+  return (
+    <div className="rounded-xl bg-card">
+      <FocusPanel focus={focus} quality={false} />
+    </div>
+  );
+}
 
 function SettingsPage() {
   const [source] = useLocalStore<SourceKind | null>(SOURCE, null);
@@ -119,6 +159,7 @@ function SettingsPage() {
           {source === "native" && <Athlete />}
           {source !== "native" && hasSource() && <IntervalsThresholds />}
           <ZoneLimits runs={mainSport() === "run" || bothSports} />
+          {hasSource() && <TrainingBlock />}
         </TabsContent>
         {/* Two stacks, not a grid: the guides open long, and the garden's stay above the plants they point to. */}
         <TabsContent value="garden" className={cn("mt-6", GRID)}>

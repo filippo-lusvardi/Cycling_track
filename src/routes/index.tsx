@@ -53,7 +53,7 @@ function TreePage() {
     ? acts[acts.length - 1]!.start_date_local.slice(0, 10)
     : addDays(today, -365);
   const { data: wellness } = useSuspenseQuery(wellnessRangeQuery({ oldest, newest: today }));
-  const { data: events } = useQuery(eventsQuery({ oldest: today, newest: today }));
+  const { data: events } = useQuery(eventsQuery({ oldest: today, newest: addDays(today, 3) }));
   const { data: offEvents } = useQuery(offEventsQuery({ oldest, newest: today }));
   const { data: zones } = useQuery(rideZonesQuery(mainSport()));
   const [quiet] = useLocalStore(QUIET_TREE, false);
@@ -177,6 +177,7 @@ function TreePage() {
         offEvents={offEvents ?? []}
         limit={limit}
         focus={focus}
+        planned={(events ?? NO_EVENTS).filter(isPlanned)}
       />
     </div>
   );

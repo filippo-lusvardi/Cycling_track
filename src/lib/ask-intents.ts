@@ -4,6 +4,7 @@ import { parseISO } from "date-fns";
 import { activityKind } from "./activity-kind";
 import { curveFit, omPD, valueAt, whoSet } from "./analysis";
 import { norm, type Dest, type Entry } from "./ask";
+import { chartLeftover, chartRows } from "./ask-chart";
 import { climbPredictRows } from "./ask-climb";
 import { compareQuestions, manyCommand, manyParts } from "./ask-compare";
 import { curveOf, lengthChips, openWords } from "./ask-detail";
@@ -108,6 +109,10 @@ export type IntentData = {
   rangeCurve?: (Span & { curve: PowerCurve | null; failed?: boolean }) | undefined;
   /** The curves of the stretches a question is about, by `curveKey`; and those "fc 3 min" reads. */
   curveReads?: Record<string, CurveRead> | undefined;
+  /** The days a chart being asked for reads, once read. */
+  chartWellness?: { days?: Wellness[] | undefined; failed?: boolean } | undefined;
+  /** Names that stay names when said alone, beyond the climbs. */
+  forestNames?: string[] | undefined;
   hrCurves?: PowerCurve[] | undefined;
   /** Each activity's histogram, by id, once read; null when it couldn't be. */
   histograms?: Record<string, Histograms | null> | undefined;
@@ -1400,6 +1405,20 @@ export function explainRows(query: string, d: IntentData): Entry[] {
     d.climbs.length
   )
     return [noteRow("no-climb", t("No climb goes by that name", "Nessuna salita si chiama così"))];
+  const left = chartLeftover(query, d.today);
+  if (left) {
+    const words = left.unknown.join(" ");
+    return [
+      {
+        ...noteRow(
+          "not-understood",
+          t(`Understood ${left.known}, not ${words}`, `Ho capito ${left.known}, non ${words}`),
+          t("Try:", "Prova così:"),
+        ),
+        follow: left.follow,
+      },
+    ];
+  }
   return [];
 }
 
@@ -1962,6 +1981,9 @@ function climbAsk(d: IntentData, text: string, what: "best" | "count"): Entry[] 
 export function intentEntries(query: string, d: IntentData): Entry[] {
   const s = command(query);
   if (!s) return [];
+  const names = { takenNames: [...d.climbs.map((c) => c.name), ...(d.forestNames ?? [])] };
+  const chart = chartRows(query, { ...d, ...names });
+  if (chart.length) return chart;
   if (/^(?:annulla|undo)$/.test(s))
     return [
       d.lastSaved
@@ -2000,6 +2022,8 @@ export function intentEntries(query: string, d: IntentData): Entry[] {
   // As a sentence, what it comes down to; only reading, so a sentence never saves anything.
   const said = simplify(query);
   if (!said || said === s) return [];
+  const chartSaid = chartRows(said, { ...d, ...names });
+  if (chartSaid.length) return chartSaid;
   return manyRows(said, d).length ? manyRows(said, d) : readRows(said, d);
 }
 

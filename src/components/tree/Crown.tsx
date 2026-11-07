@@ -8,7 +8,6 @@ import {
   rng,
   SEASON_COLOR,
   seedOf,
-  WEATHER_WORD,
   weekRange,
   type Crown as CrownState,
   type Scar as ScarSpan,
@@ -304,12 +303,12 @@ export function CrownView({
     <button
       type="button"
       onClick={onOpen}
-      className="block w-full text-center focus-visible:outline-none"
+      className="block w-full focus-visible:outline-none"
       aria-label={`${t("Today", "Oggi")}: ${heading}`}
     >
-      {/* The words sit on a dark glass panel: over a noon sky or the hills they are otherwise unreadable. */}
-      <div className="mx-auto mb-2 w-fit max-w-full rounded-2xl bg-black/50 px-4 py-2.5 backdrop-blur-md">
-        <div className="eyebrow flex flex-wrap justify-center gap-x-1.5">
+      {/* The app's card, thin enough for today's weather to show through it. */}
+      <div className="mx-auto mb-2 w-full max-w-md rounded-xl border border-border bg-card/55 p-4 text-left backdrop-blur-sm">
+        <div className="eyebrow flex flex-wrap gap-x-1.5">
           <span className="whitespace-nowrap">
             {format(parseISO(today), "EEEE d MMMM")}
             {block && " ·"}
@@ -319,21 +318,17 @@ export function CrownView({
             <span className="whitespace-nowrap">{t(`${block} block`, `blocco ${block}`)}</span>
           )}
         </div>
-        <div className="mt-1 text-lg font-semibold" style={{ color }}>
+        <div className="mt-1 text-base font-semibold" style={{ color }}>
           {heading}
         </div>
-        {limit && (
-          <div className="stat-num text-sm font-semibold" style={{ color }}>
-            {ceilingText(limit)}
-          </div>
-        )}
+        {limit && <div className="stat-num text-sm">{ceilingText(limit)}</div>}
         {crown.signals.length > 0 && (
-          <div className="text-sm text-birch">
+          <div className="mt-1 text-sm text-birch">
             {t("Something is changing · tap to see", "Qualcosa sta cambiando · tocca per vedere")}
           </div>
         )}
-        {!quiet && (
-          <div className="text-sm text-muted-foreground">
+        {!quiet && (crown.score == null || crown.estimated) && (
+          <div className="mt-1 text-sm text-muted-foreground">
             {crown.score == null
               ? checkInOn()
                 ? t(
@@ -341,42 +336,36 @@ export function CrownView({
                     "Dati ancora insufficienti · tocca per il check-in",
                   )
                 : t("Not enough data yet", "Dati ancora insufficienti")
-              : crown.estimated
-                ? checkInOn()
-                  ? t(
-                      `Readiness ${crown.score} · estimated · check in to refine`,
-                      `Readiness ${crown.score} · stimata · fai il check-in per affinarla`,
-                    )
-                  : t(`Readiness ${crown.score} · estimated`, `Readiness ${crown.score} · stimata`)
-                : t(
-                    `Readiness ${crown.score} · tap the crown for today`,
-                    `Readiness ${crown.score} · tocca la chioma per oggi`,
-                  )}
+              : checkInOn()
+                ? t("Estimated · check in to refine", "Stimata · fai il check-in per affinarla")
+                : t("Estimated", "Stimata")}
           </div>
         )}
-        {!quiet && crown.ctl != null && (
-          // Wraps between whole items, never inside one.
-          <div className="stat-num mt-1 flex flex-wrap justify-center gap-x-3 text-sm">
-            <span className="text-fitness">
-              {t("Fitness", "Fitness")} {Math.round(crown.ctl)}
-            </span>
+        {!quiet && (crown.score != null || crown.ctl != null) && (
+          <div className="mt-3 grid grid-cols-4 gap-2 border-t border-border pt-3">
+            {crown.score != null && (
+              <CardNumber label={t("Readiness", "Readiness")} value={crown.score} color={color} />
+            )}
+            {crown.ctl != null && (
+              <CardNumber
+                label={t("Fitness", "Fitness")}
+                value={Math.round(crown.ctl)}
+                color="var(--fitness)"
+              />
+            )}
             {crown.atl != null && (
-              <span className="text-fatigue">
-                {t("Fatigue", "Fatica")} {Math.round(crown.atl)}
-              </span>
+              <CardNumber
+                label={t("Fatigue", "Fatica")}
+                value={Math.round(crown.atl)}
+                color="var(--fatigue)"
+              />
             )}
             {crown.form != null && (
-              <span className="whitespace-nowrap text-form">
-                {t("Form", "Forma")} {crown.form > 0 ? "+" : ""}
-                {Math.round(crown.form)}
-                {crown.formPct != null &&
-                  crown.ctl != null &&
-                  crown.ctl >= 10 &&
-                  ` (${Math.round(crown.formPct)}%)`}
-                {crown.weather && (
-                  <span className="text-muted-foreground"> · {WEATHER_WORD[crown.weather]}</span>
-                )}
-              </span>
+              <CardNumber
+                label={t("Form", "Forma")}
+                value={`${crown.form > 0 ? "+" : ""}${Math.round(crown.form)}`}
+                color="var(--form)"
+              />
             )}
           </div>
         )}
@@ -438,6 +427,26 @@ export function CrownView({
         )}
       </svg>
     </button>
+  );
+}
+
+/** One of the numbers on the card above the crown. */
+function CardNumber({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number | string;
+  color: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="eyebrow truncate text-[0.62rem]">{label}</div>
+      <div className="stat-num text-lg font-semibold leading-tight" style={{ color }}>
+        {value}
+      </div>
+    </div>
   );
 }
 

@@ -1177,3 +1177,27 @@ describe("round three", () => {
     expect(hintRows("palestra")).toEqual([]);
   });
 });
+
+describe("saving while a decimal is being typed", () => {
+  const today = "2026-11-07";
+  const d = { today, sport: "ride", native: true, climbs: [] } as unknown as IntentData;
+  const said = (q: string) => intentEntries(q, d)[0]?.q;
+  it.each([
+    ["peso 68", "peso 68.", "peso 68,"],
+    ["grasso 14", "grasso 14.", "grasso 14,"],
+    ["sonno 7", "sonno 7.", "sonno 7,"],
+    ["hrv 60", "hrv 60.", "hrv 60,"],
+  ])("%s keeps its row through the separator", (whole, dot, comma) => {
+    expect(said(whole)).toBeTruthy();
+    expect(said(dot)).toBe(said(whole));
+    expect(said(comma)).toBe(said(whole));
+  });
+  it("the decimal then counts", () => {
+    expect(said("peso 68.2")).toContain("68.2");
+    expect(said("peso 68,2")).toContain("68.2");
+    expect(intentEntries("peso 68.", d)[0]?.dest).toMatchObject({
+      kind: "write",
+      action: { field: "weight", value: 68 },
+    });
+  });
+});
