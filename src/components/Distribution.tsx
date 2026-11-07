@@ -352,16 +352,27 @@ export function MiniDistribution({
   acts,
   metric,
   days,
+  settled,
 }: {
   acts: Activity[];
   metric: DistMetric;
   days: number;
+  /** The question has stopped changing, so its activities can be read. What's already been read shows regardless. */
+  settled: boolean;
 }) {
   const sport = mainSport();
   const { data: zones = NO_ZONES } = useQuery(rideZonesQuery(sport));
   const short = days <= HISTOGRAM_DAYS;
+  const pool = useMemo(
+    () => acts.filter((a) => a.icu_average_watts != null || a.average_heartrate != null),
+    [acts],
+  );
   const reads = useQueries({
-    queries: acts.map((a) => ({ ...histogramsQuery(a.id), enabled: short })),
+    queries: pool.map((a) => ({
+      ...histogramsQuery(a.id),
+      // This draws while a sentence is being typed, and each activity is a read.
+      enabled: short && settled,
+    })),
   });
   const key = reads.map((r) => r.dataUpdatedAt).join();
   const merged = useMemo(
@@ -371,11 +382,27 @@ export function MiniDistribution({
   );
   const { buckets } = apartCoasting(merged, metric);
   const tops = metric === "power" ? zones.power : zones.hr;
+  const reading = short && reads.some((r) => !r.data && !r.isError);
+  // Another stretch keeps what's drawn, faded, until its own arrives, so the card neither blinks nor jumps.
+  const last = useRef<{ buckets: Bucket[]; metric: DistMetric } | null>(null);
+  useEffect(() => {
+    if (buckets.length) last.current = { buckets, metric };
+  });
+  const before =
+    reading && !buckets.length && last.current?.metric === metric ? last.current : null;
   const summed = sumZones(acts.map((a) => (metric === "power" ? a.zoneTimes : a.hrZoneTimes)));
   const shares = hasTime(summed) ? summed : zonesOfBuckets(buckets, BUCKET[metric], tops);
   return (
     <div className="space-y-2">
-      {buckets.length > 0 && <Histogram buckets={buckets} metric={metric} tops={tops} small />}
+      {buckets.length > 0 ? (
+        <Histogram buckets={buckets} metric={metric} tops={tops} small faded={reading} />
+      ) : before ? (
+        <Histogram buckets={before.buckets} metric={metric} tops={tops} small faded />
+      ) : reading ? (
+        <p className="flex h-28 items-center justify-center text-sm text-muted-foreground">
+          {t("Loading…", "Caricamento…")}
+        </p>
+      ) : null}
       <ZoneBar secs={shares} legend={false} empty="" />
     </div>
   );

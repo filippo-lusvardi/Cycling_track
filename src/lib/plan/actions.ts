@@ -65,7 +65,7 @@ export async function runCheck(
   today: string,
 ) {
   const fresh = await loadPlan(today);
-  if (!fresh || !fillDue(fresh.note, today)) return 0;
+  if (!fresh || !fillDue(fresh.note, today, ctx.input.races)) return 0;
   const context = { ...ctx, note: fresh.note };
   const proposal = proposalFor(context, executions);
   const settle = proposal?.silent ? proposal : null;
@@ -82,7 +82,11 @@ export async function runCheck(
     // If something didn't get through, the next opening tries again.
     ...(failure ? {} : { lastFill: today }),
     ...(settle
-      ? { replan: false, reviews: [...fresh.note.reviews, { ...settle.review, on: today }] }
+      ? {
+          replan: false,
+          reviews: [...fresh.note.reviews, { ...settle.review, on: today }],
+          ...(settle.seenRaces ? { seenRaces: settle.seenRaces } : {}),
+        }
       : {}),
   };
   await savePlan(note, today, fresh);
@@ -171,6 +175,7 @@ export async function acceptProposal(
     undoState: stored.note.state,
     replan: false,
     reviews: [...stored.note.reviews, { ...p.review, on: today, accepted: true }],
+    ...(p.seenRaces ? { seenRaces: p.seenRaces } : {}),
   };
   await savePlan(note, today, stored);
 }
@@ -187,6 +192,7 @@ export async function keepPlan(
     state: { ...state, lastReview: today },
     replan: false,
     reviews: [...stored.note.reviews, { ...p.review, on: today, accepted: false }],
+    ...(p.seenRaces ? { seenRaces: p.seenRaces } : {}),
   };
   await savePlan(note, today, stored);
 }

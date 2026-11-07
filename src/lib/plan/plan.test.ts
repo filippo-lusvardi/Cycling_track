@@ -77,7 +77,7 @@ function week(
   const set = over.settings ?? settings(over.plan ?? typical, over.goal ?? "fitter");
   return layoutWeek({
     today: monday,
-    shape: over.shape ?? weekShape(monday, set.goal, races, s),
+    shape: over.shape ?? weekShape(monday, set, races, s),
     settings: set,
     state: s,
     focus: over.focus ?? "aerobic",
@@ -152,12 +152,13 @@ describe("where a plan starts", () => {
 describe("the shape of the season", () => {
   const s = state({ cycleStart: monday, buildWeeks: 3 });
   it("rests every fourth week, and sooner on a shorter cycle", () => {
-    const at = (w: number, st = s) => weekShape(addDays(monday, 7 * w), "fitter", [], st).recovery;
+    const at = (w: number, st = s) =>
+      weekShape(addDays(monday, 7 * w), { goal: "fitter" }, [], st).recovery;
     expect([0, 1, 2, 3, 4, 7].map((w) => at(w))).toEqual([false, false, false, true, false, true]);
     expect(at(2, { ...s, buildWeeks: 2 })).toBe(true);
   });
   it("goes from base to build on its own, with no race", () => {
-    const at = (w: number) => weekShape(addDays(monday, 7 * w), "fitter", [], s).phase;
+    const at = (w: number) => weekShape(addDays(monday, 7 * w), { goal: "fitter" }, [], s).phase;
     expect(at(0)).toBe("base");
     expect(at(4)).toBe("build");
     expect(at(8)).toBe("build");
@@ -165,28 +166,32 @@ describe("the shape of the season", () => {
   });
   it("counts back from the race, and starts late when it's close", () => {
     const r = [race("2027-05-02")];
-    const phase = (m: string) => weekShape(m, "race", r, s).phase;
+    const phase = (m: string) => weekShape(m, { goal: "race" }, r, s).phase;
     expect(phase("2026-11-09")).toBe("base");
     expect(phase("2027-02-01")).toBe("build");
     expect(phase("2027-04-05")).toBe("specific");
     expect(phase("2027-04-26")).toBe("taper");
-    expect(weekShape(monday, "race", [race(addDays(monday, 20))], s).phase).toBe("specific");
+    expect(weekShape(monday, { goal: "race" }, [race(addDays(monday, 20))], s).phase).toBe(
+      "specific",
+    );
   });
   it("never lands a recovery week on the taper or the week before it", () => {
     const r = [race("2027-05-02")];
     for (let i = 0; i < 20; i++) {
       const m = addDays("2027-04-26", -7 * i);
-      const shape = weekShape(m, "race", r, s);
+      const shape = weekShape(m, { goal: "race" }, r, s);
       if (i <= 1) expect(shape.recovery, m).toBe(false);
     }
     const shapes = Array.from({ length: 12 }, (_, i) =>
-      weekShape(addDays("2027-04-19", -7 * i), "race", r, s),
+      weekShape(addDays("2027-04-19", -7 * i), { goal: "race" }, r, s),
     );
     expect(shapes.filter((x) => x.recovery).length).toBeGreaterThanOrEqual(2);
   });
   it("ignores a race when the goal is another, and a C race as a target", () => {
-    expect(weekShape(monday, "healthy", [race(addDays(monday, 3))], s).phase).toBe("maintain");
-    expect(weekShape(monday, "race", [race(addDays(monday, 30), "C")], s).phase).not.toBe(
+    expect(weekShape(monday, { goal: "healthy" }, [race(addDays(monday, 3))], s).phase).toBe(
+      "maintain",
+    );
+    expect(weekShape(monday, { goal: "race" }, [race(addDays(monday, 30), "C")], s).phase).not.toBe(
       "specific",
     );
   });
@@ -506,7 +511,7 @@ describe("what a review changes", () => {
     expect(s.forcedRecovery).toBe(addDays(monday, 7));
     expect(s.buildWeeks).toBe(2);
     expect(s.hardGap).toBe(3);
-    expect(weekShape(addDays(monday, 7), "fitter", [], s).recovery).toBe(true);
+    expect(weekShape(addDays(monday, 7), { goal: "fitter" }, [], s).recovery).toBe(true);
   });
   it("comes back to the level after recovery, unless it ended low", () => {
     const s = applyReview(state(), "lower", monday);
@@ -628,6 +633,13 @@ describe("what a change would touch", () => {
     const before = [d(monday, "a"), d(addDays(monday, 1), "b"), d(addDays(monday, 2), "c")];
     const after = [d(monday, "x"), d(addDays(monday, 1), "y"), d(addDays(monday, 2), "c")];
     expect(diffWeek(before, after, monday).map((c) => c.date)).toEqual([addDays(monday, 1)]);
+  });
+});
+
+describe("a raise", () => {
+  it("never lowers the week, even when the last sessions added up to much less", () => {
+    const s = state({ weeklySeconds: 10 * 3600, lastBuildSeconds: 5 * 3600 });
+    expect(applyReview(s, "raise", monday).weeklySeconds).toBe(10 * 3600);
   });
 });
 

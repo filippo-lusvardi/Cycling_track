@@ -1,9 +1,10 @@
 // The training plan's vocabulary. Rule tags as in Docs/workout-suggestions-evidence.md: E evidence, I inference, C convention.
 import { z } from "zod";
+import type { RaceKind } from "../races";
 import type { WorkoutKind } from "../workout-templates";
 import type { Execution } from "./execution";
 
-export const PLAN_GOALS = ["race", "fitter", "healthy"] as const;
+export const PLAN_GOALS = ["race", "season", "fitter", "healthy"] as const;
 export type PlanGoal = (typeof PLAN_GOALS)[number];
 
 const dayPlanSchema = z.object({
@@ -14,10 +15,36 @@ const dayPlanSchema = z.object({
 });
 export type DayPlan = z.infer<typeof dayPlanSchema>;
 
+/** The kinds of race a cycling season can be made of. */
+export const SEASON_KINDS = [
+  "road",
+  "crit",
+  "tt",
+  "climb",
+  "granfondo",
+  "stage",
+  "xco",
+  "xcc",
+  "marathon",
+  "mtbclimb",
+] as const satisfies readonly RaceKind[];
+
+const seasonSchema = z.object({
+  /** "2027-05": months next to each other make one period. */
+  months: z.array(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)),
+  /** May be empty: not known yet. */
+  kinds: z.array(z.enum(SEASON_KINDS)),
+  /** The weekly volume the season climbs to, by the specific phase. */
+  peakSeconds: z.number().positive().optional(),
+});
+export type PlanSeason = z.infer<typeof seasonSchema>;
+
 export const planSettingsSchema = z.object({
   goal: z.enum(PLAN_GOALS),
   /** Monday to Sunday. */
   week: z.array(dayPlanSchema).length(7),
+  /** Only with the season goal; without it, a season goal goes on as a rolling plan. */
+  season: seasonSchema.optional(),
 });
 export type PlanSettings = z.infer<typeof planSettingsSchema>;
 
@@ -115,5 +142,6 @@ export type ReviewReason =
   | "went-over"
   | "under-target"
   | "days-changed"
+  | "races-changed"
   | "mixed";
 export type Review = { result: ReviewResult; reason: ReviewReason };

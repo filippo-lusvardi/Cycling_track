@@ -3,13 +3,16 @@ import { differenceInCalendarDays, parseISO } from "date-fns";
 import { dayRole, mondayOf } from "../focus";
 import type { Race } from "../races";
 import { addDays } from "../training";
-import type { Phase, PlanGoal, PlanState } from "./types";
+import { seasonWeek } from "./season";
+import type { Phase, PlanSettings, PlanState } from "./types";
 
 /** C: weeks before a race where each phase begins. */
 const SPECIFIC_WEEKS = 6;
 const BUILD_WEEKS = 14;
 /** C: a rolling season: one cycle of base, then two of build. */
 const ROLLING = 3;
+/** The days of an A race's taper, as in `dayRole`. */
+const TAPER_DAYS = 10;
 
 export type WeekShape = { monday: string; phase: Phase; recovery: boolean };
 
@@ -26,10 +29,18 @@ export function goalRace(races: Race[], today: string): Race | null {
 
 export function weekShape(
   monday: string,
-  goal: PlanGoal,
+  { goal, season }: Pick<PlanSettings, "goal" | "season">,
   races: Race[],
   state: Pick<PlanState, "buildWeeks" | "cycleStart" | "forcedRecovery">,
 ): WeekShape {
+  if (goal === "season" && season) {
+    const week = seasonWeek(monday, season, races, state, {
+      specific: SPECIFIC_WEEKS,
+      build: BUILD_WEEKS,
+      taperDays: TAPER_DAYS,
+    });
+    if (week) return { monday, ...week };
+  }
   const cycle = state.buildWeeks + 1;
   const forced = state.forcedRecovery === monday;
   const race = goal === "race" ? goalRace(races, monday) : null;
@@ -38,7 +49,7 @@ export function weekShape(
       (d) => dayRole([race], d)?.role === "sharpen" || d === race.date,
     );
     if (inTaper) return { monday, phase: "taper", recovery: false };
-    const taperWeek = mondayOf(addDays(race.date, -10));
+    const taperWeek = mondayOf(addDays(race.date, -TAPER_DAYS));
     const before = weeksBetween(monday, taperWeek);
     const toRace = weeksBetween(monday, race.date);
     const phase = toRace <= SPECIFIC_WEEKS ? "specific" : toRace <= BUILD_WEEKS ? "build" : "base";

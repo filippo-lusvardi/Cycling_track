@@ -87,6 +87,7 @@ export function useSuggestInput(): SuggestInput | undefined {
       sport,
       focus,
       blockSince: stored?.since ?? null,
+      focusPinned: stored?.since === null,
       feel: part("feel"),
       sleep: part("sleep"),
       weight:

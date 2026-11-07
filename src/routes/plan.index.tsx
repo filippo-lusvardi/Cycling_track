@@ -504,7 +504,7 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
 
   const days = windowFor(ctx, state);
   const monday = mondayOf(today);
-  const shape = weekShape(monday, note.settings.goal, input.races, state);
+  const shape = weekShape(monday, note.settings, input.races, state);
   const race = note.settings.goal === "race" ? goalRace(input.races, today) : null;
   const ahead = outline(monday, note.settings.goal, input.races, state, note.settings);
   const past = pastWeekLines(wide, scores, oldest);

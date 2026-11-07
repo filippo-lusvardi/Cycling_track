@@ -180,6 +180,8 @@ export type ChartAsked = {
   sport: MainSport | null;
   /** Whether the period was said: a chip that changes the stretch keeps it only then. */
   periodNamed: boolean;
+  /** The default stretch started later than it would, because that's when the data does: this day. */
+  since?: string;
 };
 
 /** Curves are one request each, so only so many periods are read. */
@@ -418,11 +420,20 @@ const curvePeriods = (span: Span, p: Period, today: string) =>
 const curveSport = (m: Measure, sport: MainSport): MainSport =>
   m.key === "power" ? "ride" : (m.sport ?? sport);
 
-/** One read per period: nothing is read until it's asked. */
-export function chartCurves(a: ChartAsked, ctx: { today: string; sport: MainSport }) {
-  return a.measures.filter(hasCurve).flatMap((m) =>
-    [a.span, ...(a.second ? [a.second] : [])].flatMap((span) =>
-      curvePeriods(span, a.period, ctx.today).map((b) => ({
+/**
+ * One read per period: nothing is read until it's asked. A default stretch waits for the activities, so that nothing is read
+ * for the months before the first one.
+ */
+export function chartCurves(
+  a: ChartAsked,
+  ctx: { today: string; sport: MainSport; acts?: Activity[] | undefined },
+) {
+  if (!a.measures.some(hasCurve)) return [];
+  if (!a.named && !ctx.acts) return [];
+  const fit = fitToData(a, ctx);
+  return fit.measures.filter(hasCurve).flatMap((m) =>
+    [fit.span, ...(fit.second ? [fit.second] : [])].flatMap((span) =>
+      curvePeriods(span, fit.period, ctx.today).map((b) => ({
         metric: m.key as "power" | "hr",
         from: b.from,
         to: b.to,
@@ -433,6 +444,8 @@ export function chartCurves(a: ChartAsked, ctx: { today: string; sport: MainSpor
 }
 
 const levels = new Set<MeasureKey>(["weight", "fat", "sleep", "hrv", "fitness", "fatigue", "form"]);
+/** Measured on the body: what's known about them is only the days read for this chart. The others follow from the activities. */
+const BODY = new Set<MeasureKey>(["weight", "fat", "sleep", "hrv"]);
 
 /** The days a chart needs read from wellness, when it needs any. */
 export function chartWellnessSpan(a: ChartAsked, today: string): Span | null {
@@ -448,12 +461,16 @@ export function chartWellnessSpan(a: ChartAsked, today: string): Span | null {
     : null;
 }
 
-export type ChartData = {
+/** What fitting a chart to its data reads: the activities, and the days read for it. */
+type FitData = {
   today: string;
   sport: MainSport;
   acts?: Activity[] | undefined;
   /** The days `chartWellnessSpan` asked for, once read. */
   chartWellness?: { days?: Wellness[] | undefined; failed?: boolean } | undefined;
+};
+
+export type ChartData = FitData & {
   curveReads?: Record<string, CurveRead> | undefined;
   /** Names of climbs and forests: said alone, a name stays a name. */
   takenNames?: string[] | undefined;
@@ -476,6 +493,90 @@ const LEVEL_READ: Partial<Record<MeasureKey, (w: Wellness) => number | null>> = 
   fatigue: (w) => w.atl,
   form: (w) => (w.ctl != null && w.atl != null ? computeForm(w.ctl, w.atl) : null),
 };
+
+const earliest = (days: string[]) =>
+  days.length ? days.reduce((x, day) => (day < x ? day : x)) : null;
+
+/** The first activity that counts for this measure. */
+function firstActivity(m: Measure, acts: Activity[], sport: MainSport): string | null {
+  const counts = (a: Activity) => {
+    if (m.key === "fitness" || m.key === "fatigue" || m.key === "form") return true;
+    if (m.key === "speed")
+      return isSport(a, m.sport ?? sport) && (a.moving_time ?? 0) > 0 && a.distance != null;
+    if (m.key === "power") return a.icu_average_watts != null && isSport(a, curveSport(m, sport));
+    if (m.key === "hr") return a.average_heartrate != null && isSport(a, curveSport(m, sport));
+    return (!m.sport || isSport(a, m.sport)) && (TOTAL_READ[m.key]?.(a) ?? 0) > 0;
+  };
+  return earliest(acts.filter(counts).map(activityDay));
+}
+
+function firstReading(m: Measure, span: Span, days: Wellness[]): string | null {
+  const read = LEVEL_READ[m.key]!;
+  return earliest(
+    days.filter((w) => w.id >= span.from && w.id <= span.to && (read(w) ?? 0) > 0).map((w) => w.id),
+  );
+}
+
+/**
+ * The first day with anything to draw, or undefined while that isn't known yet. Curves are read before the days are, and both
+ * must agree on the same periods, so next to a curve only the activities decide.
+ */
+function firstData(a: ChartAsked, d: FitData): string | null | undefined {
+  const curves = a.measures.some(hasCurve);
+  const asked = curves ? a.measures.filter((m) => !BODY.has(m.key)) : a.measures;
+  const body = asked.filter((m) => BODY.has(m.key));
+  if (asked.length > body.length && !d.acts) return undefined;
+  if (body.length && !d.chartWellness?.days) return undefined;
+  return earliest(
+    asked.flatMap((m) => {
+      const first = BODY.has(m.key)
+        ? firstReading(m, a.span, d.chartWellness!.days!)
+        : firstActivity(m, d.acts!, d.sport);
+      return first ? [first] : [];
+    }),
+  );
+}
+
+/** Nothing is drawn so few wide periods that the chart says nothing, unless they were asked for. */
+const MIN_PERIODS = 4;
+const SHORTEST_DAYS = 7;
+const FINER: Partial<Record<Period, Period>> = { month: "week", week: "day" };
+
+/**
+ * A default stretch begins when the data does: someone who started a month ago doesn't get eleven empty months. A stretch that
+ * was named stays what was named.
+ */
+export function fitToData(a: ChartAsked, d: FitData): ChartAsked {
+  if (a.named || a.second || a.since) return a;
+  const first = firstData(a, d);
+  if (!first || first <= a.span.from) return a;
+  const from = minDay(first, addDays(d.today, 1 - SHORTEST_DAYS));
+  if (from <= a.span.from) return a;
+  const span = { from, to: a.span.to };
+  let period = a.period;
+  // Curves aren't read by the day: that would spend their reads on a few weeks.
+  const finest: Period = a.measures.some(hasCurve) ? "week" : "day";
+  while (
+    !a.periodNamed &&
+    period !== finest &&
+    periodsOf(span, period, d.today).length < MIN_PERIODS
+  )
+    period = FINER[period]!;
+  return { ...a, span, period, since: first };
+}
+
+/**
+ * Before this day there's nothing, so nothing should offer to go there. Empty when that can't be said: the body's readings are
+ * only known for the days read, and could go further back.
+ */
+function historyFrom(a: ChartAsked, d: FitData): string {
+  if (!d.acts || a.measures.some((m) => BODY.has(m.key))) return "";
+  const firsts = a.measures.flatMap((m) => {
+    const first = firstActivity(m, d.acts!, d.sport);
+    return first ? [first] : [];
+  });
+  return earliest(firsts) ?? d.today;
+}
 
 type Read = { values: (number | null)[]; waiting: boolean; failed: number };
 
@@ -642,6 +743,8 @@ function summary(m: Measure, values: (number | null)[]) {
       : m.key === "speed" || info.kind === "level"
         ? seen.reduce((s, v) => s + v, 0) / seen.length
         : Math.max(...seen);
+  // Totals that add up to nothing are no data, not a result.
+  if (info.kind === "total" && n === 0) return undefined;
   const scale = 10 ** info.digits;
   return [num(Math.round(n * scale) / scale), info.unit].filter(Boolean).join(" ");
 }
@@ -680,6 +783,10 @@ function answerOf(a: ChartAsked) {
 
 function spanName(a: ChartAsked) {
   if (a.named) return a.named;
+  if (a.since) {
+    const day = parseISO(a.since);
+    return t(`since ${format(day, "d MMMM")}`, `dal ${format(day, "d MMMM")}`);
+  }
   if (a.period === "month") return t("last 12 months", "ultimi 12 mesi");
   if (a.period === "week") return t("last 12 weeks", "ultime 12 settimane");
   return a.measures.every((m) => levels.has(m.key))
@@ -713,7 +820,13 @@ function noteOf(a: ChartAsked, built: ReturnType<typeof panelOf>[], failed: numb
     );
   }
   const open = built.find((b) => b.openBucket)?.openBucket;
-  if (open && a.measures.some((m) => MEASURES[m.key].kind === "total") && a.period !== "day")
+  const anything = built.some((b) => b.read.values.some(Boolean));
+  if (
+    open &&
+    anything &&
+    a.measures.some((m) => MEASURES[m.key].kind === "total") &&
+    a.period !== "day"
+  )
     notes.push(
       a.period === "month"
         ? t(
@@ -734,7 +847,8 @@ export type BuiltChart = {
   view: ChartView;
 };
 
-export function buildChart(a: ChartAsked, d: ChartData): BuiltChart {
+export function buildChart(asked: ChartAsked, d: ChartData): BuiltChart {
+  const a = fitToData(asked, d);
   const built = a.measures.map((m) => panelOf(m, a, d));
   const failed = built.reduce((s, b) => s + b.read.failed, 0);
   const loading = built.some((b) => b.read.waiting);
@@ -820,16 +934,17 @@ const BESIDE: Partial<Record<MeasureKey, [MeasureKey, MeasureKey]>> = {
 };
 
 /** What could be added to the chart, as questions: another year, another measure, one sport. */
-function nextWords(a: ChartAsked, today: string): AskChip[] {
+function nextWords(a: ChartAsked, today: string, history: string): AskChip[] {
   const out: AskChip[] = [];
+  const hasYear = (y: string) => `${y}-12-31` >= history;
   const year = Number(today.slice(0, 4));
   const say = (extra: string) => `${sayChart(a, today)} ${extra}`;
   if (!a.second && a.span.from.endsWith("-01-01") && a.named && /^\d{4}$/.test(a.named)) {
     const before = String(Number(a.named) - 1);
-    out.push({ label: `vs ${before}`, query: say(`vs ${before}`) });
+    if (hasYear(before)) out.push({ label: `vs ${before}`, query: say(`vs ${before}`) });
   } else if (!a.named) {
     const y = String(year - 1);
-    out.push({ label: y, query: say(y) });
+    if (hasYear(y)) out.push({ label: y, query: say(y) });
   }
   const only = a.measures.length === 1 ? a.measures[0]! : null;
   if (only) {
@@ -881,15 +996,16 @@ const spanChip = (s: Span) =>
     ? s.from.slice(0, 4)
     : `${dateFormat(parseISO(s.from), "d/M/yy")}–${dateFormat(parseISO(s.to), "d/M/yy")}`;
 
-function aroundChart(a: ChartAsked, today: string): AskChip[] {
+function aroundChart(a: ChartAsked, today: string, history: string): AskChip[] {
   if (a.second) return [];
+  const before = shifted(a, -1, today);
   // What's said from here on is that stretch, in periods of the one being read.
   const at = (s: Span | null, mark: (l: string) => string): AskChip[] =>
     s
       ? [{ label: mark(spanChip(s)), query: sayChart(a, today, { span: s, period: a.period }) }]
       : [];
   return [
-    ...at(shifted(a, -1, today), (l) => `‹ ${l}`),
+    ...at(before && before.to >= history ? before : null, (l) => `‹ ${l}`),
     ...at(shifted(a, 1, today), (l) => `${l} ›`),
   ];
 }
@@ -920,7 +1036,9 @@ export function chartRows(query: string, d: ChartData): Entry[] {
         "chart-of-what",
         t("A chart of what?", "Un grafico di cosa?"),
         t("Say what to draw", "Di' cosa disegnare"),
-        ["km", "hrv", "peso", "forma", "power 5m"].map((m) => ask(`grafico ${m}`, m)),
+        ["km", "hrv", "peso", "forma", "power 5m", "distribuzione"].map((m) =>
+          ask(`grafico ${m}`, m),
+        ),
       ),
     ];
   if (HR_ALONE.test(word))
@@ -937,9 +1055,11 @@ export function chartRows(query: string, d: ChartData): Entry[] {
     ];
   // Something with that very name stays itself.
   if (!word.includes(" ") && d.takenNames?.some((n) => command(n) === word)) return [];
-  const a = chartAsked(query, { today: d.today, sport: d.sport });
-  if (!a) return [];
+  const asked = chartAsked(query, { today: d.today, sport: d.sport });
+  if (!asked) return [];
+  const a = fitToData(asked, d);
   const built = buildChart(a, d);
+  const history = historyFrom(a, d);
   const dest: Dest = { kind: "route", to: "/chart", search: { q: word } };
   return [
     {
@@ -951,7 +1071,11 @@ export function chartRows(query: string, d: ChartData): Entry[] {
       answer: built.view.loading ? t("Loading…", "Caricamento…") : built.answer,
       ...(built.value && !built.view.loading ? { value: built.value } : {}),
       detail: { view: built.view, open: CHART_OPEN() },
-      follow: [...periodChips(a, d.today), ...nextWords(a, d.today), ...aroundChart(a, d.today)],
+      follow: [
+        ...periodChips(a, d.today),
+        ...nextWords(a, d.today, history),
+        ...aroundChart(a, d.today, history),
+      ],
       dest,
     },
   ];

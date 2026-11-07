@@ -159,6 +159,7 @@ export function AnswerCard({
   answer,
   acts,
   pinned,
+  settled,
   onPin,
   onAsk,
   onOpen,
@@ -167,6 +168,8 @@ export function AnswerCard({
   answer?: string | undefined;
   acts: Activity[];
   pinned: boolean;
+  /** The words have stopped changing for a moment: reads that cost something can start. */
+  settled: boolean;
   onPin: () => void;
   onAsk: (q: string) => void;
   onOpen: () => void;
@@ -229,6 +232,7 @@ export function AnswerCard({
               acts={acts.filter((a) => view.ids.includes(a.id))}
               metric={view.metric}
               days={view.days}
+              settled={settled}
             />
           </>
         )}

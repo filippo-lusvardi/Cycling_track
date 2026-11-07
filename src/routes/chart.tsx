@@ -32,8 +32,8 @@ function ChartPage() {
   const asked = useMemo(() => (q ? chartAsked(q, { today, sport }) : null), [q, today, sport]);
   const { data: acts } = useQuery(allActivitiesQuery());
   const needs = useMemo(
-    () => (asked ? chartCurves(asked, { today, sport }) : []),
-    [asked, today, sport],
+    () => (asked ? chartCurves(asked, { today, sport, acts }) : []),
+    [asked, today, sport, acts],
   );
   const curveQueries = useQueries({
     queries: needs.map((c) =>

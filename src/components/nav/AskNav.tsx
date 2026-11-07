@@ -453,6 +453,8 @@ function useForestNames(typed: boolean) {
   }, [list, names]);
 }
 
+const READ_AFTER_MS = 500;
+
 /** Only exists while the panel is open, so everything it loads is loaded only for someone asking. */
 function AskBody({
   moment,
@@ -816,6 +818,13 @@ function AskBody({
     const wait = setTimeout(() => setPaused(true), HOLD_MS);
     return () => clearTimeout(wait);
   }, [q]);
+  // A distribution draws as it's typed, and reading it costs one request per activity: only once the words have stopped.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    setSettled(false);
+    const wait = setTimeout(() => setSettled(true), READ_AFTER_MS);
+    return () => clearTimeout(wait);
+  }, [q]);
   const [held, setHeld] = useState<Held | null>(null);
   const answer = holdable(found[0]) ? found[0] : null;
   useEffect(() => {
@@ -856,8 +865,13 @@ function AskBody({
   const opened = openId
     ? (found.find((e) => e.id === openId) ?? found.find((e) => e.detail))
     : null;
-  // A chart is what was asked for, so it's there as soon as the words make one, with the field still open to go on typing.
-  const drawn = typed && (holding ?? found[0])?.id === "chart" ? (holding ?? found[0]!) : null;
+  // A chart or a distribution is what was asked for, so it's there as soon as the words make one, with the field still open
+  // to go on typing.
+  const lead = holding ?? found[0];
+  const drawn =
+    typed && lead?.detail && (lead.id === "chart" || lead.id.startsWith("distribution-"))
+      ? lead
+      : null;
   const showing = opened?.detail ? opened : drawn;
   // What could be asked next, by the thumb.
   const shown = showing ?? (typed ? list[0] : undefined);
@@ -986,6 +1000,7 @@ function AskBody({
               answer={spanAnswer(showing, data)}
               acts={acts ?? []}
               pinned={isPinned(q)}
+              settled={settled}
               onPin={() => pinIt(q)}
               onAsk={setQ}
               onOpen={() => onChoose(showing)}

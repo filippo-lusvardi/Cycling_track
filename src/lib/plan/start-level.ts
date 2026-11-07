@@ -54,6 +54,8 @@ export function startState(input: {
   settings: PlanSettings;
   experience?: Experience | undefined;
   comingBack?: boolean | undefined;
+  /** The volume to start from, when it was chosen. */
+  weeklySeconds?: number | undefined;
 }): PlanState {
   const { today, acts, settings } = input;
   const h = history(acts, today);
@@ -61,7 +63,7 @@ export function startState(input: {
   const level = enough ? levelOf(h.usualSeconds / 3600) : (input.experience ?? "new");
   const wanted = enough ? h.usualSeconds : NO_HISTORY_HOURS[level] * 3600;
   const scale = input.comingBack ? COMING_BACK : 1;
-  const weeklySeconds = Math.min(wanted * scale, availableSeconds(settings));
+  const weeklySeconds = Math.min(input.weeklySeconds ?? wanted * scale, availableSeconds(settings));
   const doses = Object.fromEntries(
     Object.entries(DOSES[level]).map(([k, v]) => [k, v * scale]),
   ) as Doses;

@@ -117,7 +117,12 @@ describe("reading a chart", () => {
 describe("what it draws", () => {
   it("adds up totals, with a real zero and the open period marked", () => {
     const [p] = view("grafico km", {
-      acts: [act("2026-10-03", 40), act("2026-10-05", 60), act("2026-11-02", 30, "Run")],
+      acts: [
+        act("2020-01-05", 5),
+        act("2026-10-03", 40),
+        act("2026-10-05", 60),
+        act("2026-11-02", 30, "Run"),
+      ],
     }).panels;
     expect(p!.draw).toBe("bars");
     expect(p!.points.at(-2)!.value).toBe(100);
@@ -126,7 +131,7 @@ describe("what it draws", () => {
   });
   it("counts only the sport named", () => {
     const [p] = view("grafico km corsa", {
-      acts: [act("2026-11-02", 30, "Run"), act("2026-11-03", 50)],
+      acts: [act("2020-01-05", 5, "Run"), act("2026-11-02", 30, "Run"), act("2026-11-03", 50)],
     }).panels;
     expect(p!.points.at(-1)!.value).toBe(30);
   });
@@ -152,12 +157,14 @@ describe("what it draws", () => {
     const v = view("power 5m per mese dal 2022");
     expect(v.panels[0]!.points).toHaveLength(MAX_CURVE_PERIODS);
     expect(v.note).toMatch(/24.*59/);
-    expect(chartCurves(chartAsked("power 5m per mese", ctx)!, ctx)).toHaveLength(12);
+    expect(chartCurves(chartAsked("power 5m per mese", ctx)!, { ...ctx, acts: [] })).toHaveLength(
+      12,
+    );
   });
   it("reads each curve at the length asked, while the others wait", () => {
     const a = chartAsked("power 5m per mese", ctx)!;
     const curve = { secs: [60, 300], watts: [400, 280] } as unknown as PowerCurve;
-    const need = chartCurves(a, ctx).at(-1)!;
+    const need = chartCurves(a, { ...ctx, acts: [] }).at(-1)!;
     const v = buildChart(a, { ...ctx, curveReads: { [curveKey(need)]: { curve } } })
       .view as ChartView;
     expect(v.panels[0]!.points.at(-1)!.value).toBe(280);
@@ -305,7 +312,7 @@ describe("the ticks", () => {
 });
 
 describe("the row", () => {
-  const data = { ...ctx, acts: [act("2026-10-03", 40)] };
+  const data = { ...ctx, acts: [act("2020-01-05", 5), act("2026-10-03", 40)] };
   const row = (q: string) => chartRows(q, data)[0]!;
   it("opens in the panel, and goes to its page", () => {
     const r = row("grafico km");
@@ -344,7 +351,8 @@ describe("the row", () => {
     expect(paired.second?.from).toBe("2024-01-01");
   });
   it("before a cut chart comes what wasn't shown", () => {
-    const prev = row("power 5m per mese dal 2022").follow!.at(-1)!;
+    const acts = [{ ...act("2020-01-05", 5), icu_average_watts: 200 }] as Activity[];
+    const prev = chartRows("power 5m per mese dal 2022", { ...ctx, acts })[0]!.follow!.at(-1)!;
     expect(chartAsked(prev.query, ctx)!.span).toEqual({ from: "2022-12-01", to: "2024-11-30" });
   });
   it("a curve isn't offered by the day", () => {
@@ -381,12 +389,103 @@ describe("the row", () => {
     expect(intentEntries("km e dislivello marzo", d)[0]!.id).not.toBe("chart");
   });
   it("needs its curves read, and its days", () => {
-    expect(askNeeds("power 5m per mese", { ...ctx, climbs: [] }).curves).toHaveLength(12);
+    expect(askNeeds("power 5m per mese", { ...ctx, acts: [], climbs: [] }).curves).toHaveLength(12);
+    // A default stretch waits to know when the activities start.
+    expect(askNeeds("power 5m per mese", { ...ctx, climbs: [] }).curves).toEqual([]);
     expect(askNeeds("grafico km", { ...ctx, climbs: [] }).curves).toEqual([]);
     expect(chartWellnessSpan(chartAsked("grafico km", ctx)!, today)).toBeNull();
     expect(chartWellnessSpan(chartAsked("hrv e km", ctx)!, today)).toEqual({
       from: "2025-12-01",
       to: today,
     });
+  });
+});
+
+describe("a default stretch begins when the data does", () => {
+  const body = (id: string, weight: number | null): Wellness =>
+    ({ id, weight, ctl: 0, atl: 0, hrv: null, sleepSecs: null }) as unknown as Wellness;
+  const built = (q: string, d: object) => buildChart(chartAsked(q, ctx)!, { ...ctx, ...d });
+  const panel = (q: string, d: object) => (built(q, d).view as ChartView).panels[0]!;
+
+  it("keeps months when there are enough of them", () => {
+    const p = panel("grafico km", { acts: [act("2026-06-07", 40)] });
+    expect(p.points).toHaveLength(6);
+    expect(p.points[0]!.value).toBe(40);
+    expect(built("grafico km", { acts: [act("2026-06-07", 40)] }).title).toContain("since 7 June");
+  });
+  it("goes finer when months would be too few", () => {
+    const p = panel("grafico km", { acts: [act("2026-10-17", 40)] });
+    expect(p.points).toHaveLength(4);
+    expect(p.points[0]!.value).toBe(40);
+    expect(panel("grafico km", { acts: [act("2026-11-05", 40)] }).points).toHaveLength(7);
+  });
+  it("never goes shorter than a week", () => {
+    const p = panel("grafico km", { acts: [act(today, 40)] });
+    expect(p.points).toHaveLength(7);
+    expect(p.points.at(-1)!.value).toBe(40);
+  });
+  it("keeps a period that was said", () => {
+    const p = panel("km per mese", { acts: [act("2026-10-17", 40)] });
+    expect(p.points).toHaveLength(2);
+  });
+  it("leaves a named stretch whole", () => {
+    expect(panel("grafico km 2026", { acts: [act("2026-10-17", 40)] }).points).toHaveLength(11);
+    expect(built("grafico km 2026", { acts: [act("2026-10-17", 40)] }).title).not.toContain(
+      "since",
+    );
+  });
+  it("keeps a long break visible", () => {
+    const p = panel("grafico km", { acts: [act("2019-03-03", 40), act("2026-10-17", 30)] });
+    expect(p.points).toHaveLength(12);
+  });
+  it("reads the body from its readings", () => {
+    const days = [body("2026-10-08", 70), body("2026-10-09", null), body("2026-10-10", 69)];
+    const p = panel("peso", { chartWellness: { days } });
+    expect(p.points).toHaveLength(31);
+    expect(p.points[0]!.value).toBe(70);
+    expect(built("peso", { chartWellness: { days } }).title).toContain("since 8 October");
+  });
+  it("isn't fooled by rows of zero before the first activity", () => {
+    const days = [body("2026-08-20", null), body("2026-10-20", null)];
+    const p = panel("forma", { acts: [act("2026-10-20", 30)], chartWellness: { days } });
+    expect(p.points).toHaveLength(19);
+  });
+  it("counts only the sport named", () => {
+    const acts = [act("2025-01-01", 40), act("2026-10-01", 30, "Run")];
+    expect(panel("grafico km", { acts }).points).toHaveLength(12);
+    expect(panel("grafico km corsa", { acts }).points[0]!.value).toBe(30);
+    expect(panel("grafico km corsa", { acts }).points.length).toBeLessThan(12);
+  });
+  it("waits while the data isn't read", () => {
+    expect(built("grafico km", {}).view).toMatchObject({ loading: true });
+    expect(panel("grafico km", {}).points).toHaveLength(12);
+  });
+  it("reads curves only from the first ride, on the periods it draws", () => {
+    const acts = [{ ...act("2026-06-07", 40), icu_average_watts: 200 }] as Activity[];
+    const a = chartAsked("power 5m per mese", ctx)!;
+    const need = chartCurves(a, { ...ctx, acts });
+    expect(need).toHaveLength(6);
+    const curve = { secs: [300], watts: [280] } as unknown as PowerCurve;
+    const curveReads = Object.fromEntries(need.map((c) => [curveKey(c), { curve }]));
+    const v = buildChart(a, { ...ctx, acts, curveReads }).view as ChartView;
+    expect(v.loading).toBeFalsy();
+    expect(v.panels[0]!.points).toHaveLength(6);
+  });
+  it("offers nowhere there's nothing to see", () => {
+    const labels = chartRows("grafico km", {
+      ...ctx,
+      acts: [act("2026-06-07", 40)],
+    })[0]!.follow!.map((c) => c.label);
+    expect(labels).not.toContain("2025");
+    expect(labels.some((l) => l.startsWith("‹"))).toBe(false);
+    expect(labels).toContain("Week");
+    const body2 = chartRows("peso", {
+      ...ctx,
+      chartWellness: { days: [body("2026-10-08", 70)] },
+    })[0]!.follow!.map((c) => c.label);
+    expect(body2).toContain("2025");
+  });
+  it("an empty account has no big number", () => {
+    expect(built("grafico km", { acts: [] }).value).toBeUndefined();
   });
 });

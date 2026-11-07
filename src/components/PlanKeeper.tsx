@@ -18,7 +18,7 @@ function Keeper() {
   const qc = useQueryClient();
   const online = useOnline();
   const { ctx, executions, today } = usePlan();
-  const due = !!ctx && fillDue(ctx.note, today);
+  const due = !!ctx && fillDue(ctx.note, today, ctx.input.races);
   useEffect(() => {
     if (!ctx || !executions || !online || !due || ranOn === today) return;
     ranOn = today;

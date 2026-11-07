@@ -56,8 +56,20 @@ function Plot({ p, height, legend }: { p: ChartPanel; height: string; legend: bo
   const formatter = (v: unknown, name: unknown) => [shown(p, v as number), name as string] as const;
   const name = p.names?.[0] ?? p.title;
   const first = p.names ? FIRST : "var(--primary)";
-  const dot = (fill: string) =>
-    p.draw === "points" ? { r: 4, fill, stroke: "var(--card)", strokeWidth: 2 } : false;
+  // A reading with nothing next to it has no line to be on: it gets a dot, or someone weighing in weekly would see nothing.
+  const dot = (fill: string, key: "value" | "other") =>
+    p.draw === "points"
+      ? { r: 4, fill, stroke: "var(--card)", strokeWidth: 2 }
+      : ({ cx, cy, index, key: id }: { cx?: number; cy?: number; index: number; key?: string }) =>
+          p.points[index]?.[key] != null &&
+          p.points[index - 1]?.[key] == null &&
+          p.points[index + 1]?.[key] == null &&
+          cx != null &&
+          cy != null ? (
+            <circle key={id} cx={cx} cy={cy} r={2.5} fill={fill} />
+          ) : (
+            <g key={id} />
+          );
   return (
     <div className={height}>
       <ResponsiveContainer width="100%" height="100%">
@@ -100,7 +112,7 @@ function Plot({ p, height, legend }: { p: ChartPanel; height: string; legend: bo
               stroke={first}
               strokeWidth={2}
               {...motion}
-              dot={dot(first)}
+              dot={dot(first, "value")}
             />
           )}
           {p.names &&
@@ -119,7 +131,7 @@ function Plot({ p, height, legend }: { p: ChartPanel; height: string; legend: bo
                 stroke={SECOND}
                 strokeWidth={2}
                 {...motion}
-                dot={dot(SECOND)}
+                dot={dot(SECOND, "other")}
               />
             ))}
         </ComposedChart>
@@ -128,7 +140,11 @@ function Plot({ p, height, legend }: { p: ChartPanel; height: string; legend: bo
   );
 }
 
-const hasData = (p: ChartPanel) => p.points.some((d) => d.value != null || d.other != null);
+/** Bars of nothing aren't data: a total is 0 on a day with no activity, where a level is simply missing. */
+const hasData = (p: ChartPanel) =>
+  p.points.some((d) =>
+    p.draw === "bars" ? !!d.value || !!d.other : d.value != null || d.other != null,
+  );
 
 /** The chart alone, with nothing but what was asked around it; whether it's read yet or there's nothing to draw is said. */
 export function ChartPlot({

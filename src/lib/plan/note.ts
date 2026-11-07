@@ -68,6 +68,8 @@ export type PlanNote = {
   /** Days someone cleared by hand: a check doesn't fill them again. */
   declined?: string[] | undefined;
   pastWeeks?: NoteWeek[] | undefined;
+  /** A season's races as last taken into account, to notice when they change. */
+  seenRaces?: string[] | undefined;
 };
 
 const dosesSchema = z.object(
@@ -136,6 +138,7 @@ const noteSchema = z.object({
       }),
     )
     .optional(),
+  seenRaces: z.array(z.string()).optional(),
 });
 
 /** A short fingerprint, to notice a changed text. */

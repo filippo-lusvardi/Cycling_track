@@ -89,6 +89,20 @@ export const racesQuery = (today: string) =>
     staleTime: 5 * 60_000,
   });
 
+/**
+ * Races as far ahead as a season reaches, for the plan alone: the focus and suggestions keep to `racesQuery`. It looks back past
+ * last week, for the recovery week after an A race.
+ */
+export const planRacesQuery = (today: string) =>
+  queryOptions({
+    queryKey: ["events", "plan-races", today],
+    queryFn: async () =>
+      (await getEvents({ oldest: addDays(today, -8), newest: addDays(today, 400) })).filter((e) =>
+        /^RACE_[ABC]$/.test(e.category),
+      ),
+    staleTime: 5 * 60_000,
+  });
+
 /** Thresholds as the account's source holds them, for editing: read fresh, not the day-old zones. */
 export const thresholdsQuery = (sport: MainSport) =>
   queryOptions({

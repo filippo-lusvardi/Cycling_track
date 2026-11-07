@@ -194,7 +194,8 @@ function PlotPage({ plot, sport }: { plot: Plot; sport: MainSport }) {
     </p>
   );
   // A chart only one sport has is that sport's; the two they share follow the sport being looked at.
-  const runOnly = (RUN_PLOTS as readonly Plot[]).includes(plot) && plot !== "fitness" && plot !== "zones";
+  const runOnly =
+    (RUN_PLOTS as readonly Plot[]).includes(plot) && plot !== "fitness" && plot !== "zones";
   const asRun = runOnly || (sport === "run" && (plot === "fitness" || plot === "zones"));
   return (
     <div className="space-y-6">
@@ -608,9 +609,17 @@ function EftpSection() {
   if (series.length < 2) return null;
   const latest = series.at(-1)!;
   const yearAgo = series[0]!;
+  // Only as far back as it goes: someone who started in the summer hasn't had a year.
+  const since =
+    yearAgo.date > addDays(isoDate(new Date()), -330)
+      ? t(
+          `since ${format(parseISO(yearAgo.date), "d MMM")}`,
+          `dal ${format(parseISO(yearAgo.date), "d MMM")}`,
+        )
+      : t("in a year", "in un anno");
   return (
     <Panel
-      title={`eFTP · ${latest.eftp} W (${latest.eftp - yearAgo.eftp >= 0 ? "+" : ""}${latest.eftp - yearAgo.eftp} W ${t("in a year", "in un anno")})`}
+      title={`eFTP · ${latest.eftp} W (${latest.eftp - yearAgo.eftp >= 0 ? "+" : ""}${latest.eftp - yearAgo.eftp} W ${since})`}
     >
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">

@@ -71,8 +71,15 @@ describe("a sentence on its way", () => {
     for (const s of typing("grafico km marzo 2026").filter((x) => x.q.length > 16))
       expect(s.row?.q, s.q).toMatch(/March 2026|last 12 months/);
   });
+  it("a distribution holds on its way", () => {
+    const steps = typing("distribuzione fc questa settimana");
+    const at = steps.findIndex((x) => x.row?.id.startsWith("distribution"));
+    expect(at).toBeGreaterThan(-1);
+    for (const x of steps.slice(at)) expect(x.row, x.q).not.toBeNull();
+    expect(steps.at(-1)!.row?.id).toBe("distribution-hr");
+  });
   it("ends on what was asked", () => {
-    expect(typing("grafico km per settimana").at(-1)!.row?.q).toContain("12 weeks");
+    expect(typing("grafico km per settimana").at(-1)!.row?.q).toContain("since 2 November");
     expect(typing("grafico km marzo 2026").at(-1)!.holding).toBe(false);
   });
   it("a pause lets go only of words that can't become anything", () => {

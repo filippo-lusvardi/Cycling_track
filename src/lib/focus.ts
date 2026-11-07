@@ -24,7 +24,7 @@ import { isSport, type MainSport } from "./sport";
 import { addDays } from "./training";
 
 /** Weight of a race by priority, and of the complete-cyclist profile that is always there. */
-const PRIORITY_WEIGHT = { A: 3, B: 2, C: 1 } as const;
+export const PRIORITY_WEIGHT = { A: 3, B: 2, C: 1 } as const;
 const COMPLETE_WEIGHT = 2;
 /** Races count fully up to this many days ahead, then fade to nothing. */
 const NEAR_DAYS = 56;

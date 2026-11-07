@@ -5,7 +5,8 @@ import { useSuggestInput } from "@/hooks/use-suggest-input";
 import { compareRides } from "@/lib/plan/actions";
 import { ridesToCompare, type PlanContext } from "@/lib/plan/engine";
 import { loadPlan } from "@/lib/plan/store";
-import { eventsQuery } from "@/lib/queries";
+import { eventsQuery, planRacesQuery } from "@/lib/queries";
+import { raceFrom } from "@/lib/races";
 import { hasSource } from "@/lib/source";
 import { addDays, isoDate } from "@/lib/training";
 
@@ -18,18 +19,29 @@ export const planQuery = (today: string) => ({
 export function usePlan() {
   const today = isoDate(new Date());
   const enabled = hasSource();
-  const input = useSuggestInput();
+  const suggestInput = useSuggestInput();
   const plan = useQuery({ ...planQuery(today), enabled });
+  const raceEvents = useQuery({ ...planRacesQuery(today), enabled });
+  // Plans with no race in mind see what they always saw, so a far race doesn't change their sessions.
+  const goal = plan.data?.note.settings.goal;
+  const racing = goal !== "fitter" && goal !== "healthy";
+  const input = useMemo(
+    () =>
+      suggestInput && raceEvents.data && racing
+        ? { ...suggestInput, races: raceEvents.data.map(raceFrom) }
+        : suggestInput,
+    [suggestInput, raceEvents.data, racing],
+  );
   const calendar = useQuery({
     ...eventsQuery({ oldest: addDays(today, -21), newest: addDays(today, 21) }),
     enabled,
   });
   const ctx = useMemo<PlanContext | null>(
     () =>
-      plan.data && input && calendar.data
+      plan.data && input && calendar.data && raceEvents.data
         ? { note: plan.data.note, input, calendar: calendar.data }
         : null,
-    [plan.data, input, calendar.data],
+    [plan.data, input, calendar.data, raceEvents.data],
   );
   const rides = useMemo(() => (ctx ? ridesToCompare(ctx) : []), [ctx]);
   const executions = useQuery({
@@ -42,8 +54,8 @@ export function usePlan() {
     today,
     input,
     stored: plan.data ?? null,
-    loading: plan.isLoading || calendar.isLoading || !input,
-    failed: plan.isError || calendar.isError,
+    loading: plan.isLoading || calendar.isLoading || raceEvents.isLoading || !input,
+    failed: plan.isError || calendar.isError || raceEvents.isError,
     calendar: calendar.data ?? [],
     ctx,
     executions: executions.data ?? null,

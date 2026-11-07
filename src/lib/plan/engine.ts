@@ -2,15 +2,25 @@
 // anything, and a proposal is worked out afresh each time rather than kept.
 import { mondayOf } from "../focus";
 import { isPlanned, type Activity, type PlannedEvent } from "../intervals";
+import type { Race } from "../races";
 import { comingBack, hardActivity, hardEvent, hrvLowWeek, type SuggestInput } from "../suggest";
 import { addDays } from "../training";
 import type { Execution } from "./execution";
 import { applyReview, lowMornings, review, rollWeek } from "./evaluate";
-import { easyRide, layoutWeek, longRide, recoveryRide, type TakenDay } from "./layout";
+import { easyRide, layoutWeek, longRide, recoveryRide, weekSeconds, type TakenDay } from "./layout";
 import { matchSessions } from "./match";
 import { textHash, type NoteSession, type PlanNote } from "./note";
 import { weekShape } from "./phase";
+import {
+  racesChanged,
+  seasonFocus,
+  seasonLongShare,
+  seasonOver,
+  seasonProfile,
+  seenRacesOf,
+} from "./season";
 import { history } from "./start-level";
+import { riddenEnough, steppedVolume } from "./volume";
 import type {
   PlanSettings,
   PlanState,
@@ -64,11 +74,13 @@ export function catchUp(ctx: PlanContext): PlanState {
   const low = lowMornings(input.wellness, input.today) >= 3;
   let m = state.weekRolled ?? mondayOf(state.startedOn);
   while (m < now) {
-    const shape = weekShape(m, note.settings.goal, input.races, state);
+    const shape = weekShape(m, note.settings, input.races, state);
     const dates = weekDates(m);
     const seconds = note.sessions
       .filter((s) => dates.includes(s.date))
       .reduce((n, s) => n + s.seconds, 0);
+    const planned = weekSeconds(shape, state, note.settings);
+    const steady = state.lowersThisCycle === 0 && riddenEnough(input.acts, m, planned);
     state = rollWeek(state, {
       monday: m,
       recovery: shape.recovery,
@@ -76,6 +88,12 @@ export function catchUp(ctx: PlanContext): PlanState {
       lowEnding: low,
     });
     m = addDays(m, 7);
+    // The season's climb, for weeks that went as they should.
+    if (steady && !low)
+      state = {
+        ...state,
+        weeklySeconds: steppedVolume(state.weeklySeconds, m, note.settings, input.races, state),
+      };
   }
   return { ...state, weekRolled: now };
 }
@@ -144,12 +162,18 @@ export function layoutFor(ctx: PlanContext, monday: string, state: PlanState, ke
       .filter((s) => s.date >= addDays(monday, -14) && s.date < monday)
       .map((s) => s.workoutId),
   );
+  const shape = weekShape(monday, settings, input.races, state);
+  const season = settings.goal === "season" ? settings.season : undefined;
+  const profile = season ? seasonProfile(season, input.races, input.today) : null;
+  const preparing = shape.phase === "build" || shape.phase === "specific";
   return layoutWeek({
     today: input.today,
-    shape: weekShape(monday, settings.goal, input.races, state),
+    shape,
+    longShare: seasonLongShare(profile, shape.phase),
+    raceAhead: !!season && preparing && !seasonOver(season, input.races, input.today),
     settings,
     state,
-    focus: input.focus,
+    focus: profile && !input.focusPinned ? seasonFocus(profile) : input.focus,
     pool: input.pool,
     races: input.races,
     taken: takenIn(ctx, monday, own, frozen),
@@ -233,9 +257,12 @@ export function lastReviewDay(today: string) {
   return today;
 }
 
+const seasonRacesChanged = (note: PlanNote, races: Race[], today: string) =>
+  note.settings.goal === "season" && racesChanged(note.seenRaces, races, today);
+
 /** Whether a check has come round since the next seven days were last written. */
-export const fillDue = (note: PlanNote, today: string) =>
-  (!!note.replan && note.lastFill !== today) ||
+export const fillDue = (note: PlanNote, today: string, races: Race[]) =>
+  ((!!note.replan || seasonRacesChanged(note, races, today)) && note.lastFill !== today) ||
   lastReviewDay(today) > (note.lastFill ?? note.state.startedOn);
 
 /** Whether a review has come round since the last one. */
@@ -310,6 +337,8 @@ export type Proposal = {
   changes: ProposalChange[];
   /** Nothing on the calendar changes: it can just be noted, with nothing to ask. */
   silent: boolean;
+  /** A season's races as this proposal took them into account. */
+  seenRaces?: string[] | undefined;
 };
 
 /** What this state would change among the sessions already on the calendar, after today. */
@@ -336,18 +365,22 @@ export function proposalFor(
 ): Proposal | null {
   const { note, input } = ctx;
   const state = catchUp(ctx);
-  if (note.replan) {
+  const seen =
+    note.settings.goal === "season" ? { seenRaces: seenRacesOf(input.races, input.today) } : {};
+  const changedRaces = seasonRacesChanged(note, input.races, input.today);
+  if (note.replan || changedRaces) {
     const changes = changesFor(ctx, state);
     return {
-      review: { result: "hold", reason: "days-changed" },
+      review: { result: "hold", reason: note.replan ? "days-changed" : "races-changed" },
       state,
       changes,
       silent: !changes.length,
+      ...seen,
     };
   }
   if (!reviewDue(state, input.today)) return null;
   const monday = mondayOf(input.today);
-  const shape = weekShape(monday, note.settings.goal, input.races, state);
+  const shape = weekShape(monday, note.settings, input.races, state);
   const outcome = review({
     outcomes: outcomesFor(ctx, executions),
     lowMornings: lowMornings(input.wellness, input.today),
@@ -358,7 +391,7 @@ export function proposalFor(
   });
   const next = applyReview(state, outcome.result, input.today);
   const changes = changesFor(ctx, next);
-  return { review: outcome, state: next, changes, silent: !changes.length };
+  return { review: outcome, state: next, changes, silent: !changes.length, ...seen };
 }
 
 /** An easier ride in place of today's hard session, of a length that fits it. */

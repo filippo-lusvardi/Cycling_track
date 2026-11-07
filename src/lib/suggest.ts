@@ -73,6 +73,8 @@ export type SuggestInput = {
   weight?: number | null | undefined;
   /** When the current block began; null when you chose it yourself. */
   blockSince?: string | null | undefined;
+  /** The focus is one you pinned, not one worked out. */
+  focusPinned?: boolean | undefined;
 };
 
 export type SuggestPick = {

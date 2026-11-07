@@ -64,6 +64,10 @@ export type LayoutInput = {
   recentIds?: ReadonlySet<string>;
   longestSeconds: number;
   th?: Thresholds;
+  /** A season's say in how much of the week the long ride takes. */
+  longShare?: number | undefined;
+  /** A season's race workouts are wanted even before a race has a date. */
+  raceAhead?: boolean | undefined;
 };
 
 const hms = (s: number) => {
@@ -180,7 +184,7 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
 
   // What's settled: the past, races, what's already there. Anything else with time free is open.
   const open: string[] = [];
-  const raceAhead = races.some((r) => r.date >= today);
+  const raceAhead = !!input.raceAhead || races.some((r) => r.date >= today);
   for (const date of dates) {
     const role = dayRole(races, date);
     if (date < today) set(date, "past");
@@ -203,7 +207,7 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
   // Long rides, on the days chosen for them.
   const longs = open.filter((d) => at(d).long);
   const longest = input.longestSeconds ? input.longestSeconds * LONG_GROWTH : LONG_WITH_NO_HISTORY;
-  const share = longs.length > 1 ? TWO_LONG_SHARE : LONG_SHARE;
+  const share = longs.length > 1 ? TWO_LONG_SHARE : (input.longShare ?? LONG_SHARE);
   const longPlaced: string[] = taken.filter((d) => d.long).map((d) => d.date);
   for (const date of longs) {
     const seconds = floorQuarter(Math.min(at(date).minutes * 60, target * share, longest));

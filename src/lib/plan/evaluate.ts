@@ -100,9 +100,10 @@ export function applyReview(state: PlanState, result: ReviewResult, today: strin
   const next: PlanState = { ...state, lastReview: today };
   if (result === "raise") {
     next.doses = scale(state.doses, RAISE);
-    next.weeklySeconds = Math.min(
-      state.weeklySeconds * RAISE,
-      state.lastBuildSeconds * MOST_GROWTH,
+    // Never below where it is: the last week's sessions can add up to less than the week was meant to hold.
+    next.weeklySeconds = Math.max(
+      state.weeklySeconds,
+      Math.min(state.weeklySeconds * RAISE, state.lastBuildSeconds * MOST_GROWTH),
     );
     return next;
   }

@@ -64,7 +64,7 @@ const mean = (xs: number[]) =>
 export function weekLine(ctx: PlanContext, monday: string, lines: SessionLine[]): NoteWeek | null {
   if (!lines.length) return null;
   const { note, input } = ctx;
-  const shape = weekShape(monday, note.settings.goal, input.races, note.state);
+  const shape = weekShape(monday, note.settings, input.races, note.state);
   const score = mean(lines.flatMap((l) => (l.score != null ? [l.score] : [])));
   return {
     monday,

@@ -298,7 +298,8 @@ export const hereTarget = (ctx: ReadContext): Target | null => {
 const DISTRIBUTION = /\b(?:distribuzione|distribution|istogramma|histogram)\b/;
 const ZONES_WORD = /\b(?:zone|zones)\b/;
 const NOT_A_DISTRIBUTION =
-  /\b(?:soglia|threshold|lthr|riposo|resting|z[1-7]|curva|curve|grafico|chart|ftp|eftp|di sempre|all time|all-time|vs|versus|contro|confronta|compare|rispetto)\b/;
+  /\b(?:soglia|threshold|lthr|riposo|resting|z[1-7]|curva|curve|ftp|eftp|di sempre|all time|all-time|vs|versus|contro|confronta|compare|rispetto)\b/;
+const CHART_WORDS = /\b(?:grafico|grafici|chart|charts)\b/g;
 const RECENT_DISTRIBUTION_DAYS = 28;
 
 export type AskedDistribution = {
@@ -308,8 +309,10 @@ export type AskedDistribution = {
 };
 
 /** "distribuzione fc oggi", "zone marzo": how time was spread. "zone" alone stays the zones' own page. */
-export function readDistribution(typed: string, ctx: ReadContext): AskedDistribution | null {
-  if (NOT_A_DISTRIBUTION.test(typed)) return null;
+export function readDistribution(said: string, ctx: ReadContext): AskedDistribution | null {
+  if (NOT_A_DISTRIBUTION.test(said)) return null;
+  // A distribution is a chart too: "grafico distribuzione fc".
+  const typed = said.replace(CHART_WORDS, " ");
   const dist = DISTRIBUTION.test(typed);
   if (!dist && !ZONES_WORD.test(typed)) return null;
   let s = typed.replace(DISTRIBUTION, " ").replace(ZONES_WORD, " ");
@@ -328,8 +331,7 @@ export function readDistribution(typed: string, ctx: ReadContext): AskedDistribu
   if (!dist) return null;
   const here = hereTarget(ctx);
   if (here) return { metric, target: here, onlySport: sport };
-  // "distribuzione" alone is the chart's own name; with a metric, your last few weeks.
-  if (!metric) return null;
+  // Said with no time, your last few weeks.
   return {
     metric,
     target: {

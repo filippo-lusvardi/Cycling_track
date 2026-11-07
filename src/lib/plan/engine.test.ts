@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Activity, PlannedEvent } from "../intervals";
+import type { Race } from "../races";
 import { buildPool, type SuggestInput } from "../suggest";
 import { addDays } from "../training";
 import { executionOf } from "./execution";
@@ -9,6 +10,7 @@ import {
   easierToday,
   fillDue,
   lastReviewDay,
+  layoutFor,
   proposalFor,
   reconcile,
   reviewDue,
@@ -17,6 +19,7 @@ import {
   type PlanContext,
 } from "./engine";
 import { textHash, type NoteSession, type PlanNote } from "./note";
+import { seenRacesOf } from "./season";
 import { startState } from "./start-level";
 import type { DayPlan, PlanSettings } from "./types";
 
@@ -177,14 +180,14 @@ describe("the next seven days", () => {
   it("are due at each check, once", () => {
     expect(lastReviewDay("2026-11-11")).toBe("2026-11-09");
     expect(lastReviewDay("2026-11-12")).toBe("2026-11-12");
-    expect(fillDue(note([], { lastFill: "2026-11-09" }), today)).toBe(true);
-    expect(fillDue(note([], { lastFill: today }), today)).toBe(false);
-    expect(fillDue(note([], { lastFill: today }), addDays(today, 3))).toBe(false);
-    expect(fillDue(note([], { lastFill: today }), addDays(today, 4))).toBe(true);
+    expect(fillDue(note([], { lastFill: "2026-11-09" }), today, [])).toBe(true);
+    expect(fillDue(note([], { lastFill: today }), today, [])).toBe(false);
+    expect(fillDue(note([], { lastFill: today }), addDays(today, 3), [])).toBe(false);
+    expect(fillDue(note([], { lastFill: today }), addDays(today, 4), [])).toBe(true);
   });
   it("are due again when the days or the goal change", () => {
-    expect(fillDue(note([], { lastFill: null, replan: true }), today)).toBe(true);
-    expect(fillDue(note([], { lastFill: today, replan: true }), today)).toBe(false);
+    expect(fillDue(note([], { lastFill: null, replan: true }), today, [])).toBe(true);
+    expect(fillDue(note([], { lastFill: today, replan: true }), today, [])).toBe(false);
   });
 });
 
@@ -284,5 +287,69 @@ describe("swapping and going back", () => {
     expect(workoutById("plan-easy-75", pool, true)!.type).toBe("VirtualRide");
     expect(workoutById("c-threshold-4x10", pool, false)!.name).toBeTruthy();
     expect(workoutById("gone", pool, false)).toBeNull();
+  });
+});
+
+describe("a season's races", () => {
+  const seasonSettings: PlanSettings = {
+    ...settings,
+    goal: "season",
+    season: { months: ["2027-05"], kinds: ["crit"] },
+  };
+  const race = (date: string, priority: "A" | "B" = "A"): Race => ({
+    id: date,
+    date,
+    name: "Gara",
+    priority,
+    info: { discipline: "road", kind: "granfondo", minutes: null, sprint: false },
+    notes: "",
+    type: "Ride",
+  });
+  const seasonNote = (over: Partial<PlanNote> = {}) =>
+    note([], { settings: seasonSettings, lastFill: monday, seenRaces: [], ...over });
+  const ctxWith = (n: PlanNote, races: Race[]): PlanContext => ({
+    note: n,
+    input: input({ races, today: "2026-11-10" }),
+    calendar: [],
+  });
+
+  it("calls for a check when a race is added, once a day", () => {
+    const n = seasonNote();
+    expect(fillDue(n, "2026-11-10", [])).toBe(false);
+    expect(fillDue(n, "2026-11-10", [race("2027-05-16")])).toBe(true);
+    expect(fillDue({ ...n, lastFill: "2026-11-10" }, "2026-11-10", [race("2027-05-16")])).toBe(
+      false,
+    );
+  });
+
+  it("doesn't care about races on another goal", () => {
+    const n = note([], { lastFill: monday, seenRaces: [] });
+    expect(fillDue(n, "2026-11-10", [race("2027-05-16")])).toBe(false);
+  });
+
+  it("says the races changed, and takes the new ones into account", () => {
+    const races = [race("2027-05-16")];
+    const p = proposalFor(ctxWith(seasonNote(), races), new Map())!;
+    expect(p.review).toEqual({ result: "hold", reason: "races-changed" });
+    expect(p.seenRaces).toEqual(seenRacesOf(races, "2026-11-10"));
+  });
+
+  it("works the hard sessions out from the kinds, unless a focus is pinned", () => {
+    const kindOf = (over: Partial<SuggestInput>) => {
+      const days = layoutFor(
+        {
+          note: seasonNote({
+            settings: { ...seasonSettings, season: { months: ["2026-12"], kinds: ["crit"] } },
+          }),
+          input: input({ focus: "aerobic", today: "2026-11-23", ...over }),
+          calendar: [],
+        },
+        "2026-11-23",
+        { ...startState({ today: "2026-11-02", acts: history, settings }), hardCap: 2 },
+      );
+      return days.filter((x) => x.role === "hard").map((x) => x.workout!.kind);
+    };
+    expect(kindOf({})).toContain("anaerobic");
+    expect(kindOf({ focusPinned: true })).not.toContain("anaerobic");
   });
 });

@@ -409,10 +409,21 @@ describe("distribution in the bar", () => {
     expect(rows("distribuzione fc", { here })[0]!.q).toBe("Distribuzione FC · Giro m");
     expect(rows("distribuzione", { here })).toHaveLength(2);
     expect(rows("distribuzione fc")[0]!.q).toBe("Distribuzione FC · Ultimi 28 giorni");
+    expect(rows("distribuzione").map((e) => e.q)).toEqual([
+      "Distribuzione potenza · Ultimi 28 giorni",
+      "Distribuzione FC · Ultimi 28 giorni",
+    ]);
+    expect(rows("istogramma")[0]!.id).toBe("distribution-power");
+  });
+
+  it("is a chart too", () => {
+    for (const q of ["grafico distribuzione fc oggi", "distribution chart hr today"])
+      expect(rows(q)[0], q).toMatchObject({ id: "distribution-hr", q: "Distribuzione FC · Oggi" });
+    expect(rows("grafico distribuzione")[0]!.id).toBe("distribution-power");
   });
 
   it("leaves alone what means something else, and is honest", () => {
-    for (const q of ["distribuzione", "zone", "zone fc", "zone soglia", "fc riposo distribuzione"])
+    for (const q of ["zone", "zone fc", "zone soglia", "fc riposo distribuzione"])
       expect(
         rows(q).filter((e) => e.id.startsWith("distribution")),
         q,
