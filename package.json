@@ -1,6 +1,7 @@
 {
   "name": "cirmolo",
   "private": true,
+  "license": "UNLICENSED",
   "sideEffects": false,
   "type": "module",
   "scripts": {

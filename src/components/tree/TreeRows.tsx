@@ -2,7 +2,7 @@
 // never has to hit a twig. Drawing stays inside each slice, so off-screen slices can skip painting.
 import { parseISO } from "date-fns";
 import { useId, type CSSProperties, type ReactNode } from "react";
-import { Bird, BIRD_KINDS, Owl, OWL_BOX, Squirrel, SQUIRREL_BOX } from "./Critters";
+import { Bird, BIRD_KINDS, Blossom, Owl, OWL_BOX, Squirrel, SQUIRREL_BOX } from "./Critters";
 import { dayHeight, LANE, MONTH_H, REST_STEP, restHeight, WEEK_H } from "./geometry";
 import { KINDS } from "@/lib/activity-kind";
 import type { OffKind } from "@/lib/intervals";
@@ -11,6 +11,7 @@ import { formatDuration } from "@/lib/training";
 import {
   leafSpots,
   LEVEL_COLOR,
+  perchOrder,
   perchSpots,
   rng,
   seedOf,
@@ -190,16 +191,19 @@ const leafColor = (b: TreeBranch) =>
     : `color-mix(in oklab, ${KINDS[b.kind].color} 55%, var(--muted-foreground))`;
 
 /** Leaves spread over the outer part of a curve, alternating sides; one per 100 m climbed. */
-function Leaves({
+export function Leaves({
   b,
   at,
   from,
   size,
+  opened = 2,
 }: {
   b: TreeBranch;
   at: (t: number) => readonly [number, number];
   from: number;
   size: number;
+  /** How far along the branch (0–1) the growing tip has been: each leaf opens just behind it. */
+  opened?: number;
 }) {
   const r = rng(b.seed);
   const fill = leafColor(b);
@@ -208,16 +212,20 @@ function Leaves({
       {leafSpots(b.leaves, from).map((t, i) => {
         const [x, y] = at(t);
         const off = (i % 2 ? 1 : -1) * (2 + r() * size);
+        const opacity = 0.75 + r() * 0.2;
+        const angle = b.side * (20 + r() * 50) * (off > 0 ? 1 : -1);
+        const open = 1 - (1 - Math.min(1, Math.max(0, (opened - t) / 0.22))) ** 3;
+        if (open <= 0) return null;
         return (
           <ellipse
             key={i}
             cx={x}
             cy={y + off}
-            rx={size}
-            ry={size * 0.53}
+            rx={size * open}
+            ry={size * 0.53 * open}
             fill={fill}
-            opacity={0.75 + r() * 0.2}
-            transform={`rotate(${b.side * (20 + r() * 50) * (off > 0 ? 1 : -1)} ${x} ${y + off})`}
+            opacity={opacity}
+            transform={`rotate(${angle} ${x} ${y + off})`}
           />
         );
       })}
@@ -259,7 +267,7 @@ function Guardian({
 }
 
 /** A bird species for each of a branch's brioches, at random but the same on every render and device. */
-function birdKinds(b: TreeBranch, n: number) {
+export function birdKinds(b: TreeBranch, n: number) {
   const r = rng(seedOf(`${b.id}:birds`));
   return Array.from({ length: n }, () => BIRD_KINDS[Math.floor(r() * BIRD_KINDS.length)]!);
 }
@@ -272,17 +280,41 @@ const GUARDIAN_SCALE = 1.45;
  * with the most climbing), low on the branch where there's headroom, then one bird per brioche on the free stretches
  * left, each a species picked at random from the ride (the same on every render and device).
  */
-function Birds({
+export function Birds({
   b,
   at,
   length,
   from,
+  away = 0,
 }: {
   b: TreeBranch;
   at: (t: number) => readonly [number, number];
   length: number;
   from: number;
+  /** The latest birds, still on their way here. */
+  away?: number;
 }) {
+  const { guardians, seats } = seatsOf(b, at, length, from);
+  return (
+    <>
+      {guardians}
+      {seats.slice(0, Math.max(0, seats.length - away)).map((s, i) => (
+        <Bird key={i} x={s.x} y={s.y} side={b.side} s={s.scale} kind={s.kind} />
+      ))}
+    </>
+  );
+}
+
+/**
+ * Where a branch's animals sit. Birds come in the order they arrived, each keeping its place and its species when
+ * another one lands.
+ */
+export function seatsOf(
+  b: TreeBranch,
+  at: (t: number) => readonly [number, number],
+  length: number,
+  from: number,
+) {
   const n = Math.min(b.brioches, MAX_BIRDS);
   // On a short branch (a phone, a short ride) birds shrink a little so they fit side by side, down to 2/3 size.
   const scale = Math.max(
@@ -304,20 +336,100 @@ function Birds({
     taken.push({ t, w: g.box.w * s });
     guardians.push(<Guardian key={g.kind} kind={g.kind} x={x} y={feet} side={b.side} s={s} />);
   }
-  const spots = perchSpots(n, b.leaves, from, length, 16 * scale, { taken });
+  const spots = perchOrder(n, b.leaves, from, length, 16 * scale, { taken });
   const kinds = birdKinds(b, spots.length);
+  const seats = spots.map((t, i) => {
+    const [x, y] = at(t);
+    return { x, y: y - b.thickness / 2, scale, kind: kinds[i]! };
+  });
+  return { guardians, seats };
+}
+
+/** The flowers a ride ridden during a bloom keeps on its branch. */
+export function BranchBlossoms({
+  b,
+  at,
+  from,
+  size,
+  count,
+  opened = 2,
+}: {
+  b: TreeBranch;
+  at: (t: number) => readonly [number, number];
+  from: number;
+  size: number;
+  count: number;
+  opened?: number;
+}) {
+  const r = rng(seedOf(`${b.id}:blossoms`));
   return (
     <>
-      {guardians}
-      {spots.map((t, i) => {
-        const [x, y] = at(t);
-        return (
-          <Bird key={i} x={x} y={y - b.thickness / 2} side={b.side} s={scale} kind={kinds[i]!} />
-        );
+      {Array.from({ length: count }, (_, i) => {
+        const along = from + ((1 - from) * (i + 0.5)) / count;
+        const [x, y] = at(along);
+        const white = r() >= 0.6;
+        const open = Math.min(1, Math.max(0, (opened - along) / 0.22));
+        return <Blossom key={i} x={x} y={y + (i % 2 ? 3.5 : -3.5)} s={size * open} white={white} />;
       })}
     </>
   );
 }
+
+/** A green shoot on the old wood, where the tree came back from a long gap. `at`: seconds since it burst. */
+export function ReturnShoot({
+  x,
+  y,
+  side,
+  scale = 1,
+  at = 9,
+}: {
+  x: number;
+  y: number;
+  side: -1 | 1;
+  scale?: number;
+  at?: number;
+}) {
+  const ease = (v: number) => 1 - (1 - Math.min(1, Math.max(0, v))) ** 3;
+  const p = ease(at / 0.75);
+  if (p <= 0) return null;
+  const [ex, ey] = [24 * p, -20 * p];
+  const [qx, qy] = [14 * p, -2 * p];
+  const on = (k: number) =>
+    [2 * (1 - k) * k * qx + k * k * ex, 2 * (1 - k) * k * qy + k * k * ey] as const;
+  return (
+    <g transform={`translate(${x} ${y}) scale(${side * scale} ${scale})`}>
+      <path
+        d={`M0,0 Q${qx},${qy} ${ex},${ey}`}
+        fill="none"
+        stroke="var(--spring)"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+      {[0.55, 0.8, 1].map((k, i) => {
+        const [lx, ly] = on(k);
+        const open = ease((at - 0.25 - i * 0.1) / 0.45);
+        return (
+          <g
+            key={i}
+            transform={`translate(${lx} ${ly}) rotate(${[-80, 10, -30][i]}) scale(${open})`}
+          >
+            <ellipse cx={4} rx={4.4} ry={1.9} fill="var(--spring)" />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/** What's held back on the tree while it arrives, drawn over it by components/tree/Arrivals. */
+export type Held = {
+  /** The ride whose sap is climbing: no branch or label until it has grown. */
+  ride: string | null;
+  /** The day whose return shoot is still to burst. */
+  shootDay: string | null;
+  /** Ride id → birds still flying in. */
+  birds: Record<string, number>;
+};
 
 const quad =
   (x0: number, y0: number, qx: number, qy: number, x1: number, y1: number) => (t: number) =>
@@ -326,34 +438,53 @@ const quad =
       (1 - t) ** 2 * y0 + 2 * (1 - t) * t * qy + t * t * y1,
     ] as const;
 
-function Branch({ b, cx, trunk, y0 }: { b: TreeBranch; cx: number; trunk: number; y0: number }) {
+/** A daily branch's curve, shared by the row that draws it and the sap that grows it. */
+export function branchCurve(b: TreeBranch, cx: number, trunk: number, y0: number) {
   const reach = Math.max(18, Math.min(cx - trunk / 2 - 14, 200) * b.length);
   const rise = Math.min(y0 - 10, reach * (0.2 + b.seed * 0.2));
   const x0 = cx + b.side * (trunk / 2 - 1);
   const [qx, qy] = [x0 + b.side * reach * 0.55, y0 - rise * 0.1];
   const [x1, y1] = [x0 + b.side * reach, y0 - rise];
+  return {
+    d: `M${x0},${y0} Q${qx},${qy} ${x1},${y1}`,
+    at: quad(x0, y0, qx, qy, x1, y1),
+    length: Math.hypot(x1 - x0, y1 - y0),
+  };
+}
+
+export const BRANCH_LEAVES_FROM = 0.4;
+export const BRANCH_LEAF = 4.2;
+export const BRANCH_BLOSSOMS = { count: 7, size: 1.7, from: 0.3 };
+export { YOUNG_WOOD };
+
+function Branch({
+  b,
+  cx,
+  trunk,
+  y0,
+  away,
+  bloomed,
+}: {
+  b: TreeBranch;
+  cx: number;
+  trunk: number;
+  y0: number;
+  away: number;
+  bloomed: boolean;
+}) {
+  const { d, at, length } = branchCurve(b, cx, trunk, y0);
   return (
     <g>
-      <path
-        d={`M${x0},${y0} Q${qx},${qy} ${x1},${y1}`}
-        fill="none"
-        stroke={YOUNG_WOOD}
-        strokeWidth={b.thickness}
-        strokeLinecap="round"
-      />
-      <Leaves b={b} at={quad(x0, y0, qx, qy, x1, y1)} from={0.4} size={4.2} />
-      <Birds
-        b={b}
-        at={quad(x0, y0, qx, qy, x1, y1)}
-        length={Math.hypot(x1 - x0, y1 - y0)}
-        from={0.4}
-      />
+      <path d={d} fill="none" stroke={YOUNG_WOOD} strokeWidth={b.thickness} strokeLinecap="round" />
+      <Leaves b={b} at={at} from={BRANCH_LEAVES_FROM} size={BRANCH_LEAF} />
+      {bloomed && <BranchBlossoms b={b} at={at} {...BRANCH_BLOSSOMS} />}
+      <Birds b={b} at={at} length={length} from={BRANCH_LEAVES_FROM} away={away} />
     </g>
   );
 }
 
 /** Text on the side opposite the branch, so labels and leaves never collide. */
-function Label({
+export function Label({
   cx,
   trunk,
   side,
@@ -394,11 +525,25 @@ function Label({
   );
 }
 
+/** A daily branch's two lines of text. */
+export function branchLabel(day: TreeDay, b: TreeBranch, quiet: boolean) {
+  return [
+    format(parseISO(day.date), "EEE d"),
+    formatDuration(b.minutes * 60),
+    b.climb >= 50 ? `${Math.round(b.climb)} m` : null,
+    b.load && !quiet ? String(Math.round(b.load)) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function DayRow({
   day,
   edge,
   w,
   quiet,
+  held,
+  bloomed,
   onOpen,
 }: {
   day: TreeDay;
@@ -406,11 +551,13 @@ export function DayRow({
   w: number;
   /** Quiet tree: no load numbers. */
   quiet: boolean;
+  held?: Held | null | undefined;
+  /** Rides ridden during a bloom. */
+  bloomed?: Set<string> | undefined;
   onOpen: () => void;
 }) {
   const cx = w / 2;
   const h = dayHeight(day.branches.length);
-  const date = format(parseISO(day.date), "EEE d");
   return (
     <Slice
       h={h}
@@ -422,22 +569,24 @@ export function DayRow({
         {day.off && <Knot cx={cx} trunk={day.trunk} y={h / 2} side={day.budSide} room={h} />}
         {day.branches.map((b, i) => {
           const y0 = LANE * (day.branches.length - i) - 8; // later rides sit higher
-          const parts = [
-            date,
-            formatDuration(b.minutes * 60),
-            b.climb >= 50 ? `${Math.round(b.climb)} m` : null,
-            b.load && !quiet ? String(Math.round(b.load)) : null,
-          ];
+          if (held?.ride === b.id) return <g key={b.id} data-branch={b.id} data-y0={y0} />;
           return (
-            <g key={b.id}>
-              <Branch b={b} cx={cx} trunk={day.trunk} y0={y0} />
+            <g key={b.id} data-branch={b.id} data-y0={y0}>
+              <Branch
+                b={b}
+                cx={cx}
+                trunk={day.trunk}
+                y0={y0}
+                away={held?.birds[b.id] ?? 0}
+                bloomed={!!bloomed?.has(b.id)}
+              />
               <Label
                 cx={cx}
                 trunk={day.trunk}
                 side={b.side}
                 y={y0 - 14}
                 title={b.name}
-                sub={parts.filter(Boolean).join(" · ")}
+                sub={branchLabel(day, b, quiet)}
               />
             </g>
           );
@@ -452,11 +601,16 @@ export function RestRow({
   days,
   edge,
   w,
+  shoot,
+  heldShoot,
   onOpen,
 }: {
   days: TreeDay[];
   edge: TrunkEdge;
   w: number;
+  /** A green shoot on these days' wood: the tree came back from a long gap just above. */
+  shoot?: boolean | undefined;
+  heldShoot?: boolean | undefined;
   onOpen: () => void;
 }) {
   const cx = w / 2;
@@ -507,8 +661,38 @@ export function RestRow({
             <circle key={d.date} cx={x} cy={y} r={2.6} fill="var(--pine)" opacity={0.7} />
           );
         })}
+        {shoot && (
+          <ShootSpot
+            x={cx + -days[0]!.budSide * (days[days.length - 1]!.trunk / 2 - 1)}
+            y={h - 4}
+            side={-days[0]!.budSide as 1 | -1}
+            scale={Math.min(1, (h - 4) / 24)}
+            held={heldShoot}
+          />
+        )}
       </svg>
     </Slice>
+  );
+}
+
+/** A return shoot, or while it's still to burst just the spot for it, found by the sap on its way up. */
+function ShootSpot({
+  x,
+  y,
+  side,
+  scale,
+  held,
+}: {
+  x: number;
+  y: number;
+  side: -1 | 1;
+  scale: number;
+  held?: boolean | undefined;
+}) {
+  return (
+    <g data-shoot data-x={x} data-y={y} data-side={side} data-scale={scale}>
+      {!held && <ReturnShoot x={x} y={y} side={side} scale={scale} />}
+    </g>
   );
 }
 
@@ -623,6 +807,9 @@ export function WeekRow({
   quiet,
   block,
   olderChapter,
+  bloomed,
+  shoot,
+  heldShoot,
   onOpen,
 }: {
   week: TreeWeek;
@@ -634,6 +821,11 @@ export function WeekRow({
   block?: Focus | undefined;
   /** Chapter of the week underneath, so the bark colour blends into it. */
   olderChapter: TreeWeek["chapter"] | undefined;
+  /** Rides ridden during a bloom. */
+  bloomed?: Set<string> | undefined;
+  /** A green shoot on this week's wood: the tree came back from a long gap here. */
+  shoot?: boolean | undefined;
+  heldShoot?: boolean | undefined;
   onOpen: () => void;
 }) {
   const cx = w / 2;
@@ -666,7 +858,16 @@ export function WeekRow({
           tint={CHAPTER_TINT[week.chapter]}
           tintBelow={olderChapter ? CHAPTER_TINT[olderChapter] : CHAPTER_TINT[week.chapter]}
         />
-        {week.count > 0 && <Bough week={week} cx={cx} />}
+        {week.count > 0 && <Bough week={week} cx={cx} bloomed={bloomed} />}
+        {shoot && (
+          <ShootSpot
+            x={cx + week.side * (week.trunk / 2 - 1)}
+            y={WEEK_H * 0.42}
+            side={week.side}
+            scale={0.8}
+            held={heldShoot}
+          />
+        )}
         {week.off && (
           <Knot cx={cx} trunk={week.trunk} y={WEEK_H * 0.4} side={week.side} room={WEEK_H * 0.8} />
         )}
@@ -698,7 +899,15 @@ const OLD_WOOD = "color-mix(in oklab, var(--bark) 80%, black)";
 /** This week's branches: new growth, a warmer, lighter brown than the old wood of past weeks. */
 const YOUNG_WOOD = "color-mix(in oklab, var(--bark) 82%, var(--birch))";
 
-function Bough({ week, cx }: { week: TreeWeek; cx: number }) {
+function Bough({
+  week,
+  cx,
+  bloomed,
+}: {
+  week: TreeWeek;
+  cx: number;
+  bloomed?: Set<string> | undefined;
+}) {
   const side = week.side;
   const y0 = WEEK_H * 0.68;
   const reach = Math.max(
@@ -755,6 +964,7 @@ function Bough({ week, cx }: { week: TreeWeek; cx: number }) {
               strokeLinecap="round"
             />
             <Leaves b={{ ...t, side }} at={at} from={0.2} size={3} />
+            {bloomed?.has(t.id) && <BranchBlossoms b={t} at={at} from={0.4} size={1.5} count={2} />}
             {t.brioches > 0 && (
               <Bird x={bx + side * 4} y={by - 1} side={side} s={1.1} kind={birdKinds(t, 1)[0]!} />
             )}

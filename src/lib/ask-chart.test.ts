@@ -11,6 +11,7 @@ import {
   niceTicks,
   periodsOf,
 } from "./ask-chart";
+import { mayContinue } from "./ask-complete";
 import { curveKey } from "./ask-efforts";
 import { intentEntries, type IntentData } from "./ask-intents";
 import type { ChartView } from "./ask-detail";
@@ -175,6 +176,101 @@ describe("what it draws", () => {
     const v = view("grafico km vs hrv");
     expect(v.panels).toHaveLength(2);
     expect(v.panels.map((p) => p.draw)).toEqual(["bars", "line"]);
+  });
+});
+
+describe("several measures over two stretches", () => {
+  const said = [
+    "grafico dislivello vs velocità 2025 vs 2026",
+    "grafico dislivello e velocità 2025 vs 2026",
+    "grafico dislivello e velocità 2025 e 2026",
+    "grafico dislivello, velocità, 2025 vs 2026",
+    "grafico 2025 vs 2026 dislivello e velocità",
+    "grafico 2025 vs 2026 dislivello vs velocità",
+    "grafico dislivello 2025 vs 2026 vs velocità",
+    "dislivello vs velocità 2025 vs 2026",
+    "dislivello e velocità per mese 2025 vs 2026",
+  ];
+  it.each(said)("%s reads the same", (q) => {
+    const a = chartAsked(q, ctx)!;
+    expect(a.measures.map((m) => m.key)).toEqual(["climb", "speed"]);
+    expect(a.span).toEqual({ from: "2025-01-01", to: "2025-12-31" });
+    expect(a.second).toEqual({ from: "2026-01-01", to: today });
+    expect(a.period).toBe("month");
+  });
+  it("draws one chart per measure, each with both stretches", () => {
+    const v = view(said[0]!, {
+      acts: [act("2025-02-03", 36), act("2026-02-03", 72)],
+    });
+    expect(v.panels.map((p) => p.draw)).toEqual(["bars", "points"]);
+    expect(v.panels.every((p) => p.names?.join() === "2025,2026")).toBe(true);
+    expect(v.panels[0]!.points[1]).toMatchObject({ value: 100, other: 100 });
+    expect(v.panels[1]!.points[1]).toMatchObject({ value: 36, other: 72 });
+  });
+  it("is said in its title, one sport counting for both", () => {
+    expect(chartRows(said[0]!, { ...ctx, acts: [] })[0]!.q).toBe(
+      "Climbing and Mean speed · 2025 and 2026",
+    );
+    const a = chartAsked("grafico km vs dislivello corsa marzo vs aprile per settimana", ctx)!;
+    expect(a.sport).toBe("run");
+    expect(a.period).toBe("week");
+    expect(a.measures.every((m) => m.sport === "run")).toBe(true);
+  });
+  it("reads each curve over both stretches", () => {
+    const a = chartAsked("grafico power 5m vs fc 5m 2025 vs 2026", ctx)!;
+    expect(chartCurves(a, ctx)).toHaveLength(2 * (12 + 11));
+    expect(chartAsked("grafico power 5m e fc 5m e power 20m 2025 vs 2026", ctx)).toBeNull();
+  });
+  it("needs the days of both", () => {
+    const a = chartAsked("grafico km e hrv marzo 2025 vs marzo 2026", ctx)!;
+    expect(chartWellnessSpan(a, today)).toMatchObject({ from: "2025-03-01" });
+  });
+  it.each([
+    ["grafico km 2025 vs hrv 2026"],
+    ["grafico km vs 2025"],
+    ["grafico 2025 vs km"],
+    ["grafico km 2024 vs 2025 vs 2026"],
+    ["grafico km vs hrv 2026 vs 2027"],
+    ["grafico km vs hrv 2025 vs oggi"],
+    ["grafico km vs hrv 2025 vs marzo 20"],
+    ["grafico km vs hrv vs"],
+    ["km marzo e hrv aprile"],
+  ])("%s isn't that", (q) => {
+    expect(chartAsked(q, ctx)).toBeNull();
+  });
+  it("a measure and a time on either side are one chart", () => {
+    expect(chartAsked("grafico km vs hrv 2025", ctx)?.span.from).toBe("2025-01-01");
+    expect(chartAsked("grafico km 2025 vs hrv", ctx)?.span.from).toBe("2025-01-01");
+  });
+  it("names its periods from the longer stretch", () => {
+    const [p] = view("grafico km 2026 vs 2025").panels;
+    expect(p!.points).toHaveLength(12);
+    expect(p!.points.at(-1)!.label).toBe("dec");
+  });
+  it("its chips keep both stretches", () => {
+    const data = { ...ctx, acts: [] };
+    const two = chartRows(said[0]!, data)[0]!.follow!;
+    for (const c of two) expect(chartAsked(c.query, ctx)?.second, c.query).toBeDefined();
+    const one = chartRows("grafico km 2025 vs 2026", data)[0]!.follow!;
+    const add = one.find((c) => c.label === "e dislivello")!;
+    expect(chartAsked(add.query, ctx)).toMatchObject({ second: { from: "2026-01-01" } });
+    expect(chartAsked(add.query, ctx)!.measures).toHaveLength(2);
+    const curve = chartRows("grafico power 5m 2025 vs 2026", data)[0]!.follow!;
+    const fc = curve.find((c) => c.label === "e fc 5m")!;
+    expect(chartAsked(fc.query, ctx)!.second).toBeDefined();
+  });
+  it("wins over other readings of the same words", () => {
+    const d = { ...ctx, acts: [], native: false, climbs: [] } as IntentData;
+    expect(intentEntries(said[0]!, d)[0]!.id).toBe("chart");
+    expect(intentEntries(said[7]!, d)[0]!.id).toBe("chart");
+    expect(intentEntries("km 2025 vs 2026", d)[0]?.id).not.toBe("chart");
+  });
+  it("a pause on vs holds the chart: it's half a sentence", () => {
+    expect(mayContinue("grafico km 2025 vs")).toBe(true);
+    expect(mayContinue("grafico km 2025 banane")).toBe(false);
+  });
+  it("doesn't take vs for a word it didn't understand", () => {
+    expect(chartLeftover("km 2025 vs banane", today)?.unknown).toEqual(["banane"]);
   });
 });
 

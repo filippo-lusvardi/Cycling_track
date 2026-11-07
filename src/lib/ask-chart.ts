@@ -191,6 +191,7 @@ const ALONE =
   /^(?:km|chilometri|kilometers|kilometres|ore|hours|dislivello|climbing|carico|load|hrv|peso|weight|grasso|sonno|sleep|fitness|ctl|fatica|fatigue|atl|forma|form|tsb)$/;
 /** This needs a length, so alone it asks for one. Power alone already answers, with a few points of its curve. */
 const HR_ALONE = /^(?:fc|hr|bpm|battiti)$/;
+const VS = /^(?:vs\.?|versus|contro)$/;
 const SPORT_WORD: [RegExp, MainSport][] = [
   [/^(?:uscita|uscite|pedalata|pedalate|ride|rides|giro|bici|bike)$/, "ride"],
   [/^(?:corsa|corse|run|runs)$/, "run"],
@@ -216,7 +217,7 @@ function takePeriod(s: string): { period: Period | null; rest: string } {
 
 type Side = {
   measures: Measure[];
-  time: { span: Span; q: string } | null;
+  times: { span: Span; q: string }[];
   sport: MainSport | null;
 };
 
@@ -264,18 +265,22 @@ function readSide(text: string, today: string): Side | null {
   if (lengths.length && !curves.length) return null;
   if (curves.length && !lengths.length) return null;
   curves.forEach((m, i) => (m.secs = lengths[lengths.length > 1 ? i : 0]!));
-  let time: Side["time"] = since
-    ? { span: since, q: t(`since ${since.from.slice(0, 4)}`, `dal ${since.from.slice(0, 4)}`) }
-    : null;
-  // Small words stay until the time is read: "dal 3 al 5 marzo" needs its "al".
-  if (others.some((w) => !FILLER.has(w))) {
-    if (time) return null;
-    const found = takeTime(others, today);
-    if (!found || found.rest.some((w) => !FILLER.has(w))) return null;
-    time = { span: { from: found.when.from, to: found.when.to }, q: found.when.q };
+  const times: Side["times"] = since
+    ? [{ span: since, q: t(`since ${since.from.slice(0, 4)}`, `dal ${since.from.slice(0, 4)}`) }]
+    : [];
+  // Small words stay until the time is read: "dal 3 al 5 marzo" needs its "al". Two can be said together: "2025 e 2026".
+  let left = others;
+  while (left.some((w) => !FILLER.has(w))) {
+    if (since || times.length === 2) return null;
+    const found = takeTime(left, today);
+    if (!found) return null;
+    times.push({ span: { from: found.when.from, to: found.when.to }, q: found.when.q });
+    left = found.rest;
   }
-  return { measures, time, sport };
+  return { measures, times, sport };
 }
+
+const hasCurve = (m: Measure) => m.key === "power" || m.key === "hr";
 
 const monthsBack = (today: string, n: number) =>
   dateFormat(addMonths(startOfMonth(parseISO(today)), -(n - 1)), "yyyy-MM-dd");
@@ -313,47 +318,56 @@ export function chartAsked(
   const said = words.some((w) => CHART_WORD.test(w));
   const noWord = words.filter((w) => !CHART_WORD.test(w)).join(" ");
   const { period, rest } = takePeriod(noWord);
-  const sides = rest.split(/ (?:vs\.?|versus|contro) /).map((p) => p.trim());
-  if (sides.length > 2) return null;
-  const left = readSide(sides[0]!, ctx.today);
-  if (!left || !left.measures.length) return null;
-  const right = sides[1] != null ? readSide(sides[1], ctx.today) : null;
-  if (sides[1] != null && !right) return null;
-  const alone = words.length === 1 && ALONE.test(words[0]!);
-  if (!said && !period && !alone && (right || left.time || left.measures.length < 2)) return null;
-
-  let second: { span: Span; q: string } | undefined;
-  const measures = [...left.measures];
-  if (right) {
-    // The other side says what's different: another measure, or another time.
-    if (right.measures.length && right.time) return null;
-    if (right.measures.length) measures.push(...right.measures);
-    else if (right.time && left.time) second = right.time;
-    else return null;
+  // Each "vs" sets apart measures or stretches, in any order: "km vs hrv 2025 vs 2026", "2025 vs 2026 km e hrv".
+  const parts = rest.split(/ (?:vs\.?|versus|contro) /);
+  const sides: Side[] = [];
+  for (const part of parts) {
+    const side = readSide(part.trim(), ctx.today);
+    if (!side || (!side.measures.length && !side.times.length)) return null;
+    sides.push(side);
   }
-  if (!measures.length || measures.length > 3) return null;
+  const measures = sides.flatMap((x) => x.measures);
+  const times = sides.flatMap((x) => x.times);
+  if (!measures.length || measures.length > 3 || times.length > 2) return null;
+  // "km 2025 vs hrv 2026" is two different questions, and "km vs 2025" has nothing to set 2025 against.
+  if (times.length === 2 && sides.filter((x) => x.times.length && x.measures.length).length === 2)
+    return null;
+  if (times.length === 1 && sides.some((x) => x.times.length && !x.measures.length)) return null;
   if (new Set(measures.map((m) => `${m.key}${m.secs ?? ""}`)).size !== measures.length) return null;
-  if (second && measures.length > 1) return null;
+  // Curves are one read per period, for each stretch: three of them over two stretches is too many.
+  if (times.length === 2 && measures.filter(hasCurve).length > 2) return null;
+
+  const alone = words.length === 1 && ALONE.test(words[0]!);
+  // Several measures over two stretches can't mean anything else; without a "vs", "km marzo e hrv aprile" could.
+  const plainly = parts.length > 1 && measures.length > 1 && times.length === 2;
+  if (
+    !said &&
+    !period &&
+    !alone &&
+    !plainly &&
+    (parts.length > 1 || times.length || measures.length < 2)
+  )
+    return null;
 
   const kinds = measures.map((m) => MEASURES[m.key].kind);
-  const sport = left.sport ?? right?.sport ?? null;
+  const sport = sides.find((x) => x.sport)?.sport ?? null;
   const within: Measure[] = measures.map((m) => (sport ? { ...m, sport } : m));
-  if (left.time) {
-    if (left.time.span.from > ctx.today) return null;
-    const span = { from: left.time.span.from, to: minDay(left.time.span.to, ctx.today) };
+  const seen: Span[] = [];
+  for (const { span } of times) {
+    if (span.from > ctx.today) return null;
+    const whole = { from: span.from, to: minDay(span.to, ctx.today) };
     // One day is a number, not a chart; and on the way to "marzo 2026", "marzo 20" isn't what's meant.
-    if (span.from === span.to) return null;
+    if (whole.from === whole.to) return null;
+    seen.push(whole);
+  }
+  const [span, second] = seen;
+  if (span) {
     return {
       measures: within,
       period: period ?? periodFor(span, kinds),
       span,
-      ...(second
-        ? {
-            second: { from: second.span.from, to: minDay(second.span.to, ctx.today) },
-            secondNamed: second.q,
-          }
-        : {}),
-      named: left.time.q,
+      ...(second ? { second, secondNamed: times[1]!.q } : {}),
+      named: times[0]!.q,
       sport,
       periodNamed: !!period,
     };
@@ -396,8 +410,6 @@ export function periodsOf(span: Span, p: Period, today: string): Bucket[] {
   }
   return out;
 }
-
-const hasCurve = (m: Measure) => m.key === "power" || m.key === "hr";
 
 /** Which periods a curve is read for: the latest ones, up to the cap. */
 const curvePeriods = (span: Span, p: Period, today: string) =>
@@ -602,8 +614,9 @@ function panelOf(m: Measure, a: ChartAsked, d: ChartData) {
     draw: drawOf(m),
     points: Array.from({ length: size }, (_, i) => {
       const b = buckets[i];
+      const named = b ?? other?.[i];
       return {
-        label: b ? label(b, a.period, long) : String(i + 1),
+        label: named ? label(named, a.period, long) : String(i + 1),
         value: read.values[i] ?? null,
         ...(otherRead ? { other: otherRead.values[i] ?? null } : {}),
         ...(b?.open && !otherRead ? { open: true } : {}),
@@ -819,11 +832,12 @@ function nextWords(a: ChartAsked, today: string): AskChip[] {
     out.push({ label: y, query: say(y) });
   }
   const only = a.measures.length === 1 ? a.measures[0]! : null;
-  if (only && !a.second) {
+  if (only) {
     if (hasCurve(only)) {
       const other = only.key === "power" ? "fc" : "power";
       const word = `${other} ${lengthText(only.secs!)}`;
-      out.push({ label: `e ${word}`, query: `grafico ${sayMeasure(only)} e ${word}` });
+      const me = sayMeasure(only);
+      out.push({ label: `e ${word}`, query: sayChart(a, today).replace(me, `${me} e ${word}`) });
     } else {
       const [first, second] = BESIDE[only.key]!;
       const said = sayChart(a, today);
@@ -959,7 +973,8 @@ export function chartLeftover(
   const known: string[] = [];
   const unknown: string[] = [];
   for (const w of words) {
-    if (FILLER.has(w) || /^\d/.test(w) || SPORT_WORD.some(([re]) => re.test(w))) continue;
+    if (FILLER.has(w) || /^\d/.test(w) || VS.test(w) || SPORT_WORD.some(([re]) => re.test(w)))
+      continue;
     if ((Object.keys(MEASURES) as MeasureKey[]).some((k) => MEASURES[k].words.test(w)))
       known.push(w);
     else if (!takeTime([w], today)) unknown.push(w);

@@ -1,6 +1,8 @@
 // Getting around by asking: a bar with the tree, a line to ask on and the sprout. Tapping the line opens the field with
 // the keyboard up; typing narrows things down to a few alternatives to choose from. Drawn with what the app already has:
 // the floating switch's pill, the Activities rows, the More sheet.
+import { WorkoutIcon } from "@/components/WorkoutIcon";
+import { speciesOf } from "@/lib/workout-species";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   keepPreviousData,
@@ -293,6 +295,8 @@ const LEGEND_ART: Record<string, ReactNode> = {
 };
 
 function Tile({ e }: { e: Entry }) {
+  if (e.page === "workouts" && speciesOf(e.q))
+    return <WorkoutIcon name={e.q} className="h-8 w-10 shrink-0" />;
   const Icon = ICON[e.page];
   const color =
     e.kind === "ride" ? "var(--pine)" : e.kind === "perf" ? "var(--fitness)" : "var(--primary)";

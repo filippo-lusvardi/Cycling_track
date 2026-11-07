@@ -1,3 +1,4 @@
+import { WorkoutIcon } from "@/components/WorkoutIcon";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -502,9 +503,12 @@ function ActChip({ a }: { a: Activity }) {
 function PlannedChip({ e }: { e: PlannedEvent }) {
   return (
     <div className="rounded border border-dashed border-birch/50 px-1.5 py-0.5 text-[11px] text-birch">
-      <div className="truncate">
-        {e.name ?? t("Planned", "Pianificato")}
-        {e.icu_training_load ? ` · ${e.icu_training_load}` : ""}
+      <div className="flex items-center gap-1">
+        <WorkoutIcon name={e.name} className="h-4 w-5 shrink-0" />
+        <span className="truncate">
+          {e.name ?? t("Planned", "Pianificato")}
+          {e.icu_training_load ? ` · ${e.icu_training_load}` : ""}
+        </span>
       </div>
       {e.category === "WORKOUT" && (
         <WorkoutPreview text={e.description} type={e.type} compact className="mb-0.5 mt-0.5" />
@@ -608,8 +612,11 @@ function DayDetail({ d, startOnPlan = false }: { d: DayData; startOnPlan?: boole
                   key={e.id}
                   className="rounded-lg border border-dashed border-birch/50 p-3 text-sm"
                 >
-                  <div className="font-medium text-birch">
-                    {e.name ?? t("Planned workout", "Allenamento pianificato")}
+                  <div className="flex items-center gap-2 font-medium text-birch">
+                    <WorkoutIcon name={e.name} />
+                    <span className="min-w-0">
+                      {e.name ?? t("Planned workout", "Allenamento pianificato")}
+                    </span>
                   </div>
                   <div className="stat-num text-xs text-muted-foreground">
                     {race

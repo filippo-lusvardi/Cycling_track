@@ -260,6 +260,8 @@ saved segments; nothing on intervals.icu is touched.
 
 ## Hosting your own copy
 
+Hosting a copy needs Filippo's permission (see [Licence](#licence)).
+
 Cirmolo is a static site plus a free Firebase project for accounts.
 
 ### Firebase (once)
@@ -361,3 +363,10 @@ public/         icons
   Changes made offline go out when the device is back online.
 - **Install option missing on the phone**: the site must be opened over `https://`; a local `http://` address can't be
   installed.
+
+---
+
+## Licence
+
+Cirmolo is proprietary: all rights reserved. See [LICENSE](LICENSE). Each build lists the licences of its third-party
+components in `licenses.txt`.

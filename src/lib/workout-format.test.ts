@@ -79,4 +79,12 @@ describe("the format every workout is sent in", () => {
       expect(new Set(names).size).toBe(names.length);
     }
   });
+
+  // Suggestions tell what's on the calendar by its exact name, so a name can't be shared within a sport.
+  it("gives every workout of a sport its own name, with the starters", () => {
+    for (const sport of ["ride", "run"] as const) {
+      const names = workoutTemplates(sport).map((w) => w.name());
+      expect(new Set(names).size).toBe(names.length);
+    }
+  });
 });

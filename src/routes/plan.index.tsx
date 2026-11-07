@@ -1,3 +1,4 @@
+import { WorkoutIcon } from "@/components/WorkoutIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
@@ -194,6 +195,7 @@ function ProposalCard({
           const inner = (
             <>
               <span className="eyebrow w-12 shrink-0">{format(parseISO(c.date), "EEE d")}</span>
+              <WorkoutIcon name={c.to?.name} />
               <span className="min-w-0 flex-1">
                 {c.from && (
                   <span className="block text-xs text-muted-foreground line-through">
@@ -258,6 +260,7 @@ function Row({ day, today }: { day: DayLine; today: string }) {
         <br />
         {format(when, "d")}
       </span>
+      <WorkoutIcon name={w?.name} />
       <span className={cn("min-w-0 flex-1", day.upcoming && "opacity-60")}>
         {w ? (
           <>
@@ -603,7 +606,10 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
               "Non è la mattina giusta? Oggi qualcosa di più facile.",
             )}
           </p>
-          <p className="text-xs text-muted-foreground">{swap.name}</p>
+          <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+            <WorkoutIcon name={swap.name} />
+            {swap.name}
+          </p>
           <Button
             className="mt-3 w-full"
             variant="outline"

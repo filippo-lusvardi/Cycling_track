@@ -1,4 +1,5 @@
 // What a tap on the tree opens: today (crown), one or more days (branches, buds of rest), or a planned workout.
+import { WorkoutIcon } from "@/components/WorkoutIcon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 import { ChevronDown, TriangleAlert } from "lucide-react";
@@ -318,7 +319,10 @@ function SessionTop({
     <div className="space-y-3">
       <div>
         <div className="eyebrow text-primary">{t("Today's session", "Seduta di oggi")}</div>
-        <h3 className="mt-1 text-2xl font-semibold leading-tight">{name}</h3>
+        <h3 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold leading-tight">
+          <WorkoutIcon name={name} className="h-12 w-14 shrink-0" />
+          <span className="min-w-0">{name}</span>
+        </h3>
       </div>
       <WorkoutPreview text={e.description} type={e.type} />
       {(seconds > 0 || load != null) && (
@@ -368,8 +372,11 @@ function TrainedTop({ acts, tomorrow }: { acts: Activity[]; tomorrow: PlannedEve
         <div className="border-t border-border pt-3">
           <div className="eyebrow">{t("Tomorrow", "Domani")}</div>
           <div className="mt-0.5 flex items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate text-lg font-semibold">
-              {tomorrow.name ?? t("Workout", "Allenamento")}
+            <span className="flex min-w-0 items-center gap-2 text-lg font-semibold">
+              <WorkoutIcon name={tomorrow.name} />
+              <span className="min-w-0 truncate">
+                {tomorrow.name ?? t("Workout", "Allenamento")}
+              </span>
             </span>
             <SessionMeta e={tomorrow} />
           </div>
@@ -447,9 +454,10 @@ function ComingUp({
       <h3 className="eyebrow mb-1">{t("Coming up", "In arrivo")}</h3>
       <div className="divide-y divide-border">
         {days.map(({ date, event }) => (
-          <div key={date} className="flex items-baseline justify-between gap-3 py-2">
-            <div className="min-w-0 truncate">
-              <span className="eyebrow mr-2">{dayName(date)}</span>
+          <div key={date} className="flex items-center justify-between gap-3 py-2">
+            <div className="flex min-w-0 items-center gap-2 truncate">
+              <span className="eyebrow">{dayName(date)}</span>
+              <WorkoutIcon name={event?.name} className="h-6 w-8 shrink-0" />
               <span className="text-[15px] font-medium">
                 {event
                   ? (event.name ?? t("Workout", "Allenamento"))

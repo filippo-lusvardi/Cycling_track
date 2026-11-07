@@ -190,7 +190,7 @@ describe("the plan page", () => {
     await settle();
     expect(document.body.textContent).not.toContain("line: FTP");
     const line = [...host.querySelectorAll("button")].find((b) =>
-      /\d+h|Endurance|Long/.test(b.textContent ?? ""),
+      /\d+h|Hazel|Oak/.test(b.textContent ?? ""),
     );
     await act(async () => line!.click());
     await settle();

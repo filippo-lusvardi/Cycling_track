@@ -661,6 +661,8 @@ export const norm = (s: string) =>
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9' ]/g, " ");
 
+const SLIP = 22;
+
 function wordScore(token: string, e: Entry): number {
   const phrase = norm(e.q).trim();
   const words = phrase.split(/[ ']/);
@@ -671,7 +673,7 @@ function wordScore(token: string, e: Entry): number {
   if (alias.includes(token)) return 42;
   if (alias.some((w) => w.startsWith(token))) return token.length > 1 ? 32 : 6;
   if ([...words, ...alias].some((w) => near(token, w) || near(token, w.slice(0, token.length + 1))))
-    return 22;
+    return SLIP;
   return 0;
 }
 
@@ -708,11 +710,18 @@ export function alternatives(
     )
       continue;
     if (e.id.startsWith("month-") && joined.length < 3) continue;
+    // A workout is found by a word: a couple of letters or a bare number ("60") would bring a crowd of them.
+    const workout = e.id.startsWith("workout-");
+    if (workout && (joined.length < 3 || /^[\d ]+$/.test(joined))) continue;
     if (e.exact) {
       scored.push({ e, score: 90 + (e.boost ?? 0) });
       continue;
     }
-    const each = tokens.map((token) => wordScore(token, e));
+    // Its names are near too many ordinary words ("forma" and forza, "orto" and orso) to forgive a slip in a short one.
+    const each = tokens.map((token) => {
+      const score = wordScore(token, e);
+      return workout && score === SLIP && token.length < 6 ? 0 : score;
+    });
     if (each.some((s) => !s)) continue;
     const score =
       each.reduce((a, b) => a + b, 0) / each.length +

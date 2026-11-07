@@ -4,7 +4,7 @@ import { t } from "@/lib/i18n";
 import { GARMIN, SOURCE } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
-/** Data credits (Garmin's attribution once any activity came from one) and the privacy link. */
+/** Data credits (Garmin's attribution once any activity came from one), privacy and licence links. */
 export function AppFooter({ className }: { className?: string }) {
   const [garmin] = useLocalStore<boolean>(GARMIN, false);
   const [source] = useLocalStore<string | null>(SOURCE, null);
@@ -24,9 +24,19 @@ export function AppFooter({ className }: { className?: string }) {
       )}
     >
       <span>{credits.join(" · ")}</span>
-      <Link to="/privacy" className="underline hover:text-foreground">
-        {t("Privacy", "Privacy")}
-      </Link>
+      <span className="flex gap-3">
+        <Link to="/privacy" className="underline hover:text-foreground">
+          {t("Privacy", "Privacy")}
+        </Link>
+        <a
+          href="/licenses.txt"
+          target="_blank"
+          rel="noreferrer"
+          className="underline hover:text-foreground"
+        >
+          {t("Licences", "Licenze")}
+        </a>
+      </span>
     </footer>
   );
 }

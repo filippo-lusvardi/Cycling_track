@@ -16,6 +16,7 @@ import { useScreenTrace } from "@/lib/perf";
 import type { Activity } from "@/lib/intervals";
 import { addDays, formatDuration, formatKm, isoDate } from "@/lib/training";
 import { RIDE_PAGE_DAYS } from "@/lib/forest/rides";
+import { bloomedRides } from "@/lib/bloom";
 import { buildDays, offDays, WEATHER_WORD, type Crown } from "@/lib/tree";
 
 export const Route = createFileRoute("/forest/$fid/$uid/")({
@@ -56,6 +57,11 @@ function MemberTree() {
     // The tree's owner's sport, not this device's: a runner's tree is the same for a cyclist looking at it.
     return buildDays(tree.acts, tree.wellness, oldest, today, offDays(tree.off), tree.sport);
   }, [tree, today]);
+
+  const bloomed = useMemo(
+    () => (tree && days ? bloomedRides(days, tree.wellness, today) : undefined),
+    [tree, days, today],
+  );
 
   return (
     <div className="-mt-2 space-y-3">
@@ -99,7 +105,16 @@ function MemberTree() {
                 onOpen={() => setSheet({ kind: "today" })}
               />
             )}
-            <TreeBody days={days} w={w} today={today} quiet blocks={[]} open={setSheet} plain />
+            <TreeBody
+              days={days}
+              w={w}
+              today={today}
+              quiet
+              blocks={[]}
+              open={setSheet}
+              plain
+              bloomed={bloomed}
+            />
           </>
         )}
       </div>

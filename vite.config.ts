@@ -7,6 +7,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(process.env["npm_package_version"] ?? "dev") },
+  build: { license: { fileName: "licenses.txt" } },
   plugins: [
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
@@ -36,6 +37,8 @@ export default defineConfig({
         // App shell and self-hosted fonts only; intervals.icu data is cached by React Query in IndexedDB.
         globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
         navigateFallback: "/index.html",
+        // The licence list is a plain file, not an app route.
+        navigateFallbackDenylist: [/^\/licenses\.txt$/],
         // Map tiles you've looked at stay available offline (30 days, ~3000 tiles).
         runtimeCaching: [
           {

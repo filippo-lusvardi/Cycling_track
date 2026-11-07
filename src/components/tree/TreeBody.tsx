@@ -2,9 +2,10 @@
 // trunk and branches row by row, rendered a page at a time, with pinch to zoom.
 import { parseISO } from "date-fns";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { dayHeight, MONTH_H, restHeight, WEEK_H } from "@/components/tree/geometry";
-import { DayRow, MonthRow, RestRow, Roots, WeekRow } from "@/components/tree/TreeRows";
+import { dayHeight, MONTH_H, RECENT_DAYS, restHeight, WEEK_H } from "@/components/tree/geometry";
+import { DayRow, MonthRow, RestRow, Roots, WeekRow, type Held } from "@/components/tree/TreeRows";
 import type { Sheet } from "@/components/tree/TreeSheets";
+import { returnShoots } from "@/lib/arrivals";
 import type { Block } from "@/lib/focus";
 import { addDays } from "@/lib/training";
 import {
@@ -20,8 +21,6 @@ import {
 import { format, t } from "@/lib/i18n";
 import { byMain } from "@/lib/sport";
 
-/** Days shown one branch per ride; older history folds into weeks. */
-const RECENT_DAYS = 5;
 const PAGE = 150;
 
 /** Container width in px, so the tree is drawn at the real size (no stretched curves). */
@@ -117,6 +116,8 @@ export function TreeBody({
   blocks,
   open,
   plain = false,
+  held,
+  bloomed,
   onWeek,
   onMonth,
 }: {
@@ -129,6 +130,10 @@ export function TreeBody({
   open: (s: Sheet) => void;
   /** Plain bark all the way down: no build/rest tints or labels (a friend's tree in a forest). */
   plain?: boolean;
+  /** What's being held back while it arrives on the tree (see components/tree/Arrivals). */
+  held?: Held | null;
+  /** Rides ridden during a bloom. */
+  bloomed?: Set<string> | undefined;
   /** A week's branch and a month's name open their recap: only on your own tree. */
   onWeek?: (start: string) => void;
   onMonth?: (month: string) => void;
@@ -138,6 +143,7 @@ export function TreeBody({
     const all = buildWeeks(days.slice(RECENT_DAYS));
     return plain ? all.map((wk) => ({ ...wk, chapter: "steady" as const })) : all;
   }, [days, plain]);
+  const shoots = useMemo(() => returnShoots(days), [days]);
   const items = useMemo(() => {
     // Every row is one piece of trunk; pieces are collected first so their joins can be smoothed.
     const pieces: Piece[] = [];
@@ -210,6 +216,8 @@ export function TreeBody({
             days={run}
             edge={edge}
             w={w}
+            shoot={dates.some((d) => shoots.has(d))}
+            heldShoot={dates.some((d) => d === held?.shootDay)}
             onOpen={() => open({ kind: "days", title, dates })}
           />
         ),
@@ -236,6 +244,8 @@ export function TreeBody({
             edge={edge}
             w={w}
             quiet={quiet}
+            held={held}
+            bloomed={bloomed}
             onOpen={() =>
               open({
                 kind: "days",
@@ -280,6 +290,9 @@ export function TreeBody({
             quiet={quiet}
             block={blocks.find((b) => b.since >= wk.start && b.since <= wk.end)?.focus}
             olderChapter={older?.chapter}
+            bloomed={bloomed}
+            shoot={dates.some((d) => shoots.has(d))}
+            heldShoot={dates.some((d) => d === held?.shootDay)}
             onOpen={() =>
               onWeek
                 ? onWeek(wk.start)
@@ -298,7 +311,7 @@ export function TreeBody({
     });
     const edges = smoothTrunk(pieces);
     return pieces.map((p, i) => p.render(edges[i]!));
-  }, [days, recent, weeks, w, today, quiet, blocks, open, onWeek, onMonth]);
+  }, [days, recent, weeks, w, today, quiet, blocks, open, onWeek, onMonth, shoots, held, bloomed]);
   const last = days[days.length - 1]!;
   return (
     <Progressive

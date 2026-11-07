@@ -338,8 +338,13 @@ export function MiniTree({
       br: (4.6 + r() * 1.8) * size * broad,
     };
   });
-  const blossom =
-    season === "spring"
+  const blossom = crown.bloom
+    ? blobs.flatMap((b) =>
+        [0, 1, 2].map(
+          () => [b.bx + (r() - 0.5) * b.br * 1.5, b.by + (r() - 0.5) * b.br * 1.5] as const,
+        ),
+      )
+    : season === "spring"
       ? blobs.filter((_, i) => i % 4 === 1).map((b) => [b.bx + r() * 2, b.by - b.br * 0.4] as const)
       : [];
   // Autumn drops a few leaves at the foot of the tree, more as the crown thins.
@@ -414,7 +419,13 @@ export function MiniTree({
           />
         ))}
       {blossom.map(([bx, by], i) => (
-        <circle key={`b${i}`} cx={bx} cy={by} r={1.3 * size} fill="var(--blossom)" />
+        <circle
+          key={`b${i}`}
+          cx={bx}
+          cy={by}
+          r={1.3 * size}
+          fill={crown.bloom && i % 5 < 2 ? "var(--snow)" : "var(--blossom)"}
+        />
       ))}
     </g>
   );

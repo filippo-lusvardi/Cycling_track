@@ -1,6 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { useId, type ReactNode } from "react";
+import { Blossom } from "@/components/tree/Critters";
+import type { Bloom } from "@/lib/bloom";
 import type { PlannedEvent } from "@/lib/intervals";
 import { ceilingText } from "@/lib/readiness";
 import { formatDuration } from "@/lib/training";
@@ -415,6 +417,9 @@ export function CrownView({
         <g className="tree-grow">
           {canopy}
           {extras}
+          {crown.bloom && (
+            <BloomFlowers bloom={crown.bloom} cx={cx} cy={cy} rx={rx} ry={ry} trunk={trunk} />
+          )}
         </g>
         {crown.signals.length > 0 && (
           <Wind
@@ -427,6 +432,63 @@ export function CrownView({
         )}
       </svg>
     </button>
+  );
+}
+
+/** The crown in flower: a mass of blossoms, thinning as the petals come down. */
+function BloomFlowers({
+  bloom,
+  cx,
+  cy,
+  rx,
+  ry,
+  trunk,
+}: {
+  bloom: Bloom;
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  trunk: number;
+}) {
+  const r = rng(seedOf(`bloom${bloom.start}`));
+  const falling = bloom.stage === "falling";
+  const flowers = Array.from({ length: falling ? 95 : 230 }, (_, i) => {
+    const a = r() * Math.PI * 2;
+    const d = Math.sqrt(r()) * 1.06;
+    return (
+      <Blossom
+        key={i}
+        x={cx + Math.cos(a) * d * rx}
+        y={cy + Math.sin(a) * d * ry}
+        s={1.9 + r() * 1.5}
+        white={r() >= 0.6}
+      />
+    );
+  });
+  const petals = Array.from({ length: falling ? 42 : 10 }, (_, i) => {
+    const x = cx + (r() < 0.5 ? 1 : -1) * (trunk / 2 + 4 + r() * rx * 1.05);
+    const y = cy + r() * (H - cy - 8);
+    return (
+      <g key={i} transform={`rotate(${r() * 180} ${x} ${y})`}>
+        <ellipse
+          cx={x}
+          cy={y}
+          rx={3.1}
+          ry={1.6}
+          fill={r() < 0.6 ? "var(--blossom)" : "var(--snow)"}
+          opacity={0.9}
+          className="tree-fall"
+          style={{ animationDelay: `${-r() * 6}s` }}
+        />
+      </g>
+    );
+  });
+  return (
+    <>
+      {flowers}
+      {petals}
+    </>
   );
 }
 

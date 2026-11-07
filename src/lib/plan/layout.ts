@@ -96,9 +96,9 @@ export function longRide(seconds: number, indoor: boolean) {
   const main = Math.round((seconds - 25 * 60) / 60);
   return made(
     `plan-long-${seconds / 60}`,
-    t(`Long ride ${hms(seconds)}`, `Lungo ${hms(seconds)}`),
+    t(`Oak ${hms(seconds)}`, `Quercia ${hms(seconds)}`),
     "endurance",
-    `Warmup\n- 15m Ramp 45-65%\n\nMain set\n- ${main}m 65%\n\nCooldown\n- 10m Ramp 60-45%`,
+    `${t("An oak does one thing, steadily, for a long time. A long, steady ride in Z2: eat and drink as you go.", "La quercia fa una cosa sola, con calma, per molto tempo. Uscita lunga e regolare in Z2: mangia e bevi lungo la strada.")}\n\nWarmup\n- 15m Ramp 45-65%\n\nMain set\n- ${main}m 65%\n\nCooldown\n- 10m Ramp 60-45%`,
     indoor,
   );
 }
@@ -107,9 +107,9 @@ export function easyRide(seconds: number, indoor: boolean) {
   const main = Math.round((seconds - 15 * 60) / 60);
   return made(
     `plan-easy-${seconds / 60}`,
-    t(`Endurance ${hms(seconds)}`, `Fondo ${hms(seconds)}`),
+    t(`Hazel ${hms(seconds)}`, `Nocciolo ${hms(seconds)}`),
     "endurance",
-    `Warmup\n- 10m Ramp 45-60%\n\nMain set\n- ${main}m 65%\n\nCooldown\n- 5m Ramp 60-45%`,
+    `${t("Hazel grows at the forest edge, modest and everyday. An easy ride in Z2, at talking pace.", "Il nocciolo cresce al margine del bosco, senza pretese. Uscita facile in Z2, a ritmo da chiacchiera.")}\n\nWarmup\n- 10m Ramp 45-60%\n\nMain set\n- ${main}m 65%\n\nCooldown\n- 5m Ramp 60-45%`,
     indoor,
   );
 }
@@ -117,9 +117,9 @@ export function easyRide(seconds: number, indoor: boolean) {
 export function recoveryRide(seconds: number, indoor: boolean) {
   return made(
     `plan-recovery-${seconds / 60}`,
-    t(`Recovery ${hms(seconds)}`, `Scarico ${hms(seconds)}`),
+    t(`Fern ${hms(seconds)}`, `Felce ${hms(seconds)}`),
     "recovery",
-    `Main set\n- ${Math.round(seconds / 60)}m 50%`,
+    `${t("Ferns grow low, in the shade. True recovery at 50% FTP: it should feel too easy.", "La felce cresce bassa, all'ombra. Vero recupero al 50% FTP: deve sembrare fin troppo facile.")}\n\nMain set\n- ${Math.round(seconds / 60)}m 50%`,
     indoor,
   );
 }

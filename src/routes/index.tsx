@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { endOfMonth, parseISO } from "date-fns";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Arrivals } from "@/components/tree/Arrivals";
 import { Buds, CrownView, Rings } from "@/components/tree/Crown";
 import { TreeBody, usePinch, useWidth } from "@/components/tree/TreeBody";
 import { TreeSheet, type Sheet } from "@/components/tree/TreeSheets";
 import { useFocus } from "@/hooks/use-focus";
+import { useTreeArrivals } from "@/hooks/use-tree-arrivals";
+import { bloomedRides } from "@/lib/bloom";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { usePublishTree } from "@/hooks/use-publish-tree";
 import { isPlanned } from "@/lib/intervals";
@@ -104,12 +107,17 @@ function TreePage() {
           zoneTops().pace,
         )
       : null;
+  // What happened to the tree since this device last saw it: it plays out over the tree, once.
+  const treeRoot = useRef<HTMLDivElement>(null);
+  const { play, held, done } = useTreeArrivals(days, zoom === "tree" && w > 0);
+  const bloomed = useMemo(() => bloomedRides(days, wellness, today), [days, wellness, today]);
   // Only today's plan buds above the crown.
   const planned = (events ?? []).filter((e) => e.date === today && isPlanned(e));
 
   // A week's branch and a month's name: their recap.
   const openWeek = useCallback(
-    (start: string) => void navigate({ to: "/recap", search: { from: start, to: addDays(start, 6) } }),
+    (start: string) =>
+      void navigate({ to: "/recap", search: { from: start, to: addDays(start, 6) } }),
     [navigate],
   );
   const openMonth = useCallback(
@@ -145,16 +153,32 @@ function TreePage() {
               block={FOCUS_LABEL[focus.focus]}
               onOpen={() => setSheet({ kind: "today" })}
             />
-            <TreeBody
-              days={days}
-              w={w}
-              today={today}
-              quiet={quiet}
-              blocks={focus.blocks}
-              open={setSheet}
-              onWeek={openWeek}
-              onMonth={openMonth}
-            />
+            <div ref={treeRoot} className="relative">
+              <TreeBody
+                days={days}
+                w={w}
+                today={today}
+                quiet={quiet}
+                blocks={focus.blocks}
+                open={setSheet}
+                onWeek={openWeek}
+                onMonth={openMonth}
+                held={held}
+                bloomed={bloomed}
+              />
+              {play && (
+                <Arrivals
+                  play={play}
+                  days={days}
+                  acts={acts}
+                  w={w}
+                  quiet={quiet}
+                  root={treeRoot}
+                  bloomed={bloomed}
+                  onDone={done}
+                />
+              )}
+            </div>
           </>
         )}
         {w > 0 && zoom === "years" && (
@@ -166,7 +190,6 @@ function TreePage() {
           </div>
         )}
       </div>
-
 
       <TreeSheet
         sheet={sheet}

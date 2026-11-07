@@ -1,4 +1,5 @@
 // The workout library's pieces: the editor (text with live blocks), and the picker that puts a workout on a day.
+import { WorkoutIcon } from "@/components/WorkoutIcon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
@@ -192,14 +193,17 @@ export function WorkoutRow({
     <button
       type="button"
       onClick={onClick}
-      className="block w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-secondary/40"
+      className="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-secondary/40"
     >
-      <span className="block truncate text-sm">{name}</span>
-      <span className="stat-num block text-xs text-muted-foreground">{stats.join(" · ")}</span>
-      {about && (
-        <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{about}</span>
-      )}
-      {hasBlocks(parsed) && <WorkoutBars blocks={parsed.blocks} compact className="mt-1" />}
+      <WorkoutIcon name={name} className="mt-0.5 h-9 w-11 shrink-0" />
+      <span className="block min-w-0 flex-1">
+        <span className="block truncate text-sm">{name}</span>
+        <span className="stat-num block text-xs text-muted-foreground">{stats.join(" · ")}</span>
+        {about && (
+          <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{about}</span>
+        )}
+        {hasBlocks(parsed) && <WorkoutBars blocks={parsed.blocks} compact className="mt-1" />}
+      </span>
     </button>
   );
 }

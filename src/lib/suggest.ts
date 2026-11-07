@@ -15,7 +15,13 @@ import { isSport, sportOfActivity, type MainSport } from "./sport";
 import { addDays } from "./training";
 import { offEventOn } from "./tree";
 import { estimateLoad, parseWorkout, type ParsedWorkout, type Thresholds } from "./workout";
-import { kindLabel, workoutTemplates, workoutText, type WorkoutKind } from "./workout-templates";
+import {
+  kindLabel,
+  workoutTemplates,
+  workoutText,
+  type WorkoutKind,
+  type WorkoutTemplate,
+} from "./workout-templates";
 
 export type SuggestWorkout = {
   id: string;
@@ -165,6 +171,33 @@ function inferKind(parsed: ParsedWorkout, seconds: number, load: number): Workou
   return intensity < 0.98 ? "threshold" : "vo2";
 }
 
+function starterWorkout(
+  w: WorkoutTemplate,
+  sport: MainSport,
+  th: Thresholds,
+): SuggestWorkout | null {
+  const description = workoutText(w);
+  const parsed = parseWorkout(description, sport, th);
+  if (!parsed.totalSeconds) return null;
+  return {
+    id: w.id,
+    name: w.name(),
+    type: TYPE_OF[sport],
+    description,
+    seconds: parsed.totalSeconds,
+    load: estimateLoad(parsed.blocks),
+    kind: w.kind,
+    ...(w.focus ? { focus: w.focus } : {}),
+    mine: false,
+  };
+}
+
+/** Any starter workout by its id, also those never suggested: typing can ask for a warm-up by name. */
+export function builtInWorkout(id: string, sport: MainSport, th: Thresholds) {
+  const w = workoutTemplates(sport).find((x) => x.id === id);
+  return w ? starterWorkout(w, sport, th) : null;
+}
+
 /** Everything that can be suggested: your own workouts for this sport, then the starter set. */
 export function buildPool(
   library: {
@@ -202,22 +235,8 @@ export function buildPool(
     if (!LADDER.includes(w.kind) && !OPENER.test(w.id)) return [];
     // They ask for a tri bike, which most people don't have: there to choose, never suggested.
     if (TRI_BIKE.test(w.id)) return [];
-    const description = workoutText(w);
-    const parsed = parseWorkout(description, sport, th);
-    if (!parsed.totalSeconds) return [];
-    return [
-      {
-        id: w.id,
-        name: w.name(),
-        type: TYPE_OF[sport],
-        description,
-        seconds: parsed.totalSeconds,
-        load: estimateLoad(parsed.blocks),
-        kind: w.kind,
-        ...(w.focus ? { focus: w.focus } : {}),
-        mine: false,
-      },
-    ];
+    const made = starterWorkout(w, sport, th);
+    return made ? [made] : [];
   });
   return [...mine, ...starter];
 }

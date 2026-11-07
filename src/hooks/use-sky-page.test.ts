@@ -7,4 +7,9 @@ describe("the sky", () => {
       expect(SKY_PAGE.test(path)).toBe(true);
     expect(SKY_PAGE.test("/planner")).toBe(false);
   });
+
+  it("is over a typed chart", () => {
+    for (const path of ["/chart", "/chart/"]) expect(SKY_PAGE.test(path)).toBe(true);
+    expect(SKY_PAGE.test("/charts")).toBe(false);
+  });
 });

@@ -67,6 +67,7 @@ import {
 } from "./suggest";
 import { addDays, formatClock, formatDuration, loadFromRpe } from "./training";
 import { morningWellness, offEventOn, rideRecords } from "./tree";
+import { workoutEntries, workoutsNamed } from "./ask-workouts";
 import type { WorkoutKind } from "./workout-templates";
 
 export { matchClimbs, namesTime, SPORT_WORDS, type IntentClimb };
@@ -1904,6 +1905,26 @@ function dayRows(d: IntentData, s: DaySuggestion, filter: SuggestFilter): Entry[
   return out.slice(0, 3);
 }
 
+/** A workout's name and a day ("cirmolo 60 sabato", "faggio domani"): it opens ready for that day, and saves nothing. */
+function workoutDayRows(typed: string, d: IntentData): Entry[] {
+  const said = norm(typed).trim().replace(/\s+/g, " ");
+  const found = workoutsNamed(said, d.sport, d.suggest?.pool);
+  if (!found) return [];
+  const day = matchDays(found.rest, d.today)[0];
+  if (!day) return [];
+  return found.workouts.slice(0, 3).map((w, i) => ({
+    id: `workout-day-${w.id}`,
+    q: w.name,
+    page: "workouts" as const,
+    kind: "plan" as const,
+    exact: true,
+    boost: 3 - i,
+    value: formatDuration(w.seconds),
+    answer: [dayName(day.from, d.today), w.label].join(" · "),
+    dest: suggestDest(day.from, w.id),
+  }));
+}
+
 function suggestRows(d: IntentData, asked: SuggestAsk): Entry[] {
   const input = d.suggest;
   if (!input) return [];
@@ -2161,6 +2182,9 @@ function readRows(typed: string, d: IntentData): Entry[] {
   const compared = compareRows(d, s);
   if (compared.length) return compared;
 
+  const workoutDay = workoutDayRows(s, d);
+  if (workoutDay.length) return workoutDay;
+
   const asking =
     /^(?:consiglia(?:mi)?|suggerisci(?:mi)?|suggest|recommend|idee|ideas)(?: (.*))?$/.exec(s) ??
     /^(?:allenamento|workout|cosa faccio|cosa posso fare|what should i do|what to do) (.+)$/.exec(
@@ -2316,7 +2340,7 @@ function recordRows(acts: Activity[], today: string, sport: MainSport, boost: nu
 
 /** Answers that come from today's state, matched like any other phrase. */
 export function liveEntries(d: LiveData): Entry[] {
-  const out: Entry[] = [];
+  const out: Entry[] = workoutEntries(d.sport, d.today, d.suggest?.pool);
   const sheet = route("/", { sheet: "today" });
   const planned = (d.planned ?? []).find((e) => e.date === d.today && isPlanned(e));
   const limit: Ceiling | null =

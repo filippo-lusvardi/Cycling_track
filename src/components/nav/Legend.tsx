@@ -99,6 +99,7 @@ function sampleTree() {
   const off = new Map<string, OffKind>([[addDays(TODAY, -3), "SICK"]]);
   const crown = {
     ...crownFor(wellness, acts, TODAY, [], false),
+    bloom: null, // never explained, so never shown in the guide
     score: 84,
     season: "summer" as const,
     seasonPhase: 0.5,

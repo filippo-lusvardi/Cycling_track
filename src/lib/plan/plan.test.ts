@@ -391,7 +391,8 @@ describe("a week", () => {
       const p = parseWorkout(w.description, "ride");
       expect(p.unread).toEqual([]);
       expect(p.totalSeconds, w.id).toBe(Number(w.id.split("-").pop()) * 60);
-      expect(w.description).toMatch(/^(Warmup|Main set)\n- \d+m /);
+      // What it's for, then the steps, as the library's workouts are written.
+      expect(w.description).toMatch(/\n\n(Warmup|Main set)\n- \d+m /);
     }
   });
 });

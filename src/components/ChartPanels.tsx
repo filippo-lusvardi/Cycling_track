@@ -43,7 +43,7 @@ function shown(p: ChartPanel, v: number) {
   return [num(Math.round(v * scale) / scale), p.unit].filter(Boolean).join(" ");
 }
 
-function Plot({ p, height }: { p: ChartPanel; height: string }) {
+function Plot({ p, height, legend }: { p: ChartPanel; height: string; legend: boolean }) {
   // Values glide when the same periods are redrawn; a different number of periods would slide into nonsense, so it just changes.
   const before = useRef<number | null>(null);
   const motion = {
@@ -79,7 +79,7 @@ function Plot({ p, height }: { p: ChartPanel; height: string }) {
             tickFormatter={(v: number) => num(v)}
           />
           <Tooltip {...tip} formatter={formatter} />
-          {p.names && (
+          {p.names && legend && (
             <Legend
               wrapperStyle={{ fontSize: 12 }}
               formatter={(n) => <span className="text-muted-foreground">{n}</span>}
@@ -131,9 +131,17 @@ function Plot({ p, height }: { p: ChartPanel; height: string }) {
 const hasData = (p: ChartPanel) => p.points.some((d) => d.value != null || d.other != null);
 
 /** The chart alone, with nothing but what was asked around it; whether it's read yet or there's nothing to draw is said. */
-export function ChartPlot({ p, height }: { p: ChartPanel; height: string }) {
+export function ChartPlot({
+  p,
+  height,
+  legend = true,
+}: {
+  p: ChartPanel;
+  height: string;
+  legend?: boolean;
+}) {
   return hasData(p) ? (
-    <Plot p={p} height={height} />
+    <Plot p={p} height={height} legend={legend} />
   ) : (
     <p className="py-6 text-center text-sm text-muted-foreground">
       {t("Nothing to show in this stretch", "Niente da mostrare in questo periodo")}
@@ -152,12 +160,28 @@ export function ChartPanels({ view }: { view: ChartView }) {
         {t("Loading…", "Caricamento…")}
       </p>
     );
+  // Stacked charts over the same two stretches say which is which once: the card has no room to say it on each.
+  const names = stacked ? view.panels[0]?.names : undefined;
   return (
     <div className="space-y-1">
+      {names && (
+        <div className="flex justify-center gap-3 text-xs text-muted-foreground">
+          {names.map((n, i) => (
+            <span key={n} className="inline-flex items-center gap-1">
+              <span
+                className="h-2 w-2 rounded-sm"
+                style={{ background: i ? SECOND : FIRST }}
+                aria-hidden
+              />
+              {n}
+            </span>
+          ))}
+        </div>
+      )}
       {view.panels.map((p) => (
         <div key={p.title}>
           {stacked && <div className="text-xs font-medium">{p.title}</div>}
-          <ChartPlot p={p} height={height} />
+          <ChartPlot p={p} height={height} legend={!names} />
         </div>
       ))}
       {view.note && <p className="pt-1 text-xs text-muted-foreground">{view.note}</p>}

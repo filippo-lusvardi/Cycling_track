@@ -1,3 +1,4 @@
+import { WorkoutIcon } from "@/components/WorkoutIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
@@ -11,6 +12,7 @@ import { useSuggestInput } from "@/hooks/use-suggest-input";
 import { format, t } from "@/lib/i18n";
 import { deleteEvent, scheduleWorkout } from "@/lib/source";
 import {
+  builtInWorkout,
   suggestDay,
   suggestWeek,
   targetText,
@@ -144,7 +146,10 @@ function Day({ input, date, id }: { input: SuggestInput; date: string; id: strin
   const navigate = useNavigate();
   const { busy, plan } = usePlan();
   const day = suggestDay(input, date);
-  const workout = input.pool.find((w) => w.id === id) ?? day.picks[0]?.workout;
+  const workout =
+    input.pool.find((w) => w.id === id) ??
+    (id ? builtInWorkout(id, input.sport, input.th) : null) ??
+    day.picks[0]?.workout;
   if (!workout)
     return (
       <div className="space-y-3">
@@ -161,9 +166,12 @@ function Day({ input, date, id }: { input: SuggestInput; date: string; id: strin
   return (
     <div className="space-y-4">
       <Back />
-      <div>
-        <h1 className="on-sky text-3xl font-bold tracking-tight">{workout.name}</h1>
-        <p className="on-sky text-sm text-foreground/85">{longDay(date)}</p>
+      <div className="flex items-center gap-3">
+        <WorkoutIcon name={workout.name} className="h-16 w-20 shrink-0" />
+        <div className="min-w-0">
+          <h1 className="on-sky text-3xl font-bold tracking-tight">{workout.name}</h1>
+          <p className="on-sky text-sm text-foreground/85">{longDay(date)}</p>
+        </div>
       </div>
       <section className="rounded-xl border border-border bg-card p-4 text-sm">
         <div className="eyebrow mb-1">{pick?.why ?? kindLabel(workout.kind, input.sport)}</div>
@@ -216,6 +224,7 @@ function Day({ input, date, id }: { input: SuggestInput; date: string; id: strin
                 }
                 className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-secondary"
               >
+                <WorkoutIcon name={o.workout.name} />
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium leading-snug">{o.workout.name}</span>
                   <span className="text-xs text-muted-foreground">
@@ -311,6 +320,7 @@ function Week({
                 <br />
                 {format(parseISO(d.date), "d")}
               </span>
+              <WorkoutIcon name={p?.workout.name ?? there?.name} />
               <span className={cn("min-w-0 flex-1", out && "opacity-50")}>
                 {p ? (
                   <>

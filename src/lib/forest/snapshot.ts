@@ -30,6 +30,7 @@ export const toSharedCrown = (c: Crown): SharedCrown => ({
   formPct: c.formPct,
   weather: c.weather,
   weatherPhase: c.weatherPhase,
+  bloom: c.bloom ?? null,
 });
 
 const dayIndex = (date: string) => {

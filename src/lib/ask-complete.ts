@@ -29,7 +29,7 @@ const MEASURE_WORDS = (
 const WORDS = [...OTHER_WORDS, ...MEASURE_WORDS];
 
 /** Small words: already whole, whatever could start with them. */
-const JOINS = /^(?:e|a|al|alla|di|del|della|in|per|by|and|vs|the|of|il|la|lo|le|i)$/;
+const JOINS = /^(?:e|a|al|alla|di|del|della|in|per|by|and|vs|versus|contro|the|of|il|la|lo|le|i)$/;
 
 export type Completed = { query: string; ghost: string };
 
@@ -71,6 +71,8 @@ export function mayContinue(query: string): boolean {
   if (/\s$/.test(query)) return true;
   const last = command(query).split(" ").at(-1);
   if (!last) return false;
+  // A joining word waits for what it joins: "2025 vs" is half a sentence.
+  if (JOINS.test(last)) return true;
   return /^\d+$/.test(last) || WORDS.some((w) => w !== last && w.startsWith(last));
 }
 

@@ -1,4 +1,5 @@
 // The tree: training history as one growing organism. Pure data → shape model, drawn by components/tree.
+import { bloomOn, type Bloom } from "./bloom";
 import { recentFeel } from "./felt";
 import { parseISO } from "date-fns";
 import { format, t } from "./i18n";
@@ -174,6 +175,8 @@ export type Crown = {
   signals: Signal[];
   /** How fast load is rising; above level 0 it caps the score. */
   load: LoadCheck;
+  /** The crown is in flower (see lib/bloom). Missing on crowns published before the bloom. */
+  bloom?: Bloom | null;
 };
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -693,6 +696,8 @@ export function crownFor(
       ...earlySignals(answered, today),
     ],
     load: r.load,
+    // Nothing flowers under snow.
+    bloom: season === "winter" ? null : bloomOn(allWellness, today),
   };
 }
 
@@ -753,7 +758,14 @@ export const leafSpots = (leaves: number, from: number) =>
  * the leaves on top of the branch and from each other, never against the trunk or past the tip. Greedy max–min over
  * a fine grid, so a single bird on a flat ride lands on bare wood, and many birds spread out.
  */
-export function perchSpots(
+export function perchSpots(...args: Parameters<typeof perchOrder>): number[] {
+  return perchOrder(...args).sort((a, b) => a - b);
+}
+
+/**
+ * The same spots in the order they're taken, so the first birds keep their places when another one arrives.
+ */
+export function perchOrder(
   n: number,
   leaves: number,
   from: number,
@@ -796,5 +808,5 @@ export function perchSpots(
     }
     spots.push(best.t);
   }
-  return spots.sort((a, b) => a - b);
+  return spots;
 }

@@ -22,6 +22,8 @@ export const RUN_THRESHOLD_EST = "cadence_run_threshold_est";
 export const SEGMENT_HISTORY = "cadence_segment_history";
 /** UI language, "en" or "it". */
 export const LANGUAGE = "cadence_language";
+/** What this device has already seen happen on the tree (see lib/arrivals). */
+export const TREE_SEEN = "cadence_tree_seen";
 /** Hide scores on the Tree's home view until tapped. */
 export const QUIET_TREE = "cadence_quiet_tree";
 /** The training blocks chosen so far on this device (see lib/focus holdFocus). */

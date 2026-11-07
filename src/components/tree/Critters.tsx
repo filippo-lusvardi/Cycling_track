@@ -243,6 +243,104 @@ export function Bird({
   );
 }
 
+/** The wing a species opens in flight, in the colour of its folded one. */
+const FLIGHT_WING: Record<BirdKind, string> = {
+  sparrow: mix(BARK, 55, AUTUMN),
+  robin: mix(BARK, 80, "black"),
+  snow: mix(SNOW, 88, "var(--primary)"),
+  blackbird: mix(BG, 70, "black"),
+  bluetit: mix("var(--fitness)", 75, "oklch(0.55 0.15 255)"),
+  goldfinch: mix(BG, 70, "black"),
+  kingfisher: mix("var(--primary)", 60, "oklch(0.4 0.1 200)"),
+};
+const OPEN_WING = "M1.2,-5.2 C-1,-6 -4.2,-6.9 -7.2,-6.6 C-5.2,-4.8 -2.2,-3.7 1,-4 Z";
+/** Seconds a bird takes to arrive or leave. */
+export const FLIGHT_SECONDS = 1.25;
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+/**
+ * A bird on the wing, `at` seconds into its flight. Arriving, it crosses the tree from the far side, so it comes in
+ * already facing out along the branch, brakes with slow wide beats and folds its wings on the perch at (x, y). Leaving,
+ * it takes off from there and carries on the way it faces.
+ */
+export function FlyingBird({
+  at,
+  x,
+  y,
+  side,
+  s,
+  kind,
+  span,
+  leaving = false,
+}: {
+  at: number;
+  x: number;
+  y: number;
+  side: -1 | 1;
+  s: number;
+  kind: BirdKind;
+  /** How far away the flight starts or ends, in px. */
+  span: number;
+  leaving?: boolean;
+}) {
+  const p = clamp01(at / FLIGHT_SECONDS);
+  const along = leaving ? p ** 1.8 : 1 - (1 - p) ** 2.2;
+  const where = (k: number) =>
+    leaving
+      ? ([x + side * span * k, y - 90 * k - 14 * Math.sin(Math.PI * k)] as const)
+      : ([x - side * span * (1 - k), y - 70 * (1 - k) + 46 * Math.sin(Math.PI * k)] as const);
+  const [px, py] = where(along);
+  const [qx, qy] = where(Math.min(1, along + 0.01));
+  const heading = (Math.atan2(qy - py, Math.abs(qx - px) + 0.001) * 180) / Math.PI;
+  const inFlight = Math.max(-28, Math.min(28, heading));
+  const flare = leaving ? 0 : clamp01((p - 0.72) / 0.2);
+  const settle = leaving ? 0 : clamp01((p - 0.92) / 0.08);
+  const pitch = (inFlight * (1 - flare) - 30 * flare) * (1 - settle);
+  const beat = Math.sin(at * 2 * Math.PI * (leaving || p < 0.72 ? 5 : 3.2));
+  const open = leaving ? clamp01(p / 0.1) : 1 - clamp01((p - 0.9) / 0.1);
+  const lift = (25 + 50 * beat) * open;
+  return (
+    <g
+      transform={`translate(${px} ${py}) scale(${side * s} ${s}) rotate(${pitch} 0 -4)`}
+      opacity={leaving ? 1 - clamp01((p - 0.85) / 0.15) : clamp01(at / 0.12)}
+    >
+      <path
+        d={OPEN_WING}
+        fill={FLIGHT_WING[kind]}
+        opacity={0.65 * open}
+        transform={`rotate(${lift + 12} 0.8 -4.6)`}
+      />
+      <Species kind={kind} />
+      <path
+        d={OPEN_WING}
+        fill={FLIGHT_WING[kind]}
+        opacity={open}
+        transform={`rotate(${lift} 0.8 -4.6)`}
+      />
+    </g>
+  );
+}
+
+/** One flower of the bloom: five petals, the same as the crown's own spring blossoms. */
+export function Blossom({ x, y, s, white }: { x: number; y: number; s: number; white: boolean }) {
+  if (s <= 0) return null;
+  return (
+    <g>
+      {[0, 1, 2, 3, 4].map((k) => (
+        <circle
+          key={k}
+          cx={x + Math.cos((k / 5) * Math.PI * 2) * s * 1.3}
+          cy={y + Math.sin((k / 5) * Math.PI * 2) * s * 1.3}
+          r={s}
+          fill={white ? SNOW : BLOSSOM}
+        />
+      ))}
+      <circle cx={x} cy={y} r={s * 0.7} fill={BIRCH} />
+    </g>
+  );
+}
+
 /** Size of the squirrel's and the owl's drawings, in their own units (feet at the origin). */
 export const SQUIRREL_BOX = { w: 20, h: 22 };
 export const OWL_BOX = { w: 13, h: 19 };

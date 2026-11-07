@@ -20,6 +20,7 @@ export type SharedCrown = Pick<
   | "formPct"
   | "weather"
   | "weatherPhase"
+  | "bloom"
 >;
 
 export type TreeHeader = {
