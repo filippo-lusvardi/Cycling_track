@@ -329,6 +329,45 @@ describe("eating and totals", () => {
     expect(rows("ore ultimi 10 giorni")[0]!.value).toBe("2h 00m");
   });
 
+  it("averages a stretch over the days it has had", () => {
+    // 2026 up to 5 November: 309 days, three activities of an hour each.
+    for (const q of [
+      "ore medie 2026",
+      "media ore 2026",
+      "media delle ore 2026",
+      "average hours 2026",
+    ]) {
+      const r = rows(q);
+      expect(
+        r.map((e) => e.id),
+        q,
+      ).toEqual(["average-time-week", "average-time-month", "average-time-activity"]);
+      expect(r[0]!.value).toBe("4m");
+      expect(r[0]!.q).toBe("Tempo a settimana · 2026");
+      expect(r[0]!.answer).toBe("Su 44,1 settimane · 3h 00m in tutto");
+      expect(r[2]!.value).toBe("1h 00m");
+      expect(r[0]!.dest).toMatchObject({ search: { from: "2026-01-01", to: "2026-12-31" } });
+    }
+    expect(rows("km medi a settimana 2025").map((e) => [e.id, e.value])).toEqual([
+      ["average-km-week", "2 km"],
+    ]);
+    expect(rows("dislivello medio al mese 2025")[0]!.value).toBe("175 m");
+    expect(rows("km medi per uscita 2026")[0]!.value).toBe("40 km");
+    expect(rows("uscite medie a settimana 2026")[0]!.value).toBe("0");
+    expect(rows("km a settimana 2025")[0]!.id).toBe("chart");
+    expect(rows("grafico ore medie 2026")[0]!.id).toBe("chart");
+    expect(rows("attivita medie 2026").map((e) => e.id)).toEqual([
+      "average-count-week",
+      "average-count-month",
+    ]);
+    expect(rows("ore medie ultimi 10 giorni").map((e) => e.id)).toEqual([
+      "average-time-day",
+      "average-time-activity",
+    ]);
+    // Totals stay totals.
+    expect(rows("ore 2026")[0]!.id).toBe("total-time");
+  });
+
   it("recognises no resting heart rate", () => {
     for (const q of ["fc riposo", "best fc riposo", "resting hr"])
       expect(rows(q).every((e) => !/fc|hr/i.test(e.q))).toBe(true);

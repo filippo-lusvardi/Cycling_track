@@ -187,7 +187,7 @@ export type ChartAsked = {
 /** Curves are one request each, so only so many periods are read. */
 export const MAX_CURVE_PERIODS = 24;
 
-const CHART_WORD = /^(?:grafico|grafici|chart|charts|andamento|trend)$/;
+export const CHART_WORD = /^(?:grafico|grafici|chart|charts|andamento|trend)$/;
 /** Said alone, these mean their chart. Words that mean other things too ("tempo", "time", "numero") need more said. */
 const ALONE =
   /^(?:km|chilometri|kilometers|kilometres|ore|hours|dislivello|climbing|carico|load|hrv|peso|weight|grasso|sonno|sleep|fitness|ctl|fatica|fatigue|atl|forma|form|tsb)$/;
@@ -199,7 +199,7 @@ const SPORT_WORD: [RegExp, MainSport][] = [
   [/^(?:corsa|corse|run|runs)$/, "run"],
 ];
 const FILLER = new Set(
-  "e and di del della dei delle il la lo le i the of in per over a al my mio mia miei mie show mostrami media medio mean average avg".split(
+  "e and di del della dei delle il la lo le i the of in per over a al my mio mia miei mie show mostrami media medie medio medi mean average avg".split(
     " ",
   ),
 );

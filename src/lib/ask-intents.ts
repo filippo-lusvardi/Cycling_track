@@ -4,7 +4,7 @@ import { parseISO } from "date-fns";
 import { activityKind } from "./activity-kind";
 import { curveFit, omPD, valueAt, whoSet } from "./analysis";
 import { norm, type Dest, type Entry } from "./ask";
-import { chartLeftover, chartRows } from "./ask-chart";
+import { CHART_WORD, chartLeftover, chartRows } from "./ask-chart";
 import { climbPredictRows } from "./ask-climb";
 import { compareQuestions, manyCommand, manyParts } from "./ask-compare";
 import { curveOf, lengthChips, openWords } from "./ask-detail";
@@ -485,45 +485,57 @@ function resolveSpan(rest: string, today: string): WhenCandidate | undefined {
   );
 }
 
-function totals(d: IntentData, what: string, rest: string, only: MainSport | null = null): Entry[] {
-  const metric: Record<
-    string,
-    { read: (a: Activity) => number; show: (n: number) => string; en: string; it: string }
-  > = {
-    km: {
-      read: (a) => (a.distance ?? 0) / 1000,
-      show: (n) => `${num(Math.round(n))} km`,
-      en: "Km",
-      it: "Km",
-    },
-    time: {
-      read: (a) => a.moving_time ?? 0,
-      show: (n) => formatDuration(n),
-      en: "Time",
-      it: "Tempo",
-    },
-    climb: {
-      read: (a) => a.total_elevation_gain ?? 0,
-      show: (n) => `${num(Math.round(n))} m`,
-      en: "Climbing",
-      it: "Dislivello",
-    },
-    count: { read: () => 1, show: (n) => String(n), en: "Activities", it: "Attività" },
-    load: {
-      read: (a) => a.icu_training_load ?? 0,
-      show: (n) => num(Math.round(n)),
-      en: "Load",
-      it: "Carico",
-    },
-  };
-  const m = what === "count" && only ? { ...metric[what]!, ...SPORT_NOUN[only] } : metric[what]!;
+const TOTAL_METRIC: Record<
+  string,
+  { read: (a: Activity) => number; show: (n: number) => string; en: string; it: string }
+> = {
+  km: {
+    read: (a) => (a.distance ?? 0) / 1000,
+    show: (n) => `${num(Math.round(n))} km`,
+    en: "Km",
+    it: "Km",
+  },
+  time: {
+    read: (a) => a.moving_time ?? 0,
+    show: (n) => formatDuration(n),
+    en: "Time",
+    it: "Tempo",
+  },
+  climb: {
+    read: (a) => a.total_elevation_gain ?? 0,
+    show: (n) => `${num(Math.round(n))} m`,
+    en: "Climbing",
+    it: "Dislivello",
+  },
+  count: { read: () => 1, show: (n) => String(n), en: "Activities", it: "Attività" },
+  load: {
+    read: (a) => a.icu_training_load ?? 0,
+    show: (n) => num(Math.round(n)),
+    en: "Load",
+    it: "Carico",
+  },
+};
+
+const totalMetric = (what: string, only: MainSport | null) =>
+  what === "count" && only ? { ...TOTAL_METRIC[what]!, ...SPORT_NOUN[only] } : TOTAL_METRIC[what]!;
+
+/** The stretch asked and its activities, up to today. */
+function totalSpan(d: IntentData, rest: string, only: MainSport | null) {
   const span = resolveSpan(rest, d.today);
-  if (!span || span.from > d.today) return [];
+  if (!span || span.from > d.today) return null;
   const end = span.to < d.today ? span.to : d.today;
   const acts = (d.acts ?? []).filter((a) => {
     const day = a.start_date_local.slice(0, 10);
     return day >= span.from && day <= end && (!only || isSport(a, only));
   });
+  return { span, end, acts };
+}
+
+function totals(d: IntentData, what: string, rest: string, only: MainSport | null = null): Entry[] {
+  const m = totalMetric(what, only);
+  const read = totalSpan(d, rest, only);
+  if (!read) return [];
+  const { span, acts } = read;
   const sum = acts.reduce((s, a) => s + m.read(a), 0);
   return [
     {
@@ -540,6 +552,167 @@ function totals(d: IntentData, what: string, rest: string, only: MainSport | nul
       dest: route("/recap", { from: span.from, to: span.to }),
     },
   ];
+}
+
+export type AveragePer = "day" | "week" | "month" | "activity";
+
+const PER_DAYS: Record<Exclude<AveragePer, "activity">, number> = {
+  day: 1,
+  week: 7,
+  month: 365.25 / 12,
+};
+
+const perLabel = (per: AveragePer, only: MainSport | null) =>
+  per === "day"
+    ? t("per day", "al giorno")
+    : per === "week"
+      ? t("per week", "a settimana")
+      : per === "month"
+        ? t("per month", "al mese")
+        : only === "ride"
+          ? t("per ride", "a uscita")
+          : only === "run"
+            ? t("per run", "a corsa")
+            : t("per activity", "ad attività");
+
+const oneDecimal = (n: number) =>
+  Number.isInteger(n) ? num(n) : n.toFixed(1).replace(".", t(".", ","));
+
+/**
+ * "ore medie 2026", "media delle ore 2026", "km a settimana 2026": a total spread over the stretch's
+ * days up to today, so the year still running is averaged over the weeks it has had. Without a
+ * "per", the usual ones for that length of stretch.
+ */
+function averages(
+  d: IntentData,
+  what: string,
+  rest: string,
+  only: MainSport | null,
+  per: AveragePer | null,
+): Entry[] {
+  const m = totalMetric(what, only);
+  const read = totalSpan(d, rest, only);
+  if (!read) return [];
+  const { span, end, acts } = read;
+  const days = Math.round((parseISO(end).getTime() - parseISO(span.from).getTime()) / 864e5) + 1;
+  const sum = acts.reduce((s, a) => s + m.read(a), 0);
+  const pers: AveragePer[] = per
+    ? [per]
+    : days <= 10
+      ? ["day", "activity"]
+      : days <= 60
+        ? ["week", "day", "activity"]
+        : ["week", "month", "activity"];
+  // Counting activities per activity says nothing.
+  const asked = pers.filter((p) => !(p === "activity" && what === "count"));
+  const total = m.show(sum);
+  return asked.map((p) => {
+    const over =
+      p === "activity"
+        ? t(`Over ${acts.length} activities`, `Su ${acts.length} attività`)
+        : p === "day"
+          ? t(`Over ${days} days`, `Su ${days} giorni`)
+          : p === "week"
+            ? t(`Over ${oneDecimal(days / 7)} weeks`, `Su ${oneDecimal(days / 7)} settimane`)
+            : t(
+                `Over ${oneDecimal(days / PER_DAYS.month)} months`,
+                `Su ${oneDecimal(days / PER_DAYS.month)} mesi`,
+              );
+    const value =
+      p === "activity"
+        ? acts.length
+          ? m.show(sum / acts.length)
+          : "–"
+        : what === "count"
+          ? oneDecimal(Math.round((sum / days) * PER_DAYS[p] * 10) / 10)
+          : m.show((sum / days) * PER_DAYS[p]);
+    return {
+      id: `average-${what}-${p}`,
+      q: `${t(m.en, m.it)} ${perLabel(p, only)} · ${span.q}`,
+      page: "recap",
+      kind: "value",
+      exact: true,
+      value,
+      answer: `${over} · ${t(`${total} in all`, `${total} in tutto`)}`,
+      dest: route("/recap", { from: span.from, to: span.to }),
+    } satisfies Entry;
+  });
+}
+
+const AVERAGE_WORD =
+  /(?:^| )(?:in media|on average|media|medie|medio|medi|average|avg|mean)(?: (?:di|del|dei|delle|degli|della|dello|of|the))*(?= |$)/;
+const PER_WORDS: [RegExp, AveragePer][] = [
+  [/(?:^| )(?:(?:a|alla|per) settimana|settimanali?|weekly|(?:per|a) week)(?= |$)/, "week"],
+  [/(?:^| )(?:(?:al|per|a) mese|mensili?|monthly|(?:per|a) month)(?= |$)/, "month"],
+  [/(?:^| )(?:(?:al|per|a) giorno|giornalier[aoie]|daily|(?:per|a) day)(?= |$)/, "day"],
+  [
+    /(?:^| )(?:(?:per|ad?) (?:attivita|uscita|pedalata|corsa)|per (?:activity|ride|run)|an? (?:activity|ride|run))(?= |$)/,
+    "activity",
+  ],
+];
+
+/** An average asked: what's left once its words are out, and the "per" if one was said. */
+function averageAsked(
+  s: string,
+): { rest: string; per: AveragePer | null; only: MainSport | null; word: boolean } | null {
+  let rest = ` ${s} `;
+  let said = false;
+  let per: AveragePer | null = null;
+  let only: MainSport | null = null;
+  const avg = AVERAGE_WORD.exec(rest);
+  if (avg) {
+    said = true;
+    rest = rest.replace(AVERAGE_WORD, " ");
+  }
+  for (const [re, p] of PER_WORDS) {
+    const hit = re.exec(rest);
+    if (!hit) continue;
+    if (per) return null;
+    per = p;
+    said = true;
+    if (p === "activity") {
+      if (/uscita|pedalata|ride/.test(hit[0])) only = "ride";
+      else if (/corsa|run/.test(hit[0])) only = "run";
+    }
+    rest = rest.replace(re, " ");
+  }
+  return said ? { rest: rest.replace(/\s+/g, " ").trim(), per, only, word: !!avg } : null;
+}
+
+/** "ore medie 2026", "media delle ore 2026": a total's averages, or nothing. */
+function averageRows(s: string, d: IntentData, needWord = false): Entry[] {
+  const average = averageAsked(s);
+  if (needWord && !average?.word) return [];
+  const asked = average && totalAsked(average.rest);
+  return asked ? averages(d, asked.what, asked.rest, asked.only ?? average.only, average.per) : [];
+}
+
+const TOTAL_ASKED =
+  /^(km|chilometri|ore|hours|tempo|time|dislivello|climbing|attivita|activities|uscite|pedalate|rides|corse|runs|carico|load) (.+)$/;
+
+/** "ore 2026", "km bici marzo": which total, of what sport, over which words of time. */
+function totalAsked(s: string) {
+  const m = TOTAL_ASKED.exec(s);
+  if (!m) return null;
+  const what = /km|chilo/.test(m[1]!)
+    ? "km"
+    : /ore|hours|tempo|time/.test(m[1]!)
+      ? "time"
+      : /dislivello|climbing/.test(m[1]!)
+        ? "climb"
+        : /carico|load/.test(m[1]!)
+          ? "load"
+          : "count";
+  const words = m[2]!.split(" ");
+  const ride = /^(?:bici|bike|uscita|uscite|pedalata|pedalate|ride|rides)$/;
+  const run = /^(?:corsa|corse|run|runs)$/;
+  const only: MainSport | null =
+    /uscite|pedalate|rides/.test(m[1]!) || words.some((w) => ride.test(w))
+      ? "ride"
+      : /corse|runs/.test(m[1]!) || words.some((w) => run.test(w))
+        ? "run"
+        : null;
+  return { what, only, rest: words.filter((w) => !ride.test(w) && !run.test(w)).join(" ") };
 }
 
 function fuelRow(d: IntentData, hours: number): Entry[] {
@@ -2003,6 +2176,12 @@ export function intentEntries(query: string, d: IntentData): Entry[] {
   const s = command(query);
   if (!s) return [];
   const names = { takenNames: [...d.climbs.map((c) => c.name), ...(d.forestNames ?? [])] };
+  // "dislivello medio al mese 2025" is a number; only a chart word makes it a chart.
+  // Without an average word "km al mese 2025" stays the chart it always was.
+  if (!s.split(" ").some((w) => CHART_WORD.test(w))) {
+    const average = averageRows(s, d, true);
+    if (average.length) return average;
+  }
   const chart = chartRows(query, { ...d, ...names });
   if (chart.length) return chart;
   if (/^(?:annulla|undo)$/.test(s))
@@ -2249,31 +2428,10 @@ function readRows(typed: string, d: IntentData): Entry[] {
     // "ultima settimana" and the like are stretches of time, not climbs.
     return d.climbs.length ? climbRows(d, rest, "last").filter((e) => e.id !== "climb-none") : [];
   }
-  m =
-    /^(km|chilometri|ore|hours|tempo|time|dislivello|climbing|attivita|activities|uscite|pedalate|rides|corse|runs|carico|load) (.+)$/.exec(
-      s,
-    );
-  if (m) {
-    const what = /km|chilo/.test(m[1]!)
-      ? "km"
-      : /ore|hours|tempo|time/.test(m[1]!)
-        ? "time"
-        : /dislivello|climbing/.test(m[1]!)
-          ? "climb"
-          : /carico|load/.test(m[1]!)
-            ? "load"
-            : "count";
-    const words = m[2]!.split(" ");
-    const ride = /^(?:bici|bike|uscita|uscite|pedalata|pedalate|ride|rides)$/;
-    const run = /^(?:corsa|corse|run|runs)$/;
-    const only =
-      /uscite|pedalate|rides/.test(m[1]!) || words.some((w) => ride.test(w))
-        ? "ride"
-        : /corse|runs/.test(m[1]!) || words.some((w) => run.test(w))
-          ? "run"
-          : null;
-    return totals(d, what, words.filter((w) => !ride.test(w) && !run.test(w)).join(" "), only);
-  }
+  const average = averageRows(s, d);
+  if (average.length) return average;
+  const total = totalAsked(s);
+  if (total) return totals(d, total.what, total.rest, total.only);
   return [];
 }
 
