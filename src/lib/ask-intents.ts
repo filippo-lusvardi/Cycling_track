@@ -2,7 +2,7 @@
 // word and what follows it. Everything here is your own data; nothing is written unless a row saying so is chosen.
 import { parseISO } from "date-fns";
 import { activityKind } from "./activity-kind";
-import { curveFit, omPD, valueAt, whoSet } from "./analysis";
+import { curveFit, mondayOf, omPD, valueAt, whoSet } from "./analysis";
 import { norm, type Dest, type Entry } from "./ask";
 import { CHART_WORD, chartLeftover, chartRows } from "./ask-chart";
 import { climbPredictRows } from "./ask-climb";
@@ -552,6 +552,169 @@ function totals(d: IntentData, what: string, rest: string, only: MainSport | nul
       dest: route("/recap", { from: span.from, to: span.to }),
     },
   ];
+}
+
+export type PeakPer = "day" | "week" | "month";
+
+const PEAK_PER: [RegExp, PeakPer][] = [
+  [/^(?:giorno|giornata|day)$/, "day"],
+  [/^(?:settimana|week)$/, "week"],
+  [/^(?:mese|month)$/, "month"],
+];
+// "più" and "meno" only say more or less; "più leggera" is still the lightest.
+const PEAK_MORE = /^(?:piu|most|max)$/;
+const PEAK_LESS = /^(?:meno|least|min)$/;
+const PEAK_HIGH =
+  /^(?:migliore|miglior|best|top|lunga|lungo|longest|biggest|grande|hardest|dura|duro|pesante|heaviest)$/;
+const PEAK_LOW =
+  /^(?:peggiore|peggior|worst|corta|corto|shortest|leggera|leggero|lightest|easiest|smallest|facile|piccola|piccolo)$/;
+// "la più dura" is about load; every other direction word leaves the measure to what's typed, or time.
+const PEAK_HARD =
+  /^(?:hardest|dura|duro|pesante|heaviest|lightest|leggera|leggero|easiest|facile)$/;
+const PEAK_FILL = /^(?:la|il|lo|the|my|mia|mio|con|with|di|del|della|dello|in|of|a|ad|da)$/;
+const PEAK_EVER = /^(?:sempre|ever|all|time|alltime)$/;
+const PEAK_RIDE = /^(?:bici|bike|ride|rides|pedalate|pedalata)$/;
+const PEAK_RUN = /^(?:corsa|corse|run|runs)$/;
+
+/** "settimana più lunga 2026", "mese con più km", "best week 2025": which period, which way, of what, when. */
+function peakAsked(s: string) {
+  const words = s.split(" ").filter(Boolean);
+  let per: PeakPer | null = null;
+  let high: boolean | null = null;
+  let less = false;
+  let more = false;
+  let what: string | null = null;
+  let hard = false;
+  let ever = false;
+  let only: MainSport | null = null;
+  const rest: string[] = [];
+  for (const w of words) {
+    const p = PEAK_PER.find(([re]) => re.test(w))?.[1];
+    if (p && !per) per = p;
+    else if (PEAK_MORE.test(w)) more = true;
+    else if (PEAK_LESS.test(w)) less = true;
+    else if (/^(?:uscite|pedalate|rides|corse|runs)$/.test(w) && !what) {
+      what = "count";
+      only = /^(?:corse|runs)$/.test(w) ? "run" : "ride";
+    } else if (PEAK_HIGH.test(w) || PEAK_LOW.test(w)) {
+      const up = PEAK_HIGH.test(w);
+      if (high !== null && high !== up) return null;
+      high = up;
+      if (PEAK_HARD.test(w)) hard = true;
+    } else if (PEAK_RIDE.test(w)) only = "ride";
+    else if (PEAK_RUN.test(w)) only = "run";
+    else if (PEAK_EVER.test(w)) ever = true;
+    else if (PEAK_FILL.test(w)) continue;
+    else {
+      const m = TOTAL_ASKED.exec(`${w} x`);
+      if (m && !what) what = totalAsked(`${w} x`)!.what;
+      else rest.push(w);
+    }
+  }
+  // "meno lunga" is the shortest; "più" alone the most.
+  if (less) high = false;
+  else if (high === null && more) high = true;
+  if (!per || high === null) return null;
+  return { per, high, what: what ?? (hard ? "load" : "time"), ever, only, rest: rest.join(" ") };
+}
+
+const periodKey = (day: string, per: PeakPer) =>
+  per === "day" ? day : per === "week" ? mondayOf(day) : day.slice(0, 7);
+
+function periodSpan(key: string, per: PeakPer): Span {
+  if (per === "day") return { from: key, to: key };
+  if (per === "week") return { from: key, to: addDays(key, 6) };
+  return monthSpan(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1);
+}
+
+function periodTitle(key: string, per: PeakPer, today: string) {
+  const year = key.slice(0, 4) === today.slice(0, 4) ? "" : " yyyy";
+  if (per === "day") return cap(format(parseISO(key), `EEEE d MMMM${year}`));
+  if (per === "week") {
+    const from = format(parseISO(key), `d MMMM${year}`);
+    return t(`Week of ${from}`, `Settimana del ${from}`);
+  }
+  return cap(format(parseISO(`${key}-01`), "MMMM yyyy"));
+}
+
+/**
+ * The days, weeks or months that stood out in a stretch, three at most, the first the answer. The lowest only counts
+ * periods already over, empty ones too: a week off is the lightest week there was.
+ */
+function peakRows(s: string, d: IntentData): Entry[] {
+  const asked = peakAsked(s);
+  if (!asked) return [];
+  const { per, high, what, only } = asked;
+  const m = totalMetric(what, only);
+  const acts = (d.acts ?? []).filter((a) => !only || isSport(a, only));
+  let from: string;
+  let to: string;
+  let named: WhenCandidate | undefined;
+  if (asked.rest) {
+    named = resolveSpan(asked.rest, d.today);
+    if (!named || named.from > d.today) return [];
+    ({ from, to } = named);
+  } else if (asked.ever) {
+    const first = acts.reduce<string | null>((x, a) => {
+      const day = a.start_date_local.slice(0, 10);
+      return !x || day < x ? day : x;
+    }, null);
+    if (!first) return [];
+    from = first;
+    to = d.today;
+  } else {
+    from = addDays(d.today, -364);
+    to = d.today;
+  }
+  const end = to < d.today ? to : d.today;
+  const sums = new Map<string, { sum: number; secs: number; km: number; n: number }>();
+  if (!high) {
+    // Every period over and inside the stretch, so an empty one can be the lowest.
+    const current = periodKey(d.today, per);
+    for (let day = from; day <= end; day = addDays(day, 1)) {
+      const key = periodKey(day, per);
+      if (key === current || periodSpan(key, per).from < from) continue;
+      if (!sums.has(key)) sums.set(key, { sum: 0, secs: 0, km: 0, n: 0 });
+    }
+  }
+  for (const a of acts) {
+    const day = a.start_date_local.slice(0, 10);
+    if (day < from || day > end) continue;
+    const key = periodKey(day, per);
+    if (!high && !sums.has(key)) continue;
+    const row = sums.get(key) ?? { sum: 0, secs: 0, km: 0, n: 0 };
+    row.sum += m.read(a);
+    row.secs += a.moving_time ?? 0;
+    row.km += (a.distance ?? 0) / 1000;
+    row.n += 1;
+    sums.set(key, row);
+  }
+  const ranked = [...sums]
+    .filter(([, r]) => !high || r.sum > 0)
+    // Ties go to the most recent.
+    .sort(([ka, a], [kb, b]) => (high ? b.sum - a.sum : a.sum - b.sum) || kb.localeCompare(ka))
+    .slice(0, 3);
+  if (!ranked.length)
+    return [noteRow(`peak-none-${per}`, t("Nothing in that stretch", "Niente in quel periodo"))];
+  return ranked.map(([key, r], i) => {
+    const span = periodSpan(key, per);
+    const other = [
+      what !== "time" ? formatDuration(r.secs) : null,
+      what !== "km" && r.km ? `${num(Math.round(r.km))} km` : null,
+      what !== "count" ? t(`${r.n} activities`, `${r.n} attività`) : null,
+    ].filter(Boolean);
+    return {
+      id: `peak-${per}-${key}`,
+      q: periodTitle(key, per, d.today),
+      page: "recap",
+      kind: "value",
+      exact: true,
+      boost: 2 - i,
+      value: r.n ? m.show(r.sum) : "–",
+      answer: r.n ? other.join(" · ") : t("No activity", "Nessuna attività"),
+      dest: route("/recap", { from: span.from, to: span.to }),
+    } satisfies Entry;
+  });
 }
 
 export type AveragePer = "day" | "week" | "month" | "activity";
@@ -2337,6 +2500,8 @@ function batchRows(query: string, s: string, d: IntentData): Entry[] {
 
 /** The rows that only read. */
 function readRows(typed: string, d: IntentData): Entry[] {
+  const peak = peakRows(typed, d);
+  if (peak.length) return peak;
   const comparing = compareQuestions(typed, d);
   if (comparing.length) return comparing;
   const listed = filterRows(typed, d);

@@ -368,6 +368,36 @@ describe("eating and totals", () => {
     expect(rows("ore 2026")[0]!.id).toBe("total-time");
   });
 
+  it("finds the period that stood out", () => {
+    // Every activity is an hour long: ties go to the most recent.
+    expect(rows("settimana più lunga 2026").map((e) => e.id)).toEqual([
+      "peak-week-2026-11-02",
+      "peak-week-2026-10-26",
+      "peak-week-2026-10-19",
+    ]);
+    expect(rows("best week 2026")[0]!.id).toBe("peak-week-2026-11-02");
+    const [june] = rows("mese con più km 2025");
+    expect([june!.q, june!.value]).toEqual(["Giugno 2025", "120 km"]);
+    expect(june!.dest).toMatchObject({ search: { from: "2025-06-01", to: "2025-06-30" } });
+    const [day] = rows("giorno con più dislivello di sempre");
+    expect([day!.q, day!.value]).toEqual(["Domenica 1 giugno 2025", "2100 m"]);
+    expect(rows("settimana con più corse")[0]).toMatchObject({
+      id: "peak-week-2026-10-26",
+      value: "1",
+    });
+    // The lightest counts empty weeks, never the one still running.
+    expect(rows("settimana più leggera 2026")[0]).toMatchObject({
+      id: "peak-week-2026-10-12",
+      answer: "Nessuna attività",
+    });
+    expect(rows("settimana meno lunga 2026").every((e) => e.id !== "peak-week-2026-11-02")).toBe(
+      true,
+    );
+    // Other questions keep their meaning.
+    expect(rows("best potenza settimana scorsa")[0]!.id).not.toMatch(/^peak/);
+    expect(rows("miglior 5 min mese")[0]!.id).not.toMatch(/^peak/);
+  });
+
   it("recognises no resting heart rate", () => {
     for (const q of ["fc riposo", "best fc riposo", "resting hr"])
       expect(rows(q).every((e) => !/fc|hr/i.test(e.q))).toBe(true);
