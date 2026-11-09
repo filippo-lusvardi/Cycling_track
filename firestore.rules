@@ -102,6 +102,25 @@ service cloud.firestore {
     }
 
     // OpenStreetMap names for climbs, shared by every signed-in user. A found name is never replaced by "none".
+    // Today's season for the phone launcher: anyone with the link (the long random key) can read that one
+    // document, no listing; only its owner writes it.
+    match /accents/{key} {
+      allow get: if true;
+      allow create: if request.auth != null && key.size() >= 24 && validAccent();
+      allow update: if request.auth != null && resource.data.uid == request.auth.uid && validAccent();
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+
+      function validAccent() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(["uid", "season", "color", "day", "at"])
+          && d.uid == request.auth.uid
+          && d.season in ["spring", "summer", "autumn", "winter"]
+          && d.color is string && d.color.matches("^#[0-9A-Fa-f]{6}$")
+          && d.day is string && d.day.size() == 10
+          && d.at is number;
+      }
+    }
+
     match /places/{key} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && validPlace();

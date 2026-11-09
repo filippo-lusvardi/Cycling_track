@@ -29,6 +29,8 @@ import {
 } from "@/components/Thresholds";
 import { signOutAndWipe } from "@/lib/account";
 import { applyAccent } from "@/lib/accent";
+import { launcherLink, newLauncherKey, shareSeason, stopSharing } from "@/lib/launcher-share";
+import type { Season } from "@/lib/tree";
 import { authError } from "@/lib/auth-errors";
 import { deleteUserData, saveProfile } from "@/lib/cloud";
 import { auth } from "@/lib/firebase";
@@ -56,6 +58,8 @@ import {
   GARDEN,
   ANALYSIS_BOTH,
   SEASON_ACCENT,
+  LAST_SEASON,
+  LAUNCHER_KEY,
   MAIN_SPORT,
   RUN_THRESHOLD,
   SEGMENT_HISTORY,
@@ -783,7 +787,10 @@ function RunningPanel() {
               value={form.pace}
               placeholder={
                 data?.fit
-                  ? t(`estimated ${formatPace(data.fit.speed)}`, `stimata ${formatPace(data.fit.speed)}`)
+                  ? t(
+                      `estimated ${formatPace(data.fit.speed)}`,
+                      `stimata ${formatPace(data.fit.speed)}`,
+                    )
                   : "4:30"
               }
               onChange={(e) => setForm({ ...form, pace: e.target.value })}
@@ -791,7 +798,8 @@ function RunningPanel() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="run-lthr">
-              {t("Threshold HR", "FC di soglia")} <span className="text-muted-foreground">(bpm)</span>
+              {t("Threshold HR", "FC di soglia")}{" "}
+              <span className="text-muted-foreground">(bpm)</span>
             </Label>
             <Input
               id="run-lthr"
@@ -906,7 +914,97 @@ function QuietTree() {
           }}
         />
       </div>
+      <LauncherShare />
     </Panel>
+  );
+}
+
+/** A link the phone launcher reads today's season from, to take its colour. */
+function LauncherShare() {
+  const [key, setKey] = useState(() => readSetting<string>(LAUNCHER_KEY));
+  const [busy, setBusy] = useState(false);
+  const link = key ? launcherLink(key) : null;
+
+  async function start() {
+    const next = newLauncherKey();
+    setBusy(true);
+    try {
+      writeSetting(LAUNCHER_KEY, next);
+      await saveProfile({ launcherKey: next });
+      const season = readSetting<Season>(LAST_SEASON);
+      if (season) await shareSeason(season, true);
+      setKey(next);
+    } catch (e) {
+      writeSetting(LAUNCHER_KEY, null);
+      console.warn("Launcher link not created", e);
+      toast.error(t("Couldn't create the link", "Impossibile creare il link"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function stop() {
+    if (!key) return;
+    setBusy(true);
+    try {
+      await stopSharing(key);
+      await saveProfile({ launcherKey: null });
+      writeSetting(LAUNCHER_KEY, null);
+      setKey(null);
+    } catch (e) {
+      console.warn("Launcher link not removed", e);
+      toast.error(t("Couldn't stop sharing", "Impossibile smettere di condividere"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-2">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <span className="block text-sm font-medium">
+            {t("Phone launcher", "Launcher del telefono")}
+          </span>
+          <span className="block text-sm text-muted-foreground">
+            {t(
+              "A link your launcher reads today's season from, to take its colour. Whoever has the link sees the season and nothing else.",
+              "Un link da cui il launcher legge la stagione di oggi, per prenderne il colore. Chi ha il link vede la stagione e nient'altro.",
+            )}
+          </span>
+        </div>
+        {link ? (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => void stop()}>
+            {t("Stop", "Interrompi")}
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => void start()}>
+            {t("Create link", "Crea link")}
+          </Button>
+        )}
+      </div>
+      {link && (
+        <div className="flex gap-2">
+          <Input
+            readOnly
+            value={link}
+            onFocus={(e) => e.currentTarget.select()}
+            className="font-mono text-xs"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              void navigator.clipboard
+                .writeText(link)
+                .then(() => toast.success(t("Link copied", "Link copiato")))
+            }
+          >
+            {t("Copy", "Copia")}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 

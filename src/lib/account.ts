@@ -12,6 +12,7 @@ import {
   CHECK_IN,
   GARDEN,
   GARDEN_CROPS,
+  LAUNCHER_KEY,
   LAYOUTS,
   PINNED,
   ZONE_TOPS,
@@ -80,6 +81,7 @@ async function pullProfile() {
   if (p.pinned) writeSetting(PINNED, JSON.parse(p.pinned) as string[]);
   writeSetting(RUN_THRESHOLD, p.runThreshold ?? null);
   writeSetting(ZONE_TOPS, p.zoneTops ?? null);
+  writeSetting(LAUNCHER_KEY, p.launcherKey ?? null);
   const up = {
     ...(!p.intervalsKey && key ? { intervalsKey: key } : {}),
     ...(p.segmentHistory == null && years != null ? { segmentHistory: years } : {}),

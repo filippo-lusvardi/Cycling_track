@@ -3,7 +3,14 @@
 // fair: nearly grey in rain. Under the sky, styles.css also mixes in the hour's sky (`html.tree-colors`). The accent
 // tones are light enough to carry the dark text buttons use; the surfaces stay dark enough for the data colours, which
 // never change. Off, or before there is a season, the app is the classic blue of styles.css.
-import { LAST_SEASON, LAST_WEATHER, readSetting, SEASON_ACCENT, writeSetting } from "./settings";
+import {
+  LAST_SEASON,
+  LAST_WEATHER,
+  LAUNCHER_KEY,
+  readSetting,
+  SEASON_ACCENT,
+  writeSetting,
+} from "./settings";
 import type { Season, Weather } from "./tree";
 
 export const SEASON_ACCENT_COLOR: Record<Season, string> = {
@@ -83,4 +90,9 @@ export function rememberTree(season: Season | null, weather: Weather | null, pha
   if (weather && (weatherChanged || last.phase !== phase))
     writeSetting(LAST_WEATHER, { weather, phase });
   if (seasonChanged || weatherChanged) applyAccent();
+  // The phone launcher follows the season too, when this account shares it (once a day, or on a change).
+  if (season && readSetting<string>(LAUNCHER_KEY))
+    import("./launcher-share")
+      .then((m) => m.shareSeason(season))
+      .catch((e) => console.warn("Launcher colour not shared", e));
 }

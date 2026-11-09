@@ -53,6 +53,8 @@ export type Profile = {
   runMaxHr?: number | null;
   /** Zone limits set by hand, as % of each threshold. */
   zoneTops?: ZoneTops | null;
+  /** The key of the phone launcher's link (see lib/launcher-share); missing = not shared. */
+  launcherKey?: string | null;
   /** When the user consented to Cirmolo storing their health data (accounts without intervals.icu). */
   healthConsentAt?: number | null;
 };

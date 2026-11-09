@@ -148,6 +148,7 @@ the tree*), it shows:
 - **Today's ceiling** on easy and endurance days: the power (or pace) and heart rate to keep to, from your
   zones.
 - **Quiet tree** (Settings → Tree) hides the scores on the tree until you tap.
+- **Phone launcher** (Settings → Tree): **Create link** gives a link a phone launcher (like Minimal) reads today's season from, to take its colour. Whoever has the link sees the season and nothing else; **Stop** deletes it. The season goes out when Cirmolo works out today's tree, on any device, at most once a day unless it changes.
 - **Morning check-in** (Settings → Tree) can be turned off: it's no longer asked, and the crown comes from HRV,
   sleep, form and how your activities felt. A check-in skipped for a day works the same way: its part drops out and the others share its weight.
 - **Training focus**: what to train in the current block (base, high aerobic, VO2max, anaerobic, sprint). It weighs

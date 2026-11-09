@@ -38,6 +38,10 @@ export const SOURCE = "cadence_source";
 export const SEASON_ACCENT = "cadence_season_accent";
 /** Today's readiness season as last computed on this device, so the colours are right from the first paint. */
 export const LAST_SEASON = "cadence_last_season";
+/** The key of this account's link for the phone launcher (see lib/launcher-share); none = not shared. Follows the account. */
+export const LAUNCHER_KEY = "cadence_launcher_key";
+/** The day and season last sent to the launcher from this device, so it goes out once a day. */
+export const LAUNCHER_SHARED = "cadence_launcher_shared";
 /** Today's form-weather and how fair it is within its kind, as last computed on this device, for the same reason. */
 export const LAST_WEATHER = "cadence_last_weather";
 /** The sports in the garden and which vegetable grows for each (a sport that's missing has no bed). Follows the account. */
