@@ -4,7 +4,7 @@ import { Check, ChevronRight, RotateCcw, X } from "lucide-react";
 import { useState } from "react";
 import { GearIcon } from "@/components/gear/GearDrawing";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
-import { gearOf, kmText, slotOf, type Gear } from "@/lib/gear";
+import { gearKindOf, gearOf, kmText, gearUseOf, type Gear } from "@/lib/gear";
 import { setRideGear, useGearState } from "@/lib/gear-store";
 import type { Activity } from "@/lib/intervals";
 import { t } from "@/lib/i18n";
@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
 export function RideGear({ a }: { a: Activity }) {
   const { gears, overrides } = useGearState();
   const [open, setOpen] = useState(false);
-  const slot = slotOf(a);
-  if (!slot) return null;
-  const kind = slot === "run" ? "shoes" : "bike";
+  const use = gearUseOf(a);
+  if (!use) return null;
+  const kind = gearKindOf(use);
   const choices = gears.filter((g) => g.kind === kind && !g.retired);
   if (!gears.some((g) => g.kind === kind)) return null;
   const on = gearOf(a, gears, overrides);
@@ -68,7 +68,7 @@ export function RideGear({ a }: { a: Activity }) {
                 <GearIcon kind={g.kind} frame={g.frame} className="h-8 w-12 shrink-0" />
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{g.name}</span>
-                  {g.isDefault && g.slot === slot && (
+                  {g.uses.includes(use) && (
                     <span className="block text-xs text-muted-foreground">
                       {kind === "shoes"
                         ? t("The usual ones", "Quelle di sempre")

@@ -8,7 +8,8 @@ import {
   gearOf,
   kmSinceWash,
   lifetimes,
-  makeDefault,
+  readGear,
+  setUses,
   newGear,
   partsIn,
   replacePart,
@@ -32,8 +33,7 @@ const bike = (over: Partial<Gear> = {}): Gear => ({
   name: "Canyon Ultimate",
   kind: "bike",
   frame: "road",
-  slot: "ride",
-  isDefault: true,
+  uses: ["road", "gravel", "mtb", "ebike"],
   startKm: 1000,
   since: "2026-01-01",
   components: [],
@@ -44,11 +44,11 @@ const bike = (over: Partial<Gear> = {}): Gear => ({
 
 describe("which gear an activity counts on", () => {
   const road = bike();
-  const gravel = bike({ id: "grizl", name: "Topstone", isDefault: false, frame: "gravel" });
-  const shoes = bike({ id: "peg", name: "Pegasus 41", kind: "shoes", slot: "run", startKm: 0 });
+  const gravel = bike({ id: "grizl", name: "Topstone", uses: [], frame: "gravel" });
+  const shoes = bike({ id: "peg", name: "Pegasus 41", kind: "shoes", uses: ["run"], startKm: 0 });
   const gears = [road, gravel, shoes];
 
-  it("goes to the slot's default", () => {
+  it("goes to the gear used for its kind", () => {
     expect(gearOf(ride("a", "2026-03-01", 50), gears, {})?.id).toBe("canyon");
     expect(gearOf(ride("b", "2026-03-01", 10, "Run"), gears, {})?.id).toBe("peg");
   });
@@ -60,7 +60,7 @@ describe("which gear an activity counts on", () => {
   it("indoor rides count only on an indoor gear", () => {
     expect(gearOf(ride("a", "2026-03-01", 30, "VirtualRide"), gears, {})).toBeNull();
     expect(gearOf(ride("a", "2026-03-01", 30, "Ride", true), gears, {})).toBeNull();
-    const trainer = bike({ id: "rulli", slot: "indoor" });
+    const trainer = bike({ id: "rulli", uses: ["indoor"] });
     expect(gearOf(ride("a", "2026-03-01", 30, "VirtualRide"), [...gears, trainer], {})?.id).toBe(
       "rulli",
     );
@@ -136,22 +136,53 @@ describe("km", () => {
   });
 
   it("shoes are due as a whole", () => {
-    const s = bike({ kind: "shoes", slot: "run", startKm: 650, intervalKm: 700 });
+    const s = bike({ kind: "shoes", uses: ["run"], startKm: 650, intervalKm: 700 });
     expect(dueOn(s, [])).toHaveLength(1);
   });
 });
 
-describe("defaults", () => {
-  it("the first of a slot is its default; moving it changes both", () => {
-    const a = newGear({ name: "A", kind: "bike", slot: "ride" }, [], "2026-01-01");
-    const b = newGear({ name: "B", kind: "bike", slot: "ride" }, [a], "2026-01-01");
-    expect(a.isDefault).toBe(true);
-    expect(b.isDefault).toBe(false);
-    const changed = makeDefault([a, b], b.id);
-    expect(changed.map((g) => [g.name, g.isDefault])).toEqual([
-      ["A", false],
-      ["B", true],
+describe("what each gear is used for", () => {
+  it("the first bike takes the outdoor kinds; the next one takes none unless said", () => {
+    const a = newGear({ name: "A", kind: "bike" }, [], "2026-01-01");
+    const b = newGear({ name: "B", kind: "bike" }, [a], "2026-01-01");
+    expect(a.uses).toEqual(["road", "gravel", "mtb", "ebike"]);
+    expect(b.uses).toEqual([]);
+  });
+
+  it("a road bike for road and indoor, an MTB for MTB: each kind moves to the one that takes it", () => {
+    const road = bike({ id: "road" });
+    const mtb = bike({ id: "mtb", frame: "mtb", uses: [] });
+    const changed = setUses([road, mtb], mtb, ["mtb"]);
+    expect(changed.map((g) => [g.id, g.uses])).toEqual([
+      ["mtb", ["mtb"]],
+      ["road", ["road", "gravel", "ebike"]],
     ]);
+    const after = setUses(changed, changed[1]!, ["road", "indoor"]);
+    const gs = [after[0]!, changed[0]!];
+    expect(gearOf(ride("x", "2026-03-01", 40), gs, {})?.id).toBe("road");
+    expect(gearOf(ride("x", "2026-03-01", 40, "VirtualRide"), gs, {})?.id).toBe("road");
+    expect(gearOf(ride("x", "2026-03-01", 40, "MountainBikeRide"), gs, {})?.id).toBe("mtb");
+    expect(gearOf(ride("x", "2026-03-01", 40, "GravelRide"), gs, {})).toBeNull();
+  });
+
+  it("retired gear keeps its kinds for the days it was in use", () => {
+    const old = bike({ id: "old", uses: ["road"], retired: "2026-02-28" });
+    const next = bike({ id: "new", uses: [], since: "2026-03-01" });
+    const changed = setUses([old, next], next, ["road"]);
+    expect(changed).toHaveLength(1);
+    const gs = [old, changed[0]!];
+    expect(gearOf(ride("x", "2026-02-10", 40), gs, {})?.id).toBe("old");
+    expect(gearOf(ride("x", "2026-03-10", 40), gs, {})?.id).toBe("new");
+  });
+
+  it("reads gear stored with a slot", () => {
+    const { uses: _, ...rest } = bike();
+    const legacy = (slot: string, isDefault: boolean) =>
+      readGear({ ...rest, slot, isDefault } as unknown as Gear).uses;
+    expect(legacy("ride", true)).toEqual(["road", "gravel", "mtb", "ebike"]);
+    expect(legacy("indoor", true)).toEqual(["indoor"]);
+    expect(legacy("run", true)).toEqual(["run"]);
+    expect(legacy("ride", false)).toEqual([]);
   });
 });
 

@@ -12,4 +12,9 @@ describe("the sky", () => {
     for (const path of ["/chart", "/chart/"]) expect(SKY_PAGE.test(path)).toBe(true);
     expect(SKY_PAGE.test("/charts")).toBe(false);
   });
+
+  it("is over the gear page", () => {
+    expect(SKY_PAGE.test("/gear")).toBe(true);
+    expect(SKY_PAGE.test("/gears")).toBe(false);
+  });
 });

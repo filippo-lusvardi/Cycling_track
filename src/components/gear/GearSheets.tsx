@@ -5,13 +5,16 @@ import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { Input } from "@/components/ui/input";
 import {
   addEvent,
+  BIKE_USES,
   current,
+  defaultFor,
   EVENT_LABEL,
   FRAME_LABEL,
   newGear,
   PART_ORDER,
   PARTS,
   replacePart,
+  setUses,
   trackPart,
   updateComponent,
   type Component,
@@ -20,7 +23,8 @@ import {
   type Gear,
   type GearKind,
   type PartKind,
-  type Slot,
+  type Use,
+  USE_LABEL,
 } from "@/lib/gear";
 import { saveGear } from "@/lib/gear-store";
 import { t } from "@/lib/i18n";
@@ -33,7 +37,15 @@ const kmValue = (s: string) => {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 };
 
-function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: string | undefined;
+}) {
   return (
     <label className="block">
       <span className="eyebrow">{label}</span>
@@ -72,6 +84,77 @@ function Chips<T extends string>({
   );
 }
 
+/** The kinds of activity a gear is used for: several can be on, each moves here from the gear that had it. */
+function UsesField({
+  kind,
+  gears,
+  self,
+  value,
+  onChange,
+}: {
+  kind: GearKind;
+  gears: Gear[];
+  self?: string;
+  value: Use[];
+  onChange: (v: Use[]) => void;
+}) {
+  const options: Use[] = kind === "shoes" ? ["run"] : BIKE_USES;
+  const toggle = (u: Use) =>
+    onChange(value.includes(u) ? value.filter((x) => x !== u) : [...value, u]);
+  const moving = value
+    .map((u) => ({ u, from: defaultFor(gears, u) }))
+    .filter((m) => m.from && m.from.id !== self && m.from.kind === kind);
+  return (
+    <Field
+      label={kind === "shoes" ? t("Used for", "Usate per") : t("Used for", "Usata per")}
+      hint={
+        moving.length
+          ? moving
+              .map(({ u, from }) =>
+                t(
+                  `${USE_LABEL(u)}: moves here from ${from!.name}`,
+                  `${USE_LABEL(u)}: passa qui da ${from!.name}`,
+                ),
+              )
+              .join(" · ")
+          : value.length
+            ? undefined
+            : kind === "shoes"
+              ? t(
+                  "Runs count on them only when set on an activity.",
+                  "Le corse contano su di loro solo se scelte sull'attività.",
+                )
+              : t(
+                  "Rides count on it only when set on an activity.",
+                  "Le uscite contano su di lei solo se scelta sull'attività.",
+                )
+      }
+    >
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((u) => (
+          <button
+            key={u}
+            type="button"
+            aria-pressed={value.includes(u)}
+            onClick={() => toggle(u)}
+            className={cn(
+              "inline-flex min-h-9 items-center gap-1 rounded-full border border-border px-3 text-sm transition-colors",
+              value.includes(u)
+                ? "border-primary bg-primary/15 text-primary"
+                : "hover:bg-secondary",
+            )}
+          >
+            {value.includes(u) && <Check className="h-3.5 w-3.5" />}
+            {kind === "shoes" ? t("Runs", "Corse") : USE_LABEL(u)}
+          </button>
+        ))}
+      </div>
+    </Field>
+  );
+}
+
+const FRAME_USE: Record<Frame, Use> = { road: "road", gravel: "gravel", mtb: "mtb", tt: "road" };
+
 function Save({ disabled, onClick }: { disabled?: boolean; onClick: () => void }) {
   return (
     <button
@@ -103,17 +186,18 @@ export function AddGearSheet({
   const [kind, setKind] = useState<GearKind>("bike");
   const [name, setName] = useState("");
   const [frame, setFrame] = useState<Frame>("road");
-  const [indoor, setIndoor] = useState(false);
+  // Until touched, the kinds follow the frame (an MTB for MTB rides) and the shoes are for runs.
+  const [picked, setPicked] = useState<Use[] | null>(null);
+  const uses = picked ?? (kind === "shoes" ? ["run"] : [FRAME_USE[frame]]);
   const [km, setKm] = useState("");
   const [since, setSince] = useState(today());
   const [life, setLife] = useState("700");
-  const slot: Slot = kind === "shoes" ? "run" : indoor ? "indoor" : "ride";
   const save = () => {
     const g = newGear(
       {
         name,
         kind,
-        slot,
+        uses,
         frame,
         startKm: kmValue(km) ?? 0,
         since: since || today(),
@@ -122,7 +206,7 @@ export function AddGearSheet({
       gears,
       today(),
     );
-    void saveGear(g);
+    void saveGear(...setUses(gears, g, uses));
     onOpenChange(false);
     setName("");
     setKm("");
@@ -141,7 +225,10 @@ export function AddGearSheet({
             { id: "shoes" as const, label: t("Shoes", "Scarpe") },
           ]}
           value={kind}
-          onChange={setKind}
+          onChange={(k) => {
+            setKind(k);
+            setPicked(null);
+          }}
         />
         <Field label={t("Name", "Nome")}>
           <Input
@@ -160,18 +247,9 @@ export function AddGearSheet({
                 onChange={setFrame}
               />
             </Field>
-            <Field label={t("Used for", "Usata per")}>
-              <Chips
-                options={[
-                  { id: "out" as const, label: t("Rides", "Uscite") },
-                  { id: "in" as const, label: t("Indoor rides", "Uscite al chiuso") },
-                ]}
-                value={indoor ? "in" : "out"}
-                onChange={(v) => setIndoor(v === "in")}
-              />
-            </Field>
           </>
         )}
+        <UsesField kind={kind} gears={gears} value={uses} onChange={setPicked} />
         <div className="grid grid-cols-2 gap-3">
           <Field label={t("In use since", "In uso da")}>
             <Input
@@ -217,12 +295,15 @@ export function EditGearSheet({
   open,
   onOpenChange,
   gear,
+  gears,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   gear: Gear;
+  gears: Gear[];
 }) {
   const [name, setName] = useState(gear.name);
+  const [uses, setUsesState] = useState<Use[]>(gear.uses);
   const [frame, setFrame] = useState<Frame>(gear.frame ?? "road");
   const [km, setKm] = useState(gear.startKm ? String(gear.startKm) : "");
   const [since, setSince] = useState(gear.since);
@@ -237,7 +318,7 @@ export function EditGearSheet({
     };
     if (gear.kind === "bike") next.frame = frame;
     else next.intervalKm = kmValue(life);
-    void saveGear(next);
+    void saveGear(...setUses(gears, next, uses));
     onOpenChange(false);
   };
   return (
@@ -254,6 +335,15 @@ export function EditGearSheet({
               onChange={setFrame}
             />
           </Field>
+        )}
+        {!gear.retired && (
+          <UsesField
+            kind={gear.kind}
+            gears={gears}
+            self={gear.id}
+            value={uses}
+            onChange={setUsesState}
+          />
         )}
         <div className="grid grid-cols-2 gap-3">
           <Field label={t("In use since", "In uso da")}>

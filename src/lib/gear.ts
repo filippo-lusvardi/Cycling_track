@@ -1,10 +1,11 @@
 // Gear: bikes and shoes, the parts that wear on them, and what was done to them (washes, replacements, services,
 // notes). Pure: the store is ./gear-store, the page routes/gear.tsx.
 //
-// An activity counts on a gear when it was set on it (an override), or else on the default gear of its slot: outdoor
-// rides, indoor rides, runs. Without an indoor default, indoor rides count on nothing (a trainer wears a chain, not
-// tyres, so they only go where someone said). A gear counts from its `since` day, plus the km it already had.
-import { activityKind } from "./activity-kind";
+// An activity counts on a gear when it was set on it (an override), or else on the gear used for its kind: road,
+// gravel, MTB, e-bike, indoor, run. One gear can take several kinds (the road bike for road and indoor), each kind is on
+// one gear at a time. A kind on no gear counts on nothing (indoor rides only go where someone said: a trainer wears a
+// chain, not tyres). A gear counts from its `since` day, plus the km it already had.
+import { activityKind, KINDS } from "./activity-kind";
 import { format, num, t } from "./i18n";
 import type { Activity } from "./intervals";
 import { sportOfActivity } from "./sport";
@@ -12,7 +13,10 @@ import { parseISO } from "date-fns";
 
 export type GearKind = "bike" | "shoes";
 export type Frame = "road" | "gravel" | "mtb" | "tt";
-export type Slot = "ride" | "indoor" | "run";
+/** The kinds of activity a gear can be used for (lib/activity-kind's). */
+export type Use = "road" | "gravel" | "mtb" | "ebike" | "indoor" | "run";
+export const BIKE_USES: Use[] = ["road", "gravel", "mtb", "indoor", "ebike"];
+const OUTDOOR: Use[] = ["road", "gravel", "mtb", "ebike"];
 
 export type PartKind =
   | "chain"
@@ -58,8 +62,8 @@ export type Gear = {
   name: string;
   kind: GearKind;
   frame?: Frame;
-  slot: Slot;
-  isDefault?: boolean;
+  /** What its activities are: they count on it unless set on other gear. */
+  uses: Use[];
   /** Km done before it was added. */
   startKm: number;
   since: string;
@@ -221,20 +225,37 @@ export function partsIn(words: string[]): { parts: PartKind[]; used: Set<number>
 
 export const dayOf = (a: Pick<Activity, "start_date_local">) => a.start_date_local.slice(0, 10);
 
-export function slotOf(a: Act): Slot | null {
-  if (activityKind(a) === "indoor") return "indoor";
-  return sportOfActivity(a);
+/** The kind of an activity, if gear can take it. */
+export function gearUseOf(a: Act): Use | null {
+  if (!sportOfActivity(a)) return null;
+  const k = activityKind(a);
+  return (BIKE_USES as string[]).includes(k) || k === "run" ? (k as Use) : null;
 }
 
-export const SLOT_LABEL: Record<Slot, () => string> = {
-  ride: () => t("used for rides", "usata per le uscite"),
-  indoor: () => t("used for indoor rides", "usata per le uscite al chiuso"),
-  run: () => t("used for runs", "usate per le corse"),
-};
+export const gearKindOf = (u: Use): GearKind => (u === "run" ? "shoes" : "bike");
 
-/** The default gear of a slot, if any. */
-export const defaultFor = (gears: Gear[], slot: Slot) =>
-  gears.find((g) => g.slot === slot && g.isDefault && !g.retired) ?? null;
+export const USE_LABEL = (u: Use) => KINDS[u].label;
+
+/** "Used for road and indoor": what a gear's activities are, for its subtitle. */
+export function usesText(g: Pick<Gear, "kind" | "uses">) {
+  if (g.kind === "shoes") return g.uses.length ? t("used for runs", "usate per le corse") : "";
+  if (!g.uses.length) return "";
+  const list = BIKE_USES.filter((u) => g.uses.includes(u)).map((u) => USE_LABEL(u).toLowerCase());
+  const text =
+    list.length < 2 ? list[0]! : `${list.slice(0, -1).join(", ")} ${t("and", "e")} ${list.at(-1)}`;
+  return t(`used for ${text}`, `usata per ${text}`);
+}
+
+/** The gear in use for a kind, if any. */
+export const defaultFor = (gears: Gear[], use: Use) =>
+  gears.find((g) => !g.retired && g.uses.includes(use)) ?? null;
+
+/** The usual bike (or shoes): the one in use for the most kinds, road first. */
+export function usualOf(gears: Gear[], kind: GearKind): Gear | null {
+  const live = gears.filter((g) => g.kind === kind && !g.retired && g.uses.length);
+  const score = (g: Gear) => g.uses.length + (g.uses.includes("road") ? 0.5 : 0);
+  return live.sort((a, b) => score(b) - score(a))[0] ?? null;
+}
 
 /** The gear an activity counts on, or null. */
 export function gearOf(a: Act, gears: Gear[], ov: Overrides): Gear | null {
@@ -242,13 +263,15 @@ export function gearOf(a: Act, gears: Gear[], ov: Overrides): Gear | null {
     const id = ov[a.id];
     return id ? (gears.find((g) => g.id === id) ?? null) : null;
   }
-  const slot = slotOf(a);
-  if (!slot) return null;
+  const use = gearUseOf(a);
+  if (!use) return null;
   const day = dayOf(a);
-  const g = gears.find(
-    (x) => x.slot === slot && x.isDefault && day >= x.since && (!x.retired || day <= x.retired),
+  // A retired bike keeps its kinds for the days it was in use; the newest one in use that day wins.
+  return (
+    gears
+      .filter((x) => x.uses.includes(use) && day >= x.since && (!x.retired || day <= x.retired))
+      .sort((x, y) => y.since.localeCompare(x.since))[0] ?? null
   );
-  return g ?? null;
 }
 
 /** Every gear's activities, by gear id. */
@@ -441,18 +464,39 @@ export function updateComponent(
   );
 }
 
-/** The gear that changes when one becomes the default of its slot: it, and the one that was. */
-export function makeDefault(gears: Gear[], id: string, now = Date.now()): Gear[] {
-  const g = gears.find((x) => x.id === id);
-  if (!g) return [];
-  return gears
-    .filter((x) => x.slot === g.slot && (x.id === id ? !x.isDefault : x.isDefault))
-    .map((x) => touch({ ...x, isDefault: x.id === id }, now));
+/**
+ * A gear now used for these kinds: the gear that changes, it and the ones in use that held them (each kind is on one
+ * gear at a time). Retired gear keeps its kinds, for the days it was in use.
+ */
+export function setUses(gears: Gear[], g: Gear, uses: Use[], now = Date.now()): Gear[] {
+  const mine = [...new Set(uses)];
+  const others = gears
+    .filter((x) => x.id !== g.id && !x.retired && x.uses.some((u) => mine.includes(u)))
+    .map((x) => touch({ ...x, uses: x.uses.filter((u) => !mine.includes(u)) }, now));
+  return [touch({ ...g, uses: mine }, now), ...others];
 }
 
+/** What a stored gear says, as it is now: older ones had one slot and a default flag. */
+export function readGear(raw: Gear & { slot?: string; isDefault?: boolean }): Gear {
+  if (Array.isArray(raw.uses)) return raw;
+  const { slot, isDefault, ...g } = raw;
+  const uses: Use[] = !isDefault
+    ? []
+    : slot === "run"
+      ? ["run"]
+      : slot === "indoor"
+        ? ["indoor"]
+        : [...OUTDOOR];
+  return { ...g, uses };
+}
+
+/** The kinds a new gear takes when none were said: those on no gear yet (indoor only when said). */
+export const freeUses = (gears: Gear[], kind: GearKind): Use[] =>
+  (kind === "shoes" ? (["run"] as Use[]) : OUTDOOR).filter((u) => !defaultFor(gears, u));
+
 export function newGear(
-  p: Pick<Gear, "name" | "kind" | "slot"> &
-    Partial<Pick<Gear, "frame" | "startKm" | "since" | "intervalKm">>,
+  p: Pick<Gear, "name" | "kind"> &
+    Partial<Pick<Gear, "frame" | "startKm" | "since" | "intervalKm" | "uses">>,
   gears: Gear[],
   today: string,
   now = Date.now(),
@@ -461,9 +505,8 @@ export function newGear(
     id: newId(),
     name: p.name.trim(),
     kind: p.kind,
-    slot: p.slot,
-    // The first of its slot is its default: what most people mean by "my bike".
-    isDefault: !defaultFor(gears, p.slot),
+    // Without kinds said, it takes those no gear has: the first bike is what most people mean by "my bike".
+    uses: p.uses ?? freeUses(gears, p.kind),
     startKm: p.startKm ?? 0,
     since: p.since ?? today,
     components: [],

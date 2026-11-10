@@ -42,12 +42,11 @@ import {
   kmSinceWash,
   kmText,
   lifetimes,
-  makeDefault,
   PARTS,
   ridesByGear,
   removeEvent,
   shoeHistory,
-  SLOT_LABEL,
+  usesText,
   wearRatio,
   type EventKind,
   type Gear,
@@ -195,7 +194,7 @@ function GearList({
 function subtitle(g: Gear) {
   const text = [
     g.kind === "bike" ? FRAME_LABEL[g.frame ?? "road"]() : null,
-    g.isDefault && !g.retired ? SLOT_LABEL[g.slot]() : null,
+    g.retired ? null : usesText(g),
     g.retired
       ? t(`retired ${dayShort(g.retired)}`, `in pensione dal ${dayShort(g.retired)}`)
       : null,
@@ -299,7 +298,6 @@ function GearDetail({
     .filter(Boolean)
     .join(" · ");
   const today = isoDate(new Date());
-  const setDefault = () => void saveGear(...makeDefault(gears, gear.id));
   const retire = () => {
     void saveGear({ ...gear, retired: gear.retired ? null : today, updatedAt: Date.now() });
   };
@@ -333,13 +331,11 @@ function GearDetail({
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        {!gear.isDefault && !gear.retired && (
-          <Pill icon={Star} onClick={setDefault}>
+        {!gear.uses.length && !gear.retired && (
+          <Pill icon={Star} onClick={() => setSheet({ kind: "edit" })}>
             {gear.kind === "shoes"
               ? t("Use for runs", "Usale per le corse")
-              : gear.slot === "indoor"
-                ? t("Use for indoor rides", "Usala per le uscite al chiuso")
-                : t("Use for rides", "Usala per le uscite")}
+              : t("Choose what it's used for", "Scegli per cosa usarla")}
           </Pill>
         )}
         <Pill icon={Pencil} onClick={() => setSheet({ kind: "edit" })}>
@@ -399,7 +395,7 @@ function GearDetail({
         />
       )}
       {sheet?.kind === "edit" && (
-        <EditGearSheet open onOpenChange={() => setSheet(null)} gear={gear} />
+        <EditGearSheet open onOpenChange={() => setSheet(null)} gear={gear} gears={gears} />
       )}
     </div>
   );

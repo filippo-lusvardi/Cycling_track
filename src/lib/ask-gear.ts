@@ -11,7 +11,7 @@ import {
   componentKm,
   current,
   dayOf,
-  defaultFor,
+  gearKindOf,
   gearKm,
   gearNamed,
   gearOf,
@@ -24,7 +24,8 @@ import {
   partsIn,
   replacePart,
   ridesByGear,
-  slotOf,
+  gearUseOf,
+  usualOf,
   type Gear,
   type PartKind,
 } from "./gear";
@@ -95,7 +96,7 @@ const leftover = (words: string[], used: Set<number>) =>
 function whichGear(gears: Gear[], kind: "bike" | "shoes", named: Gear | null): Gear[] {
   if (named) return named.kind === kind ? [named] : [];
   const live = gears.filter((g) => g.kind === kind && !g.retired);
-  const usual = defaultFor(gears, kind === "shoes" ? "run" : "ride");
+  const usual = usualOf(gears, kind);
   return [...live].sort((a, b) => Number(b === usual) - Number(a === usual)).slice(0, 3);
 }
 
@@ -128,18 +129,14 @@ export function gearRows(d: IntentData, s: string, query: string): Entry[] {
         },
       ];
     if (gears.some((g) => g.name.toLowerCase() === raw.toLowerCase())) return [];
-    const g = newGear(
-      { name: raw, kind: shoes ? "shoes" : "bike", slot: shoes ? "run" : "ride" },
-      gears,
-      d.today,
-    );
+    const g = newGear({ name: raw, kind: shoes ? "shoes" : "bike" }, gears, d.today);
     return [
       saveRow(
         "gear-add",
         shoes
           ? t(`Add shoes ${raw}`, `Aggiungi scarpe ${raw}`)
           : t(`Add bike ${raw}`, `Aggiungi bici ${raw}`),
-        g.isDefault
+        g.uses.length
           ? shoes
             ? t("From today your runs count on them", "Da oggi le corse contano su di loro")
             : t("From today your rides count on it", "Da oggi le uscite contano su di lei")
@@ -361,8 +358,8 @@ export function gearRows(d: IntentData, s: string, query: string): Entry[] {
     if (leftover(words, used).length) return [];
     const kind = named.kind;
     const fits = (a: Activity) => {
-      const slot = slotOf(a);
-      return slot != null && (kind === "shoes" ? slot === "run" : slot !== "run");
+      const use = gearUseOf(a);
+      return use != null && gearKindOf(use) === kind;
     };
     const latest = [...acts]
       .filter(fits)

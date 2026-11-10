@@ -31,8 +31,7 @@ const gear = (over: Partial<Gear>): Gear => ({
   name: "Canyon Ultimate",
   kind: "bike",
   frame: "road",
-  slot: "ride",
-  isDefault: true,
+  uses: ["road", "gravel", "mtb", "ebike"],
   startKm: 0,
   since: "2026-01-01",
   components: [{ id: "c1", part: "chain", fitted: "2026-01-01", intervalKm: 120 }],
@@ -47,14 +46,14 @@ const gears = [
     id: "topstone",
     name: "Cannondale Topstone",
     frame: "gravel",
-    isDefault: false,
+    uses: [],
     components: [],
   }),
   gear({
     id: "peg",
     name: "Pegasus 41",
     kind: "shoes",
-    slot: "run",
+    uses: ["run"],
     components: [],
     intervalKm: 700,
   }),
@@ -162,7 +161,7 @@ describe("gear by typing", () => {
     const a = action(row);
     expect(a?.kind === "gear" && a.gear).toMatchObject({
       name: "Specialized Aethos",
-      isDefault: false,
+      uses: [],
       since: today,
     });
   });

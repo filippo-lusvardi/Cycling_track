@@ -20,7 +20,7 @@ import {
 } from "firebase/firestore";
 import { uid } from "./firebase";
 import { db } from "./db";
-import type { Gear, Overrides } from "./gear";
+import { readGear, type Gear, type Overrides } from "./gear";
 import type { SavedSegment } from "./segment-store";
 import type { ZoneTops } from "./settings";
 
@@ -133,7 +133,7 @@ export const writeGearRide = (activityId: string, gear: string | null | undefine
 export const watchGear = (cb: (gears: Gear[]) => void) =>
   onSnapshot(
     gearCol(),
-    (snap) => cb(snap.docs.map((d) => d.data() as Gear)),
+    (snap) => cb(snap.docs.map((d) => readGear(d.data() as Gear))),
     (e) => console.warn("Gear sync failed", e),
   );
 
