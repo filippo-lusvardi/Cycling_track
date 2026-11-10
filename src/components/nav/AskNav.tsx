@@ -28,6 +28,7 @@ import {
   Sprout,
   TreeDeciduous,
   Trees,
+  Wrench,
   X,
   Zap,
   type LucideIcon,
@@ -54,6 +55,7 @@ import { useSegmentNames } from "@/hooks/use-segment-names";
 import { useSegmentLibrary } from "@/hooks/use-segments";
 import { useSuggestInput } from "@/hooks/use-suggest-input";
 import { uid } from "@/lib/firebase";
+import { useGearState } from "@/lib/gear-store";
 import { analysisBoth, knownRunThreshold, mainSport } from "@/lib/sport";
 import {
   allEntries,
@@ -176,6 +178,7 @@ const ICON: Record<Page, LucideIcon | typeof WorkoutProfile> = {
   zones: Zap,
   recap: CalendarDays,
   programme: CalendarDays,
+  gear: Wrench,
   save: Check,
 };
 
@@ -707,6 +710,7 @@ function AskBody({
     ],
     [data, today, sport, checkIn, acts, wellness, crown, zones, events, races, suggest],
   );
+  const gearNow = useGearState();
   // What the commands read: passes on each climb, and the running analysis only if it's already been done.
   const intentData: IntentData = useMemo(
     () => ({
@@ -734,8 +738,10 @@ function AskBody({
         .getQueryData<RunData>(runDataQuery().queryKey)
         ?.runs.map((r) => ({ id: r.a.id, bests: r.s.bests, date: r.date, curve: r.s.paceCurve })),
       climbs: climbsRead,
+      gear: gearNow,
     }),
     [
+      gearNow,
       today,
       sport,
       acts,

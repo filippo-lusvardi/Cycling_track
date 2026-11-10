@@ -20,6 +20,7 @@ import {
   setActivityFeel,
   updateOffEvent,
 } from "./source";
+import { gearState, removeGear, saveGear, setRideGear } from "./gear-store";
 import { addDays } from "./training";
 import { offToggle } from "./tree";
 import { saveWellnessOrQueue } from "./wellness-queue";
@@ -96,6 +97,29 @@ export async function runWrite(a: WriteAction, qc: QueryClient): Promise<WriteRe
       queued: done.some((r) => r.queued),
       undo: async () => {
         for (const r of [...done].reverse()) await r.undo();
+      },
+    };
+  }
+  if (a.kind === "gear") {
+    const before = gearState().gears.find((g) => g.id === a.gear.id) ?? null;
+    await saveGear({ ...a.gear, updatedAt: Date.now() });
+    return {
+      queued: false,
+      undo: async () => {
+        if (before) await saveGear({ ...before, updatedAt: Date.now() });
+        else await removeGear(a.gear.id);
+      },
+    };
+  }
+  if (a.kind === "gear-ride") {
+    const ov = gearState().overrides;
+    const had = a.activityId in ov;
+    const prev = ov[a.activityId];
+    await setRideGear(a.activityId, a.gearId);
+    return {
+      queued: false,
+      undo: async () => {
+        await setRideGear(a.activityId, had ? prev : undefined);
       },
     };
   }

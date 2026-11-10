@@ -286,7 +286,7 @@ describe("alternatives", () => {
   });
 
   it("has nothing for what it doesn't know", () => {
-    expect(ids("scarpe")).toEqual([]);
+    expect(ids("ombrello")).toEqual([]);
   });
 
   it("leaves the Garden out when it's off", () => {

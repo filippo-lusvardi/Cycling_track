@@ -30,7 +30,9 @@ import {
   type Span,
   type WhenCandidate,
 } from "./ask-when";
+import { gearRows } from "./ask-gear";
 import { FEEL_LABEL, recentFeel } from "./felt";
+import type { Gear, Overrides } from "./gear";
 import { briochesFor, intakeTarget } from "./fuel";
 import { format, num, t } from "./i18n";
 import {
@@ -92,7 +94,11 @@ export type WriteAction =
   | { kind: "undo"; label: string }
   | { kind: "batch"; parts: BatchPart[]; day: string; label: string }
   | { kind: "remove-plan"; event: PlannedEvent; label: string }
-  | { kind: "move-plan"; id: string; from: string; to: string; label: string };
+  | { kind: "move-plan"; id: string; from: string; to: string; label: string }
+  /** The gear as it is after: a wash, a part replaced, a note, a new gear. */
+  | { kind: "gear"; gear: Gear; label: string }
+  /** An activity onto a gear, or onto none. */
+  | { kind: "gear-ride"; activityId: string; gearId: string | null; label: string };
 
 /** One thing in a line that saves several. A brioche can go on the activity logged in the same line: `activityId: "$log"`. */
 export type BatchPart = { title: string; detail: string; action: WriteAction };
@@ -139,6 +145,8 @@ export type IntentData = {
   offEvents?: PlannedEvent[] | undefined;
   /** What's planned from today on. */
   events?: PlannedEvent[] | undefined;
+  /** Bikes and shoes, and activities set on other gear than their default. */
+  gear?: { gears: Gear[]; overrides: Overrides } | undefined;
 };
 
 const route = (
@@ -2363,6 +2371,8 @@ export function intentEntries(query: string, d: IntentData): Entry[] {
     ];
   const saved = writes(d, s);
   if (saved.length) return saved;
+  const gear = gearRows(d, s, query);
+  if (gear.length) return gear;
   const batch = batchRows(query, s, d);
   if (batch.length) return batch;
 

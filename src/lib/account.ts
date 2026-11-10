@@ -53,7 +53,13 @@ async function startSession() {
   // Signed out while the import was loading: nothing to follow.
   if (!auth.currentUser) return;
   syncSegments().catch((e) => console.warn("Segment sync failed", e));
-  stopFollow = followSegments();
+  const stopSegments = followSegments();
+  const { followGear } = await import("./gear-store");
+  const stopGear = auth.currentUser ? await followGear() : () => {};
+  stopFollow = () => {
+    stopSegments();
+    stopGear();
+  };
 }
 
 /** The account's settings win; a device that had them before the account existed hands them over. */

@@ -2,6 +2,8 @@
 //   users/{uid}                   Profile
 //   users/{uid}/segments/{id}     SavedSegment
 //   users/{uid}/summit/{placeKey} { notes: { [effortKey]: text } }, the summit book's signatures
+//   users/{uid}/gear/{id}         Gear (bikes and shoes, their parts and log)
+//   users/{uid}/gearRides/{actId} { gear: id | null }, an activity set on other gear than the default
 //   places/{placeKey}             { name, at }
 import {
   collection,
@@ -18,6 +20,7 @@ import {
 } from "firebase/firestore";
 import { uid } from "./firebase";
 import { db } from "./db";
+import type { Gear, Overrides } from "./gear";
 import type { SavedSegment } from "./segment-store";
 import type { ZoneTops } from "./settings";
 
@@ -112,6 +115,38 @@ export const saveSummitNote = (place: string, effort: string, text: string) =>
     { merge: true },
   );
 
+// --- Gear ---
+
+const gearCol = () => collection(db, "users", uid(), "gear");
+const gearRidesCol = () => collection(db, "users", uid(), "gearRides");
+
+/** Resolves when the server has it; offline, Firestore keeps it queued, so callers don't wait on it. */
+export const writeGear = (g: Gear) => setDoc(doc(gearCol(), g.id), clean(g));
+export const deleteGear = (id: string) => deleteDoc(doc(gearCol(), id));
+
+/** An activity onto a gear (an id), onto none (null), or back to the default (undefined). */
+export const writeGearRide = (activityId: string, gear: string | null | undefined) =>
+  gear === undefined
+    ? deleteDoc(doc(gearRidesCol(), activityId))
+    : setDoc(doc(gearRidesCol(), activityId), { gear });
+
+export const watchGear = (cb: (gears: Gear[]) => void) =>
+  onSnapshot(
+    gearCol(),
+    (snap) => cb(snap.docs.map((d) => d.data() as Gear)),
+    (e) => console.warn("Gear sync failed", e),
+  );
+
+export const watchGearRides = (cb: (ov: Overrides) => void) =>
+  onSnapshot(
+    gearRidesCol(),
+    (snap) =>
+      cb(
+        Object.fromEntries(snap.docs.map((d) => [d.id, (d.get("gear") as string | null) ?? null])),
+      ),
+    (e) => console.warn("Gear sync failed", e),
+  );
+
 /** Everything stored for this user, before the account itself is deleted. */
 export async function deleteUserData() {
   for (const name of [
@@ -122,6 +157,8 @@ export async function deleteUserData() {
     "events",
     "streams",
     "workouts",
+    "gear",
+    "gearRides",
   ]) {
     const docs = (await getDocs(collection(db, "users", uid(), name))).docs;
     for (let i = 0; i < docs.length; i += 500) {

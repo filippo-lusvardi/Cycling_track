@@ -35,6 +35,7 @@ export type Page =
   | "zones"
   | "recap"
   | "programme"
+  | "gear"
   | "save";
 
 export type LegendTab = "tree" | "garden" | "ask";
@@ -91,6 +92,7 @@ export const PAGE_LABEL: Record<Page, () => string> = {
   zones: () => t("Zones", "Zone"),
   recap: () => t("Recap", "Riepilogo"),
   programme: () => t("Plan", "Programma"),
+  gear: () => t("Gear", "Attrezzatura"),
   save: () => t("Save", "Salva"),
 };
 
@@ -124,6 +126,7 @@ export const PAGE_DEST: Record<ListPage, Dest> = {
   forest: route("/forest"),
   legend: { kind: "legend", term: "crown", tab: "tree" },
   zones: route("/analysis", { view: "zones" }),
+  gear: route("/gear"),
 };
 
 export const INDEX: { when: () => string; pages: ListPage[] }[] = [
@@ -133,7 +136,7 @@ export const INDEX: { when: () => string; pages: ListPage[] }[] = [
     pages: ["rides", "years", "pantry", "analysis", "body", "zones", "segments"],
   },
   { when: () => t("Ahead", "Poi"), pages: ["plan", "calendar", "workouts"] },
-  { when: () => t("More", "Altro"), pages: ["legend", "settings", "forest"] },
+  { when: () => t("More", "Altro"), pages: ["gear", "legend", "settings", "forest"] },
 ];
 
 /** Pages that only exist with the Garden on. */
@@ -296,6 +299,25 @@ function questions(): Entry[] {
       kind: "plan",
       dest: route("/plan/settings"),
       words: ["giorni", "days", "obiettivo", "goal"],
+    },
+    {
+      id: "gear",
+      q: t("My gear", "La mia attrezzatura"),
+      also: `${"My gear"} ${"La mia attrezzatura"}`,
+      page: "gear",
+      kind: "plan",
+      dest: PAGE_DEST.gear,
+      words: [
+        "gear",
+        "attrezzatura",
+        "manutenzione",
+        "maintenance",
+        "componenti",
+        "components",
+        "officina",
+        "scarpe",
+        "shoes",
+      ],
     },
     {
       id: "plan-season",

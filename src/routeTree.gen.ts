@@ -14,6 +14,7 @@ import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as ChartRouteImport } from './routes/chart'
 import { Route as GardenRouteImport } from './routes/garden'
+import { Route as GearRouteImport } from './routes/gear'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecapRouteImport } from './routes/recap'
@@ -56,6 +57,11 @@ const ChartRoute = ChartRouteImport.update({
 const GardenRoute = GardenRouteImport.update({
   id: '/garden',
   path: '/garden',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GearRoute = GearRouteImport.update({
+  id: '/gear',
+  path: '/gear',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -155,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
   '/garden': typeof GardenRoute
+  '/gear': typeof GearRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
@@ -180,6 +187,7 @@ export interface FileRoutesByTo {
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
   '/garden': typeof GardenRoute
+  '/gear': typeof GearRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
   '/garden': typeof GardenRoute
+  '/gear': typeof GearRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/chart'
     | '/garden'
+    | '/gear'
     | '/login'
     | '/privacy'
     | '/recap'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/chart'
     | '/garden'
+    | '/gear'
     | '/login'
     | '/privacy'
     | '/recap'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/chart'
     | '/garden'
+    | '/gear'
     | '/login'
     | '/privacy'
     | '/recap'
@@ -309,6 +321,7 @@ export interface RootRouteChildren {
   CalendarRoute: typeof CalendarRoute
   ChartRoute: typeof ChartRoute
   GardenRoute: typeof GardenRoute
+  GearRoute: typeof GearRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   RecapRoute: typeof RecapRoute
@@ -364,6 +377,13 @@ declare module '@tanstack/react-router' {
       path: '/garden'
       fullPath: '/garden'
       preLoaderRoute: typeof GardenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gear': {
+      id: '/gear'
+      path: '/gear'
+      fullPath: '/gear'
+      preLoaderRoute: typeof GearRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -501,6 +521,7 @@ const rootRouteChildren: RootRouteChildren = {
   CalendarRoute: CalendarRoute,
   ChartRoute: ChartRoute,
   GardenRoute: GardenRoute,
+  GearRoute: GearRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   RecapRoute: RecapRoute,

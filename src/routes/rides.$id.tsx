@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { CAT_COLOR, ElevationProfile } from "@/components/ElevationProfile";
 import { RideCharts } from "@/components/RideCharts";
 import { RideVisibility } from "@/components/forest/RideVisibility";
+import { RideGear } from "@/components/gear/RideGear";
 import { RouteMap, type MapLine, type MapPin } from "@/components/RouteMap";
 import { RunSplits } from "@/components/RunSplits";
 import { Panel, StatCard } from "@/components/StatCard";
@@ -269,6 +270,7 @@ function RideDetail() {
           {a.name ?? t("Activity", "Attività")}
         </h1>
         {a.garmin && <p className="mt-1 text-sm text-muted-foreground">{a.garmin}</p>}
+        <RideGear a={a} />
         {withoutRating(withoutBrioches(a.description)) && (
           <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">
             {withoutRating(withoutBrioches(a.description))}
