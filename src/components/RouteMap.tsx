@@ -15,6 +15,8 @@ export type MapLine = {
   onHover?: (over: boolean) => void;
 };
 export type MapPin = { lat: number; lng: number; color: string; label: string };
+/** A point the user can drag or tap (a route's checkpoint). */
+export type MapHandle = { lat: number; lng: number; label: string };
 
 // Renamed when Satellite became the default, so every device starts on it once.
 const BASE_KEY = "ora_map_base";
@@ -33,7 +35,11 @@ const esri = (service: string, maxZoom: number) =>
 
 const BASES = {
   // Esri's dark grey canvas has no labels; its reference layer adds them on top.
-  Dark: () => L.layerGroup([esri("Canvas/World_Dark_Gray_Base", 16), esri("Canvas/World_Dark_Gray_Reference", 16)]),
+  Dark: () =>
+    L.layerGroup([
+      esri("Canvas/World_Dark_Gray_Base", 16),
+      esri("Canvas/World_Dark_Gray_Reference", 16),
+    ]),
   Topo: () =>
     L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
       subdomains: "abc",
@@ -85,6 +91,13 @@ export function RouteMap({
   home,
   onHome,
   wheelZoom = false,
+  underlay,
+  base,
+  onView,
+  onMapClick,
+  handles,
+  onHandleMove,
+  onHandleTap,
   className,
 }: {
   lines: MapLine[];
@@ -104,6 +117,17 @@ export function RouteMap({
   onHome?: () => void;
   /** Wheel zoom from the start, for a map on a page that doesn't scroll. Otherwise it waits for a click on the map. */
   wheelZoom?: boolean;
+  /** Many faint lines under everything (e.g. your roads): drawn on a canvas, not clickable, not fitted. */
+  underlay?: MapLine[];
+  /** Open on this base map rather than the one last chosen (the choice made here is still remembered). */
+  base?: keyof typeof BASES;
+  /** The area on screen, each time the map stops moving: [[south, west], [north, east]]. */
+  onView?: (b: [[number, number], [number, number]]) => void;
+  /** A tap on the map itself (not on a line or a handle). */
+  onMapClick?: (p: { lat: number; lng: number }) => void;
+  handles?: MapHandle[];
+  onHandleMove?: (i: number, p: { lat: number; lng: number }) => void;
+  onHandleTap?: (i: number) => void;
   className?: string;
 }) {
   const el = useRef<HTMLDivElement>(null);
@@ -122,6 +146,16 @@ export function RouteMap({
   const lastFit = useRef<L.LatLngBounds | null>(null);
   const homePressed = useRef(onHome);
   homePressed.current = onHome;
+  const under = useRef<L.LayerGroup | null>(null);
+  const handleLayer = useRef<L.LayerGroup | null>(null);
+  const viewed = useRef(onView);
+  viewed.current = onView;
+  const tapped = useRef(onMapClick);
+  tapped.current = onMapClick;
+  const moved = useRef(onHandleMove);
+  moved.current = onHandleMove;
+  const handleTapped = useRef(onHandleTap);
+  handleTapped.current = onHandleTap;
 
   useEffect(() => {
     if (!el.current) return;
@@ -130,7 +164,7 @@ export function RouteMap({
     const keys = Object.keys(BASES) as (keyof typeof BASES)[];
     // The control shows translated names; the stored choice stays the language-independent key.
     const layers = Object.fromEntries(keys.map((k) => [BASE_LABEL[k], BASES[k]()]));
-    layers[BASE_LABEL[savedBase()]]!.addTo(m);
+    layers[BASE_LABEL[base ?? savedBase()]]!.addTo(m);
     L.control.layers(layers, undefined, { position: "topright" }).addTo(m);
     m.on("baselayerchange", (e) => {
       try {
@@ -156,6 +190,16 @@ export function RouteMap({
     box.addEventListener("wheel", wheeled, { capture: true, passive: true });
     m.on("moveend", () => {
       if (gesture.current) userView.current = { center: m.getCenter(), zoom: m.getZoom() };
+      if (!viewed.current) return;
+      try {
+        const b = m.getBounds();
+        viewed.current([
+          [b.getSouth(), b.getWest()],
+          [b.getNorth(), b.getEast()],
+        ]);
+      } catch {
+        /* no view yet */
+      }
     });
     if (hasHome) {
       const control = new L.Control({ position: "topleft" });
@@ -185,7 +229,12 @@ export function RouteMap({
       };
       control.addTo(m);
     }
+    under.current = L.layerGroup().addTo(m);
     drawn.current = L.layerGroup().addTo(m);
+    handleLayer.current = L.layerGroup().addTo(m);
+    m.on("click", (e: L.LeafletMouseEvent) =>
+      tapped.current?.({ lat: e.latlng.lat, lng: e.latlng.lng }),
+    );
     map.current = m;
     const ro = new ResizeObserver(() => m.invalidateSize());
     ro.observe(el.current);
@@ -219,11 +268,18 @@ export function RouteMap({
       }).addTo(g);
       if (l.tooltip) pl.bindTooltip(l.tooltip, { sticky: true });
       if (l.onClick) pl.on("click", l.onClick);
-      if (l.onHover) pl.on("mouseover", () => l.onHover!(true)).on("mouseout", () => l.onHover!(false));
+      if (l.onHover)
+        pl.on("mouseover", () => l.onHover!(true)).on("mouseout", () => l.onHover!(false));
       bounds.extend(pl.getBounds());
     }
     for (const p of pins) {
-      L.circleMarker([p.lat, p.lng], { radius: 7, color: "#0b1220", weight: 2, fillColor: p.color, fillOpacity: 1 })
+      L.circleMarker([p.lat, p.lng], {
+        radius: 7,
+        color: "#0b1220",
+        weight: 2,
+        fillColor: p.color,
+        fillOpacity: 1,
+      })
         .bindTooltip(p.label)
         .addTo(g);
       bounds.extend([p.lat, p.lng]);
@@ -254,6 +310,63 @@ export function RouteMap({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, pins, fitKey]);
+
+  useEffect(() => {
+    const g = under.current;
+    if (!g) return;
+    g.clearLayers();
+    if (!underlay?.length) return;
+    const renderer = L.canvas({ padding: 0.5 });
+    // A canvas can't read CSS variables ("var(--z3)" would draw black): take their values from the page.
+    const style = getComputedStyle(el.current ?? document.documentElement);
+    const resolve = (c: string) => {
+      const m = /^var\((--[\w-]+)\)$/.exec(c);
+      return m ? style.getPropertyValue(m[1]!).trim() || c : c;
+    };
+    for (const l of underlay)
+      if (l.lat.length > 1)
+        L.polyline(
+          l.lat.map((la, i) => L.latLng(la, l.lng[i]!)),
+          {
+            color: resolve(l.color),
+            weight: l.weight ?? 4,
+            opacity: l.opacity ?? 1,
+            interactive: false,
+            renderer,
+            lineCap: "round",
+            lineJoin: "round",
+          },
+        ).addTo(g);
+  }, [underlay]);
+
+  useEffect(() => {
+    const g = handleLayer.current;
+    if (!g) return;
+    g.clearLayers();
+    (handles ?? []).forEach((h, i) => {
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="width:26px;height:26px;border-radius:9999px;background:var(--primary);color:var(--primary-foreground);border:2px solid #0b1220;display:flex;align-items:center;justify-content:center;font:700 12px var(--font-sans, sans-serif);box-shadow:0 1px 4px rgba(0,0,0,.4)">${h.label.replace(/[<>&]/g, "")}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      });
+      const mk = L.marker([h.lat, h.lng], {
+        icon,
+        draggable: true,
+        keyboard: true,
+        title: h.label,
+        autoPan: true,
+      }).addTo(g);
+      mk.on("dragend", () => {
+        const p = mk.getLatLng();
+        moved.current?.(i, { lat: p.lat, lng: p.lng });
+      });
+      mk.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
+        handleTapped.current?.(i);
+      });
+    });
+  }, [handles]);
 
   useEffect(() => {
     const m = map.current;
@@ -325,5 +438,10 @@ export function RouteMap({
   }, [markers]);
 
   // `isolate` keeps Leaflet's high z-indexes below the app's header, bottom bar and dialogs.
-  return <div ref={el} className={cn("isolate z-0 h-72 w-full overflow-hidden rounded-lg bg-background", className)} />;
+  return (
+    <div
+      ref={el}
+      className={cn("isolate z-0 h-72 w-full overflow-hidden rounded-lg bg-background", className)}
+    />
+  );
 }

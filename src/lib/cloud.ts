@@ -4,8 +4,10 @@
 //   users/{uid}/summit/{placeKey} { notes: { [effortKey]: text } }, the summit book's signatures
 //   users/{uid}/gear/{id}         Gear (bikes and shoes, their parts and log)
 //   users/{uid}/gearRides/{actId} { gear: id | null }, an activity set on other gear than the default
+//   users/{uid}/courses/{id}      StoredCourse + z (the line, gzipped deltas: see lib/course/course.ts)
 //   places/{placeKey}             { name, at }
 import {
+  Bytes,
   collection,
   deleteDoc,
   deleteField,
@@ -20,6 +22,7 @@ import {
 } from "firebase/firestore";
 import { uid } from "./firebase";
 import { db } from "./db";
+import { decodeLine, encodeLine, type Course, type StoredCourse } from "./course/course";
 import { readGear, type Gear, type Overrides } from "./gear";
 import type { SavedSegment } from "./segment-store";
 import type { ZoneTops } from "./settings";
@@ -147,6 +150,61 @@ export const watchGearRides = (cb: (ov: Overrides) => void) =>
     (e) => console.warn("Gear sync failed", e),
   );
 
+// --- Courses (planned routes) ---
+
+const coursesCol = () => collection(db, "users", uid(), "courses");
+
+async function gzip(text: string) {
+  const s = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+
+async function gunzip(bytes: Uint8Array) {
+  const s = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(s).text();
+}
+
+export async function writeCourse(c: Course) {
+  const { line, ...rest } = c;
+  const z = await gzip(encodeLine(line));
+  await setDoc(doc(coursesCol(), c.id), { ...clean(rest), z: Bytes.fromUint8Array(z) });
+}
+
+/** Only the fields that change after saving, without sending the line again. */
+export const patchCourse = (id: string, patch: Partial<StoredCourse>) =>
+  setDoc(doc(coursesCol(), id), clean(patch), { merge: true });
+
+export const deleteCourse = (id: string) => deleteDoc(doc(coursesCol(), id));
+
+/** Live list of the routes; each line is unpacked once per version. */
+export function watchCourses(cb: (courses: Course[]) => void) {
+  const lines = new Map<string, { updated: number; line: Course["line"] }>();
+  let turn = 0;
+  return onSnapshot(
+    coursesCol(),
+    (snap) => {
+      const mine = ++turn;
+      void Promise.all(
+        snap.docs.map(async (d) => {
+          const { z, ...rest } = d.data() as StoredCourse & { z?: Bytes };
+          const known = lines.get(d.id);
+          if (known && known.updated === rest.updated) return { ...rest, line: known.line };
+          const line = z
+            ? decodeLine(await gunzip(z.toUint8Array()))
+            : { lat: [], lng: [], alt: [], dist: [] };
+          lines.set(d.id, { updated: rest.updated, line });
+          return { ...rest, line };
+        }),
+      )
+        .then((cs) => {
+          if (mine === turn) cb(cs);
+        })
+        .catch((e) => console.warn("Course sync failed", e));
+    },
+    (e) => console.warn("Course sync failed", e),
+  );
+}
+
 /** Everything stored for this user, before the account itself is deleted. */
 export async function deleteUserData() {
   for (const name of [
@@ -159,6 +217,7 @@ export async function deleteUserData() {
     "workouts",
     "gear",
     "gearRides",
+    "courses",
   ]) {
     const docs = (await getDocs(collection(db, "users", uid(), name))).docs;
     for (let i = 0; i < docs.length; i += 500) {

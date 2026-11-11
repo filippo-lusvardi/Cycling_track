@@ -36,6 +36,7 @@ export type Page =
   | "recap"
   | "programme"
   | "gear"
+  | "courses"
   | "save";
 
 export type LegendTab = "tree" | "garden" | "ask";
@@ -93,6 +94,7 @@ export const PAGE_LABEL: Record<Page, () => string> = {
   recap: () => t("Recap", "Riepilogo"),
   programme: () => t("Plan", "Programma"),
   gear: () => t("Gear", "Attrezzatura"),
+  courses: () => t("Routes", "Percorsi"),
   save: () => t("Save", "Salva"),
 };
 
@@ -127,6 +129,7 @@ export const PAGE_DEST: Record<ListPage, Dest> = {
   legend: { kind: "legend", term: "crown", tab: "tree" },
   zones: route("/analysis", { view: "zones" }),
   gear: route("/gear"),
+  courses: route("/courses"),
 };
 
 export const INDEX: { when: () => string; pages: ListPage[] }[] = [
@@ -135,7 +138,7 @@ export const INDEX: { when: () => string; pages: ListPage[] }[] = [
     when: () => t("Before", "Prima"),
     pages: ["rides", "years", "pantry", "analysis", "body", "zones", "segments"],
   },
-  { when: () => t("Ahead", "Poi"), pages: ["plan", "calendar", "workouts"] },
+  { when: () => t("Ahead", "Poi"), pages: ["plan", "calendar", "workouts", "courses"] },
   { when: () => t("More", "Altro"), pages: ["gear", "legend", "settings", "forest"] },
 ];
 
@@ -317,6 +320,25 @@ function questions(): Entry[] {
         "officina",
         "scarpe",
         "shoes",
+      ],
+    },
+    {
+      id: "courses",
+      q: t("My routes", "I miei percorsi"),
+      also: `${"My routes"} ${"I miei percorsi"}`,
+      page: "courses",
+      kind: "plan",
+      dest: PAGE_DEST.courses,
+      words: [
+        "percorsi",
+        "percorso",
+        "routes",
+        "route",
+        "garmin",
+        "navigazione",
+        "navigation",
+        "mappa",
+        "map",
       ],
     },
     {

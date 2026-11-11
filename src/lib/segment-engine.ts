@@ -50,10 +50,17 @@ export type EngineDeps = {
   today(): string;
 };
 
-export type Status = { phase: "idle" | "listing" | "downloading" | "analysing" | "error"; done: number; total: number; message?: string };
+export type Status = {
+  phase: "idle" | "listing" | "downloading" | "analysing" | "error";
+  done: number;
+  total: number;
+  message?: string;
+};
 
 type RideMeta = RideRef & { seq: number; cells: number[] | null };
-type StoredGroup = Omit<Group, "climb"> & { climb: { lat: Float32Array; lng: Float32Array; dist: Float32Array; alt: Float32Array } };
+type StoredGroup = Omit<Group, "climb"> & {
+  climb: { lat: Float32Array; lng: Float32Array; dist: Float32Array; alt: Float32Array };
+};
 
 type State = {
   seq: number;
@@ -79,11 +86,21 @@ export type Snapshot = {
 
 const toStored = (g: Group): StoredGroup => ({
   ...g,
-  climb: { lat: Float32Array.from(g.climb.lat), lng: Float32Array.from(g.climb.lng), dist: Float32Array.from(g.climb.dist), alt: Float32Array.from(g.climb.alt) },
+  climb: {
+    lat: Float32Array.from(g.climb.lat),
+    lng: Float32Array.from(g.climb.lng),
+    dist: Float32Array.from(g.climb.dist),
+    alt: Float32Array.from(g.climb.alt),
+  },
 });
 const fromStored = (g: StoredGroup): Group => ({
   ...g,
-  climb: { lat: Array.from(g.climb.lat), lng: Array.from(g.climb.lng), dist: Array.from(g.climb.dist), alt: Array.from(g.climb.alt) },
+  climb: {
+    lat: Array.from(g.climb.lat),
+    lng: Array.from(g.climb.lng),
+    dist: Array.from(g.climb.dist),
+    alt: Array.from(g.climb.alt),
+  },
 });
 
 const yieldToUi = () => new Promise((r) => setTimeout(r, 0));
@@ -160,7 +177,13 @@ export function createSegmentEngine(deps: EngineDeps) {
     if (version !== ANALYSIS_VERSION && (rides.length || s.groups.length)) {
       // Analysis changed: forget results, keep downloaded tracks, and re-process them locally.
       for (const r of rides)
-        if (r.cells) s.pending.set(r.id, { id: r.id, name: r.name, date: r.date, ...(r.sport ? { sport: r.sport } : {}) });
+        if (r.cells)
+          s.pending.set(r.id, {
+            id: r.id,
+            name: r.name,
+            date: r.date,
+            ...(r.sport ? { sport: r.sport } : {}),
+          });
       s.seq = 0;
       // List everything again, not only the recent weeks: this version brought runs, which older lists left out.
       // Activities whose tracks are stored aren't downloaded again.
@@ -222,7 +245,9 @@ export function createSegmentEngine(deps: EngineDeps) {
     const need = trackedSegments(s).filter(({ key, seg }) => s.efforts[key]?.sig !== segSig(seg));
     if (!need.length) return;
     const byRide = new Map<string, { key: string; seg: Segment }[]>();
-    const cellSets = [...s.rides.values()].filter((r) => r.cells).map((r) => ({ id: r.id, cells: new Set(r.cells) }));
+    const cellSets = [...s.rides.values()]
+      .filter((r) => r.cells)
+      .map((r) => ({ id: r.id, cells: new Set(r.cells) }));
     for (const n of need) {
       for (const r of cellSets) {
         if (!mayPass(r.cells, n.seg)) continue;
@@ -230,7 +255,8 @@ export function createSegmentEngine(deps: EngineDeps) {
       }
     }
     const fresh: Record<string, EffortRec> = {};
-    for (const n of need) fresh[n.key] = { sig: segSig(n.seg), upTo: s.seq, attempts: [], trace: null };
+    for (const n of need)
+      fresh[n.key] = { sig: segSig(n.seg), upTo: s.seq, attempts: [], trace: null };
     let done = 0;
     setStatus({ phase: "analysing", done, total: byRide.size });
     for (const [rideId, list] of byRide) {
@@ -322,7 +348,12 @@ export function createSegmentEngine(deps: EngineDeps) {
       );
     } catch (e) {
       await persist().catch(() => {});
-      setStatus({ phase: "error", done: 0, total: 0, message: e instanceof Error ? e.message : String(e) });
+      setStatus({
+        phase: "error",
+        done: 0,
+        total: 0,
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -345,11 +376,27 @@ export function createSegmentEngine(deps: EngineDeps) {
       await running; // a run already past its queue won't see it: run again
       if (!s.rides.has(ref.id)) await sync();
     },
+    /** The activities analysed (those with a stored track), with their sport (missing = cycling). */
+    async rideRefs(): Promise<RideRef[]> {
+      const s = await load();
+      return [...s.rides.values()]
+        .filter((r) => r.cells)
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          date: r.date,
+          ...(r.sport ? { sport: r.sport } : {}),
+        }));
+    },
     /** Saved segments (stars, manual ones). Their efforts are computed in the background. */
     setSaved(list: Segment[]) {
       saved = list;
       emit(true);
-      if (state && !running) running = refreshEfforts(state).then(persist).then(() => setStatus({ phase: "idle", done: 0, total: 0 })).finally(() => (running = null));
+      if (state && !running)
+        running = refreshEfforts(state)
+          .then(persist)
+          .then(() => setStatus({ phase: "idle", done: 0, total: 0 }))
+          .finally(() => (running = null));
     },
     subscribe(l: () => void) {
       listeners.add(l);
@@ -359,10 +406,11 @@ export function createSegmentEngine(deps: EngineDeps) {
       if (!snapshot) {
         const s = state;
         const links: Record<string, string> = {};
-        if (s) for (const sv of saved) {
-          const g = groupForSaved(sv, s.groups);
-          if (g) links[sv.id] = g.id;
-        }
+        if (s)
+          for (const sv of saved) {
+            const g = groupForSaved(sv, s.groups);
+            if (g) links[sv.id] = g.id;
+          }
         snapshot = {
           status,
           rev,

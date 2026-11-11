@@ -7,7 +7,7 @@ import {
   STEEP_SCALE,
   type Chunk,
 } from "@/lib/profile";
-import { t } from "@/lib/i18n";
+import { num, t } from "@/lib/i18n";
 
 const H = 220;
 const PAD = { l: 40, r: 8, t: 12, b: 24 };
@@ -53,29 +53,36 @@ export function GradientProfile({
       </p>
     );
 
+  // A stretch of a route (a climb zoomed in) starts at its own distance, and the axis reads the route's km.
+  const d0 = dist[0]!;
   const total = dist.at(-1)!;
+  const len = Math.max(1, total - d0);
   const lo = Math.min(...chunks.map((c) => Math.min(c.altFrom, c.altTo)));
   const hi = Math.max(...chunks.map((c) => Math.max(c.altFrom, c.altTo)));
   const span = Math.max(20, hi - lo);
   const yMin = lo - span * 0.1;
   const yMax = hi + span * 0.1;
-  const x = (d: number) => PAD.l + (d / total) * (w - PAD.l - PAD.r);
+  const x = (d: number) => PAD.l + ((d - d0) / len) * (w - PAD.l - PAD.r);
   const y = (a: number) => PAD.t + (1 - (a - yMin) / (yMax - yMin)) * (H - PAD.t - PAD.b);
   const bottom = H - PAD.b;
   // Pick the smallest "nice" step that keeps labels (e.g. "120 km") at least ~52 px apart, so narrow phone
   // screens get fewer ticks instead of overlapping ones.
-  const kmPerPx = total / 1000 / (w - PAD.l - PAD.r);
+  const kmPerPx = len / 1000 / (w - PAD.l - PAD.r);
   const kmStep =
-    [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((s) => s / kmPerPx >= 52) ?? 1000;
-  const kms = Array.from({ length: Math.floor(total / 1000 / kmStep) + 1 }, (_, i) => i * kmStep);
+    [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((s) => s / kmPerPx >= 52) ?? 1000;
+  const firstKm = Math.ceil(d0 / 1000 / kmStep - 1e-9) * kmStep;
+  const kms = Array.from(
+    { length: Math.max(0, Math.floor((total / 1000 - firstKm) / kmStep + 1e-9) + 1) },
+    (_, i) => Number((firstKm + i * kmStep).toFixed(1)),
+  );
   const hc = hover != null ? chunks.find((c) => hover >= c.i0 && hover <= c.i1) : undefined;
 
   function pick(e: React.PointerEvent<SVGSVGElement>) {
     const r = e.currentTarget.getBoundingClientRect();
-    const d = ((e.clientX - r.left - PAD.l) / (w - PAD.l - PAD.r)) * total;
+    const d = d0 + ((e.clientX - r.left - PAD.l) / (w - PAD.l - PAD.r)) * len;
     let i = 0;
     while (i < dist.length - 1 && dist[i]! < d) i++;
-    onHover?.(d < 0 || d > total ? null : i);
+    onHover?.(d < d0 || d > total ? null : i);
   }
 
   return (
@@ -206,7 +213,7 @@ export function GradientProfile({
             fontSize="10"
             fill="var(--muted-foreground)"
           >
-            {k} km
+            {num(k)} km
           </text>
         ))}
         {markers?.map((mk, i) => {
@@ -261,7 +268,7 @@ export function GradientProfile({
           {GRADE_STOPS.map(([g], i) => (
             <span
               key={g}
-              className="absolute -translate-x-1/2 first:translate-x-0 last:-translate-x-full"
+              className="absolute -translate-x-1/2 whitespace-nowrap first:translate-x-0 last:-translate-x-full"
               style={{ left: `${(g / GRADE_STOPS.at(-1)![0]) * 100}%` }}
             >
               {g * (steep ? STEEP_SCALE : 1)}

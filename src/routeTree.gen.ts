@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as ChartRouteImport } from './routes/chart'
+import { Route as CoursesRouteImport } from './routes/courses'
 import { Route as GardenRouteImport } from './routes/garden'
 import { Route as GearRouteImport } from './routes/gear'
 import { Route as LoginRouteImport } from './routes/login'
@@ -52,6 +53,11 @@ const CalendarRoute = CalendarRouteImport.update({
 const ChartRoute = ChartRouteImport.update({
   id: '/chart',
   path: '/chart',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoursesRoute = CoursesRouteImport.update({
+  id: '/courses',
+  path: '/courses',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GardenRoute = GardenRouteImport.update({
@@ -160,6 +166,7 @@ export interface FileRoutesByFullPath {
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
+  '/courses': typeof CoursesRoute
   '/garden': typeof GardenRoute
   '/gear': typeof GearRoute
   '/login': typeof LoginRoute
@@ -186,6 +193,7 @@ export interface FileRoutesByTo {
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
+  '/courses': typeof CoursesRoute
   '/garden': typeof GardenRoute
   '/gear': typeof GearRoute
   '/login': typeof LoginRoute
@@ -213,6 +221,7 @@ export interface FileRoutesById {
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
+  '/courses': typeof CoursesRoute
   '/garden': typeof GardenRoute
   '/gear': typeof GearRoute
   '/login': typeof LoginRoute
@@ -241,6 +250,7 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/calendar'
     | '/chart'
+    | '/courses'
     | '/garden'
     | '/gear'
     | '/login'
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/calendar'
     | '/chart'
+    | '/courses'
     | '/garden'
     | '/gear'
     | '/login'
@@ -293,6 +304,7 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/calendar'
     | '/chart'
+    | '/courses'
     | '/garden'
     | '/gear'
     | '/login'
@@ -320,6 +332,7 @@ export interface RootRouteChildren {
   AnalysisRoute: typeof AnalysisRoute
   CalendarRoute: typeof CalendarRoute
   ChartRoute: typeof ChartRoute
+  CoursesRoute: typeof CoursesRoute
   GardenRoute: typeof GardenRoute
   GearRoute: typeof GearRoute
   LoginRoute: typeof LoginRoute
@@ -370,6 +383,13 @@ declare module '@tanstack/react-router' {
       path: '/chart'
       fullPath: '/chart'
       preLoaderRoute: typeof ChartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/courses': {
+      id: '/courses'
+      path: '/courses'
+      fullPath: '/courses'
+      preLoaderRoute: typeof CoursesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/garden': {
@@ -520,6 +540,7 @@ const rootRouteChildren: RootRouteChildren = {
   AnalysisRoute: AnalysisRoute,
   CalendarRoute: CalendarRoute,
   ChartRoute: ChartRoute,
+  CoursesRoute: CoursesRoute,
   GardenRoute: GardenRoute,
   GearRoute: GearRoute,
   LoginRoute: LoginRoute,
