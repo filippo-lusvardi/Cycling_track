@@ -1,5 +1,5 @@
 // A season: the months the goals fall in and the kinds of race, known before any date is. Real races refine it as they reach
-// the calendar, and always beat the guess. Pure. The numbers are conventions (C): see Docs/workout-suggestions-evidence.md.
+// the calendar, and always beat the guess. Pure. The numbers are conventions (C): see the wiki page Training-Evidence.
 import { mondayOf, PRIORITY_WEIGHT } from "../focus";
 import {
   FOCUSES,

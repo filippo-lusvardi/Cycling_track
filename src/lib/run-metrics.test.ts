@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { gapFactor, gapStreams, gradeStream, runningCost } from "./gap";
 import type { RideStreams } from "./intervals";
@@ -246,19 +246,23 @@ describe("threshold pace", () => {
 });
 
 describe("a real run file", () => {
-  it("reads the sample run, which has no heart rate", async () => {
-    const buf = readFileSync("Docs/Corsa_serale.fit");
-    const parsed = await parseFit(
-      buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer,
-      "Corsa_serale.fit",
-    );
-    const m = runMetrics(parsed.streams, { thresholdSpeed: 3.2, lthr: null });
-    expect(m.distance).toBeGreaterThan(1000);
-    expect(m.icu_training_load).toBeGreaterThan(0);
-    expect(m.run.gap).toBeGreaterThan(1);
-    expect(m.run.gap).toBeLessThan(7);
-    expect(m.average_heartrate).toBe(null);
-  });
+  // Docs/ is not in the repository (a real GPS track), so this runs only where the file is.
+  it.skipIf(!existsSync("Docs/Corsa_serale.fit"))(
+    "reads the sample run, which has no heart rate",
+    async () => {
+      const buf = readFileSync("Docs/Corsa_serale.fit");
+      const parsed = await parseFit(
+        buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer,
+        "Corsa_serale.fit",
+      );
+      const m = runMetrics(parsed.streams, { thresholdSpeed: 3.2, lthr: null });
+      expect(m.distance).toBeGreaterThan(1000);
+      expect(m.icu_training_load).toBeGreaterThan(0);
+      expect(m.run.gap).toBeGreaterThan(1);
+      expect(m.run.gap).toBeLessThan(7);
+      expect(m.average_heartrate).toBe(null);
+    },
+  );
 });
 
 describe("run analysis", () => {

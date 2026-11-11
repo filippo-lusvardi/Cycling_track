@@ -2,7 +2,7 @@
 // reads, the block you're in, what's already planned and what the last days were. Nothing here writes or remembers:
 // the same input always gives the same answer.
 //
-// The rules' reasons and sources are in Docs/workout-suggestions-evidence.md. Tags below: E evidence, I inference from
+// The rules' reasons and sources are in the wiki page Training-Evidence. Tags below: E evidence, I inference from
 // evidence, C coaching convention. Conventions are welcome here, and free to change; they just aren't findings.
 import { getDay, parseISO } from "date-fns";
 import { format, t } from "./i18n";

@@ -1,0 +1,26 @@
+Cirmolo
+Copyright (C) 2026 Filippo Lusvardi
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. The full text is in the LICENSE file.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+ADDITIONAL PERMISSION UNDER GNU GPL VERSION 3 SECTION 7
+
+If you modify this Program, or any covered work, by linking or combining it
+with the Garmin FIT SDK (the "@garmin/fitsdk" package, or a modified version of
+it), containing parts covered by the terms of the Flexible and Interoperable
+Data Transfer (FIT) Protocol License Agreement, the licensors of this Program
+grant you additional permission to convey the resulting work. The Garmin FIT
+SDK stays under its own licence: this permission does not require, and the GPL
+does not require, its source code to be provided or its terms to be changed.
+Corresponding Source for the non-source form of such a combination shall not
+include the source code for the parts of the Garmin FIT SDK used.
+
+You may remove this additional permission from your copy, or from a modified
+version, in accordance with section 7 of the GNU General Public License.

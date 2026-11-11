@@ -1,5 +1,5 @@
 // How much a season's weeks hold: where to start, from last year and the time left, and how the volume climbs from there. Pure.
-// Tags and sources as in Docs/workout-suggestions-evidence.md, section 10: no study sets these numbers, some are bounded by one.
+// Tags and sources as in the wiki page Training-Evidence, section 10: no study sets these numbers, some are bounded by one.
 import { mondayOf } from "../focus";
 import type { Activity } from "../intervals";
 import type { Race } from "../races";

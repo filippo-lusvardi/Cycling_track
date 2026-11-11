@@ -1,7 +1,7 @@
 {
   "name": "cirmolo",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "sideEffects": false,
   "type": "module",
   "scripts": {

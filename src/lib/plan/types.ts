@@ -1,4 +1,4 @@
-// The training plan's vocabulary. Rule tags as in Docs/workout-suggestions-evidence.md: E evidence, I inference, C convention.
+// The training plan's vocabulary. Rule tags as in the wiki page Training-Evidence: E evidence, I inference, C convention.
 import { z } from "zod";
 import type { RaceKind } from "../races";
 import type { WorkoutKind } from "../workout-templates";
