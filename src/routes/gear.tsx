@@ -348,7 +348,7 @@ function GearDetail({
           {t("Delete", "Elimina")}
         </Pill>
       </div>
-      <div className="grid items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
         <div className="space-y-4">
           {gear.kind === "bike" ? (
             <BikePanel
