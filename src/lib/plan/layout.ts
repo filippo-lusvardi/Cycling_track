@@ -96,36 +96,125 @@ function made(
   };
 }
 
-export function longRide(seconds: number, indoor: boolean) {
-  const main = Math.round((seconds - 25 * 60) / 60);
+/** Indoors time drags and steady power is easy to hold: rides there stay short and keep changing (Filippo's rule). */
+export const INDOOR_MAX = 75 * 60;
+/** Outdoors, hills, wind and traffic decide the power from one moment to the next: only the average can be aimed at. */
+const OUTDOOR = {
+  long: { low: 56, high: 75 },
+  easy: { low: 56, high: 72 },
+  mean: 65,
+  climb: 85,
+};
+
+const watts = (pct: number, ftp: number | null | undefined) =>
+  ftp ? ` (≈ ${Math.round((ftp * pct) / 100)} W)` : "";
+
+/** The line that goes with a range step outdoors: the average to aim for, and where not to go on a climb. */
+function outdoorGoal(range: { low: number; high: number }, ftp: number | null | undefined) {
+  return t(
+    `Ride by feel and keep the average around ${OUTDOOR.mean}% FTP${watts(OUTDOOR.mean, ftp)}: anywhere in ${range.low}-${range.high}% is fine. On climbs stay under ${OUTDOOR.climb}%${watts(OUTDOOR.climb, ftp)}. Downhills and stops don't matter.`,
+    `Vai a sensazione e tieni la media intorno al ${OUTDOOR.mean}% FTP${watts(OUTDOOR.mean, ftp)}: va bene tutto tra ${range.low} e ${range.high}%. In salita resta sotto l'${OUTDOOR.climb}%${watts(OUTDOOR.climb, ftp)}. Discese e soste non contano.`,
+  );
+}
+
+/** Z2 in small waves, so a trainer in ERG never sits on one number for long. */
+function waves(minutes: number) {
+  const cycles = Math.floor(minutes / 12);
+  const rest = minutes - cycles * 12;
+  const set = cycles
+    ? `Main set${cycles > 1 ? ` ${cycles}x` : ""}\n- 3m 62%\n- 3m 68%\n- 3m 71%\n- 3m 65%`
+    : "Main set";
+  return rest ? `${set}\n\n- ${rest}m 66%` : set;
+}
+
+export function longRide(seconds: number, indoor: boolean, ftp?: number | null) {
+  const intro = t(
+    "An oak does one thing, steadily, for a long time. A long ride in Z2: eat and drink as you go.",
+    "La quercia fa una cosa sola, con calma, per molto tempo. Uscita lunga in Z2: mangia e bevi lungo la strada.",
+  );
+  const { low, high } = OUTDOOR.long;
   return made(
     `plan-long-${seconds / 60}`,
     t(`Oak ${hms(seconds)}`, `Quercia ${hms(seconds)}`),
     "endurance",
-    `${t("An oak does one thing, steadily, for a long time. A long, steady ride in Z2: eat and drink as you go.", "La quercia fa una cosa sola, con calma, per molto tempo. Uscita lunga e regolare in Z2: mangia e bevi lungo la strada.")}\n\nWarmup\n- 15m Ramp 45-65%\n\nMain set\n- ${main}m 65%\n\nCooldown\n- 10m Ramp 60-45%`,
+    indoor
+      ? `${intro}\n\nWarmup\n- 10m Ramp 45-62%\n\n${waves(Math.round(seconds / 60) - 15)}\n\nCooldown\n- 5m Ramp 60-45%`
+      : `${intro} ${outdoorGoal(OUTDOOR.long, ftp)}\n\nMain set\n- ${Math.round(seconds / 60)}m ${low}-${high}%`,
     indoor,
   );
 }
 
-export function easyRide(seconds: number, indoor: boolean) {
-  const main = Math.round((seconds - 15 * 60) / 60);
+export function easyRide(seconds: number, indoor: boolean, ftp?: number | null) {
+  const intro = t(
+    "Hazel grows at the forest edge, modest and everyday. An easy ride in Z2, at talking pace.",
+    "Il nocciolo cresce al margine del bosco, senza pretese. Uscita facile in Z2, a ritmo da chiacchiera.",
+  );
+  const { low, high } = OUTDOOR.easy;
   return made(
     `plan-easy-${seconds / 60}`,
     t(`Hazel ${hms(seconds)}`, `Nocciolo ${hms(seconds)}`),
     "endurance",
-    `${t("Hazel grows at the forest edge, modest and everyday. An easy ride in Z2, at talking pace.", "Il nocciolo cresce al margine del bosco, senza pretese. Uscita facile in Z2, a ritmo da chiacchiera.")}\n\nWarmup\n- 10m Ramp 45-60%\n\nMain set\n- ${main}m 65%\n\nCooldown\n- 5m Ramp 60-45%`,
+    indoor
+      ? `${intro}\n\nWarmup\n- 10m Ramp 45-62%\n\n${waves(Math.round(seconds / 60) - 15)}\n\nCooldown\n- 5m Ramp 60-45%`
+      : `${intro} ${outdoorGoal(OUTDOOR.easy, ftp)}\n\nMain set\n- ${Math.round(seconds / 60)}m ${low}-${high}%`,
     indoor,
   );
 }
 
 export function recoveryRide(seconds: number, indoor: boolean) {
+  const minutes = Math.round(seconds / 60);
+  const intro = t(
+    "Ferns grow low, in the shade. True recovery around 50% FTP: it should feel too easy.",
+    "La felce cresce bassa, all'ombra. Vero recupero intorno al 50% FTP: deve sembrare fin troppo facile.",
+  );
+  const cycles = Math.floor(minutes / 6);
+  const rest = minutes - cycles * 6;
+  const main = indoor
+    ? `Main set ${cycles}x\n- 3m 48%\n- 3m 54%${rest ? `\n\n- ${rest}m 50%` : ""}`
+    : `Main set\n- ${minutes}m 45-58%`;
   return made(
-    `plan-recovery-${seconds / 60}`,
+    `plan-recovery-${minutes}`,
     t(`Fern ${hms(seconds)}`, `Felce ${hms(seconds)}`),
     "recovery",
-    `${t("Ferns grow low, in the shade. True recovery at 50% FTP: it should feel too easy.", "La felce cresce bassa, all'ombra. Vero recupero al 50% FTP: deve sembrare fin troppo facile.")}\n\nMain set\n- ${Math.round(seconds / 60)}m 50%`,
+    `${intro}\n\n${main}`,
     indoor,
   );
+}
+
+/** Workouts made for the trainer: they change every few minutes. The tri-bike and specialist ones aren't for every week. */
+const INDOOR_ENDURANCE = /^d-(endurance-surges|cadence-drills|endurance-tempo|endurance-flow)-/;
+const INDOOR_RECOVERY = /^d-recovery-spin-/;
+
+/**
+ * The longest library workout of this kind that fits, turning away from what was ridden lately. Null when none fits, and the
+ * plan's own ride, in waves, takes its place.
+ */
+export function indoorPick(
+  pool: SuggestWorkout[],
+  seconds: number,
+  kind: "endurance" | "recovery",
+  recentIds: ReadonlySet<string> = new Set(),
+): PlanWorkout | null {
+  const like = kind === "recovery" ? INDOOR_RECOVERY : INDOOR_ENDURANCE;
+  const fits = pool.filter(
+    (w) => !w.mine && like.test(w.id) && w.seconds <= Math.min(seconds, INDOOR_MAX),
+  );
+  if (!fits.length) return null;
+  const longest = Math.max(...fits.map((w) => w.seconds));
+  // The longest first; one up to a quarter of an hour shorter takes its turn when the longest was ridden lately.
+  const near = fits
+    .filter((w) => w.seconds >= longest - QUARTER)
+    .sort((a, b) => b.seconds - a.seconds || a.id.localeCompare(b.id));
+  const w = near.find((x) => !recentIds.has(x.id)) ?? near[0]!;
+  return {
+    id: w.id,
+    name: w.name,
+    type: "VirtualRide",
+    description: w.description,
+    seconds: w.seconds,
+    load: w.load,
+    kind: w.kind,
+  };
 }
 
 /** What the hard sessions work on, in order. I: formats rotate, since none clearly wins. */
@@ -173,6 +262,16 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
     dates.map((date) => [date, { date, role: "rest", workout: null }]),
   );
   const at = (date: string) => settings.week[dates.indexOf(date)]!;
+  const ftp = input.th?.ftp;
+  /** The time a day can hold: indoors, never more than the trainer's limit. */
+  const room = (date: string) =>
+    at(date).indoor ? Math.min(at(date).minutes * 60, INDOOR_MAX) : at(date).minutes * 60;
+  const recovery = (date: string, seconds: number) =>
+    (at(date).indoor && indoorPick(pool, seconds, "recovery", input.recentIds)) ||
+    recoveryRide(seconds, at(date).indoor);
+  const endurance = (date: string, seconds: number, long: boolean) =>
+    (at(date).indoor && indoorPick(pool, seconds, "endurance", input.recentIds)) ||
+    (long ? longRide : easyRide)(seconds, at(date).indoor, ftp);
   const set = (date: string, role: PlannedDay["role"], workout: PlanWorkout | null = null) =>
     out.set(date, { date, role, workout });
   const takenOn = new Map(taken.map((d) => [d.date, d]));
@@ -193,7 +292,7 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
     else if (off.has(date) || at(date).minutes === 0) set(date, "rest");
     else if (role?.role === "recovery" || role?.role === "ease") {
       const seconds = Math.min(AFTER_RACE, at(date).minutes * 60);
-      if (seconds >= SHORTEST_RIDE) set(date, "easy", recoveryRide(seconds, at(date).indoor));
+      if (seconds >= SHORTEST_RIDE) set(date, "easy", recovery(date, seconds));
       used += seconds >= SHORTEST_RIDE ? seconds : 0;
     } else if (role?.role === "sharpen" && role.days === 1) {
       const opener = pool.find((w) => !w.mine && /opener/.test(w.id));
@@ -210,10 +309,11 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
   const share = longs.length > 1 ? TWO_LONG_SHARE : (input.longShare ?? LONG_SHARE);
   const longPlaced: string[] = taken.filter((d) => d.long).map((d) => d.date);
   for (const date of longs) {
-    const seconds = floorQuarter(Math.min(at(date).minutes * 60, target * share, longest));
+    const seconds = floorQuarter(Math.min(room(date), target * share, longest));
     if (seconds < SHORTEST_LONG) continue;
-    set(date, "long", longRide(seconds, at(date).indoor));
-    used += seconds;
+    const w = endurance(date, seconds, true);
+    set(date, "long", w);
+    used += w.seconds;
     longPlaced.push(date);
   }
 
@@ -242,10 +342,10 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
       return Math.min(room, 3) + (at(d).indoor ? 0.5 : 0) - dates.indexOf(d) * 0.01;
     };
     const best = [...spaced]
-      .filter((d) => pickRung(ladder, doses[kind], at(d).minutes * 60))
+      .filter((d) => pickRung(ladder, doses[kind], room(d)))
       .sort((a, b) => score(b) - score(a))[0];
     if (!best) continue;
-    const rung = pickRung(ladder, doses[kind], at(best).minutes * 60, input.recentIds)!;
+    const rung = pickRung(ladder, doses[kind], room(best), input.recentIds)!;
     const w = rung.workout;
     set(best, "hard", {
       id: w.id,
@@ -267,19 +367,22 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
     const shortest = [...easy].sort((a, b) => at(a).minutes - at(b).minutes)[0]!;
     easy = easy.filter((d) => d !== shortest);
   }
+  // Indoor days first: what their limit leaves over goes to the days outside.
+  easy = [...easy].sort(
+    (a, b) => Number(at(b).indoor) - Number(at(a).indoor) || a.localeCompare(b),
+  );
   easy.forEach((date, i) => {
     const left = target - used;
     const each = left / (easy.length - i);
-    const seconds = floorQuarter(Math.min(at(date).minutes * 60, Math.max(each, SHORTEST_RIDE)));
+    const seconds = floorQuarter(Math.min(room(date), Math.max(each, SHORTEST_RIDE)));
     if (seconds < SHORTEST_RIDE || left < SHORTEST_RIDE) return;
     const afterHard = hardPlaced.includes(addDays(date, -1));
-    const indoor = at(date).indoor;
     const w =
       afterHard && seconds <= RECOVERY_RIDE
-        ? recoveryRide(seconds, indoor)
-        : easyRide(seconds, indoor);
+        ? recovery(date, seconds)
+        : endurance(date, seconds, false);
     set(date, "easy", w);
-    used += seconds;
+    used += w.seconds;
   });
   return dates.map((d) => out.get(d)!);
 }

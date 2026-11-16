@@ -96,6 +96,28 @@ function stepsExecution(steps: WorkoutBlock[], watts: (number | null)[], ftp: nu
   };
 }
 
+/** A ride outdoors asked for as one easy step with a range: only its average can be aimed at. */
+function averageAsked(blocks: WorkoutBlock[]): [number, number] | null {
+  if (blocks.length !== 1) return null;
+  const b = blocks[0]!;
+  if (b.ramp || !b.power || b.power[1] <= b.power[0] || target(b) >= WORK_FROM) return null;
+  return b.power;
+}
+
+/** Inside the range is full marks; above it costs as anywhere else. Going easier on an easy ride is never falling short. */
+function averageExecution([low, high]: [number, number], ridden: number): Execution {
+  const mid = (low + high) / 2;
+  const over = ridden > high;
+  return {
+    verdict: over ? "over" : "on",
+    ratio: ridden / mid,
+    score: Math.round((over ? closeness(ridden / high) : 1) * 100),
+    stepsHit: 0,
+    steps: 0,
+    matches: [],
+  };
+}
+
 /**
  * How the ride compared with the workout: null when there's nothing to go by (no FTP, no power meter), so the rider's word
  * stands alone. Steps come from the power stream; an easy workout, or a ride with no stream, is compared as a whole.
@@ -106,12 +128,16 @@ export function executionOf(input: {
   watts?: (number | null)[] | null | undefined;
   /** The ride's normalized power. */
   weightedWatts?: number | null | undefined;
+  /** The ride's average power, for a ride asked for as an average. */
+  averageWatts?: number | null | undefined;
 }): Execution | null {
   const { ftp, watts } = input;
   if (!ftp) return null;
   const { blocks, totalSeconds } = parseWorkout(input.description, "ride", { ftp });
   if (!totalSeconds) return null;
   const steps = blocks.filter((b) => target(b) >= WORK_FROM && b.seconds >= SHORTEST_STEP);
+  const range = averageAsked(blocks);
+  if (range && input.averageWatts) return averageExecution(range, input.averageWatts / ftp);
   if (steps.length && watts?.some((w) => w)) return stepsExecution(steps, watts, ftp);
   if (!input.weightedWatts) return null;
   const intensity = Math.sqrt(estimateLoad(blocks) / ((totalSeconds / 3600) * 100));

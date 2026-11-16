@@ -12,6 +12,7 @@ import {
   lastReviewDay,
   layoutFor,
   proposalFor,
+  recomputeFor,
   reconcile,
   reviewDue,
   windowFor,
@@ -256,9 +257,84 @@ describe("a proposal", () => {
     expect(p.review.reason).toBe("days-changed");
     expect(p.changes.find((c) => c.date === tomorrow)).toBeUndefined();
   });
+  it("redraws the days after a hard ride the plan didn't ask for, and asks once", () => {
+    const fri = addDays(today, 1);
+    const week = [off, d(90, true), d(60), d(90, true), d(90), d(240, false, true), d(120)];
+    const n = note([session("2", fri)], {
+      settings: { ...settings, week },
+      state: state({ lastReview: today }),
+    });
+    const group = ride(today, 7200, { id: "group", icu_intensity: 95, name: "Group ride" });
+    const c = ctx(n, [event("2", fri)], { acts: [...history, group] });
+    const p = proposalFor(c, new Map())!;
+    expect(p.review.reason).toBe("extra-ride");
+    expect(p.changes.find((x) => x.date === fri)?.to?.kind).not.toBe("threshold");
+    expect(p.seenExtras).toContain("group");
+    const after = { ...c, note: { ...n, seenExtras: p.seenExtras } };
+    expect(proposalFor(after, new Map())).toBeNull();
+  });
+  it("doesn't count a ride on a planned day as extra, whatever it's called", () => {
+    const n = note([session("1", today)], { state: state({ lastReview: today }) });
+    const other = ride(today, 9000, { id: "other", icu_intensity: 95, name: "Gran fondo" });
+    expect(
+      proposalFor(ctx(n, [event("1", today)], { acts: [...history, other] }), new Map()),
+    ).toBeNull();
+  });
   it("waits when no review is due", () => {
     const n = note([], { state: state({ lastReview: today }) });
     expect(proposalFor(ctx(n), new Map())).toBeNull();
+  });
+});
+
+describe("recomputing with the button", () => {
+  const quiet = (n: PlanNote) => ({ ...n, state: state({ lastReview: today }) });
+  it("fills the empty days, each with its role, hard days kept apart", () => {
+    const p = recomputeFor(ctx(quiet(note())), new Map())!;
+    expect(p.review.reason).toBe("recompute");
+    expect(p.silent).toBe(false);
+    expect(p.changes.length).toBeGreaterThan(0);
+    for (const c of p.changes) {
+      expect(c.from).toBeNull();
+      expect(c.to).not.toBeNull();
+      expect(c.role).toBeDefined();
+    }
+    const hard = p.changes.filter((c) => c.role === "hard").map((c) => c.date);
+    for (let i = 1; i < hard.length; i++)
+      expect(
+        new Date(hard[i]!).getTime() - new Date(hard[i - 1]!).getTime(),
+      ).toBeGreaterThanOrEqual(2 * 864e5);
+  });
+  it("leaves alone the days cleared by hand", () => {
+    const sat = addDays(today, 2);
+    const p = recomputeFor(ctx(quiet(note([], { declined: [sat] }))), new Map())!;
+    expect(p.changes.find((c) => c.date === sat)).toBeUndefined();
+  });
+  it("rewrites a session already there when the plan would now choose another", () => {
+    const sun = addDays(today, 3);
+    const n = quiet(note([session("9", sun, "easy")]));
+    const p = recomputeFor(ctx(n, [event("9", sun)]), new Map())!;
+    const c = p.changes.find((x) => x.date === sun);
+    expect(c?.eventId).toBe("9");
+    expect(c?.from).not.toBeNull();
+  });
+  it("is nothing when the next days are just as the plan would write them", () => {
+    const first = recomputeFor(ctx(quiet(note())), new Map())!;
+    const placed = first.changes
+      .map((c, i) =>
+        session(
+          String(100 + i),
+          c.date,
+          c.role === "hard" || c.role === "long" ? c.role : "easy",
+          c.to!.description,
+        ),
+      )
+      .map((x, i) => ({
+        ...x,
+        workoutId: first.changes[i]!.to!.id,
+        seconds: first.changes[i]!.to!.seconds,
+      }));
+    const calendar = first.changes.map((c, i) => event(String(100 + i), c.date, c.to!.description));
+    expect(recomputeFor(ctx(quiet(note(placed)), calendar), new Map())).toBeNull();
   });
 });
 

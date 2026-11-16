@@ -91,6 +91,10 @@ const fullIds = (q: string) =>
   );
 
 describe("parameters", () => {
+  it("opens your roads' heat map by typing", () => {
+    for (const q of ["heatmap", "le mie strade", "mappa di calore"])
+      expect(alternatives(q, null, full)[0]?.dest, q).toEqual({ kind: "route", to: "/roads" });
+  });
   it("answers ftp with the value before any question", () => {
     const [top] = alternatives("ftp", "summer", full);
     expect(top!.id).toBe("param-ftp");

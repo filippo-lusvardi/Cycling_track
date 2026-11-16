@@ -56,12 +56,9 @@ async function startSession() {
   const stopSegments = followSegments();
   const { followGear } = await import("./gear-store");
   const stopGear = auth.currentUser ? await followGear() : () => {};
-  const { followCourses } = await import("./course-store");
-  const stopCourses = auth.currentUser ? await followCourses() : () => {};
   stopFollow = () => {
     stopSegments();
     stopGear();
-    stopCourses();
   };
 }
 

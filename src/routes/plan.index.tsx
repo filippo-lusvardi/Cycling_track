@@ -2,7 +2,7 @@ import { WorkoutIcon } from "@/components/WorkoutIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
-import { Check, Minus, SlidersHorizontal } from "lucide-react";
+import { Check, Minus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -34,6 +34,7 @@ import {
   catchUp,
   easierToday,
   proposalFor,
+  recomputeFor,
   windowFor,
   type PlanContext,
   type Proposal,
@@ -100,6 +101,16 @@ const WHY: Partial<Record<ReviewReason, () => string>> = {
     t(
       "Your races changed. Here's how the next days change.",
       "Le tue gare sono cambiate. Ecco come cambiano i prossimi giorni.",
+    ),
+  recompute: () =>
+    t(
+      "The next days worked out again from where you are now.",
+      "I prossimi giorni ricalcolati da dove sei adesso.",
+    ),
+  "extra-ride": () =>
+    t(
+      "You rode more than the plan asked. Here's the rest of the week around it.",
+      "Hai pedalato più di quanto chiedeva il piano. Ecco il resto della settimana adattato.",
     ),
 };
 
@@ -560,7 +571,15 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
   const { input } = ctx;
   const state = catchUp(ctx);
 
-  const proposal = executions ? proposalFor(ctx, executions) : null;
+  const due = executions ? proposalFor(ctx, executions) : null;
+  // Asked for with the button: it takes the place of the proposal due, which it already includes.
+  const [asked, setAsked] = useState<Proposal | null>(null);
+  const proposal = asked ?? due;
+  const recompute = () => {
+    const p = recomputeFor(ctx, executions ?? new Map());
+    if (p) setAsked(p);
+    else toast(t("The plan is already up to date", "Il piano è già aggiornato"));
+  };
 
   const days = windowFor(ctx, state);
   const monday = mondayOf(today);
@@ -626,12 +645,22 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
           </div>
           <h1 className="on-sky text-3xl font-bold tracking-tight">{t("Plan", "Piano")}</h1>
         </div>
-        <Link
-          to="/plan/settings"
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card/85 px-3 text-xs text-muted-foreground backdrop-blur hover:text-foreground"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" /> {t("Settings", "Impostazioni")}
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={recompute}
+            disabled={busy || !online}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-card/85 px-3 text-xs text-muted-foreground backdrop-blur hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> {t("Recompute", "Ricalcola")}
+          </button>
+          <Link
+            to="/plan/settings"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-card/85 px-3 text-xs text-muted-foreground backdrop-blur hover:text-foreground"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" /> {t("Settings", "Impostazioni")}
+          </Link>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <StatCard
@@ -655,15 +684,18 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
           online={online}
           onAccept={() =>
             void act(
-              () => acceptProposal(stored, ctx, proposal, today),
+              () => acceptProposal(stored, ctx, proposal, today).then(() => setAsked(null)),
               t("Couldn't change the plan", "Impossibile modificare il piano"),
             )
           }
           onKeep={() =>
-            void act(
-              () => keepPlan(stored, state, proposal, today),
-              t("Couldn't save", "Impossibile salvare"),
-            )
+            // Leaving a recompute changes nothing; a proposal that was due is noted as kept.
+            asked && (!due || due.silent)
+              ? setAsked(null)
+              : void act(
+                  () => keepPlan(stored, state, proposal, today).then(() => setAsked(null)),
+                  t("Couldn't save", "Impossibile salvare"),
+                )
           }
         />
       )}

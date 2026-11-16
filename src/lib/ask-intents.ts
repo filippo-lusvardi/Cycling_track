@@ -30,7 +30,6 @@ import {
   type Span,
   type WhenCandidate,
 } from "./ask-when";
-import { courseRows } from "./ask-course";
 import { gearRows } from "./ask-gear";
 import { FEEL_LABEL, recentFeel } from "./felt";
 import type { Gear, Overrides } from "./gear";
@@ -148,8 +147,6 @@ export type IntentData = {
   events?: PlannedEvent[] | undefined;
   /** Bikes and shoes, and activities set on other gear than their default. */
   gear?: { gears: Gear[]; overrides: Overrides } | undefined;
-  /** Saved routes, for opening one by name. */
-  courses?: { id: string; name: string }[] | undefined;
 };
 
 const route = (
@@ -2372,9 +2369,6 @@ export function intentEntries(query: string, d: IntentData): Entry[] {
           }
         : noteRow("undo-none", t("Nothing to undo", "Niente da annullare")),
     ];
-  // Before the writes: "giro di 1h con salite da qui" is a route to draw, not a ride to log.
-  const course = courseRows(d, s);
-  if (course.length) return course;
   const saved = writes(d, s);
   if (saved.length) return saved;
   const gear = gearRows(d, s, query);

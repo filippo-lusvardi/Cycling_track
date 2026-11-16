@@ -86,6 +86,7 @@ export async function runCheck(
           replan: false,
           reviews: [...fresh.note.reviews, { ...settle.review, on: today }],
           ...(settle.seenRaces ? { seenRaces: settle.seenRaces } : {}),
+          ...(settle.seenExtras ? { seenExtras: settle.seenExtras } : {}),
         }
       : {}),
   };
@@ -152,7 +153,7 @@ async function applyChange(sessions: NoteSession[], c: ProposalChange) {
   }
   if (c.to) {
     const id = await scheduleWorkout(entry(c.to), c.date);
-    return [...rest, sessionOf(c.date, "easy", c.to, id)];
+    return [...rest, sessionOf(c.date, c.role ?? "easy", c.to, id)];
   }
   if (c.eventId) await deleteEvent(c.eventId);
   return rest;
@@ -176,6 +177,7 @@ export async function acceptProposal(
     replan: false,
     reviews: [...stored.note.reviews, { ...p.review, on: today, accepted: true }],
     ...(p.seenRaces ? { seenRaces: p.seenRaces } : {}),
+    ...(p.seenExtras ? { seenExtras: p.seenExtras } : {}),
   };
   await savePlan(note, today, stored);
 }
@@ -193,6 +195,7 @@ export async function keepPlan(
     replan: false,
     reviews: [...stored.note.reviews, { ...p.review, on: today, accepted: false }],
     ...(p.seenRaces ? { seenRaces: p.seenRaces } : {}),
+    ...(p.seenExtras ? { seenExtras: p.seenExtras } : {}),
   };
   await savePlan(note, today, stored);
 }
@@ -208,7 +211,7 @@ export async function undoLast(
     if (u.date <= today) continue;
     const index = (new Date(`${u.date}T12:00:00`).getDay() + 6) % 7;
     const indoor = stored.note.settings.week[index]?.indoor ?? false;
-    const to = u.workoutId ? workoutById(u.workoutId, pool, indoor) : null;
+    const to = u.workoutId ? workoutById(u.workoutId, pool, indoor, ctx.input.th.ftp) : null;
     const eventId = sessions.find((s) => s.date === u.date)?.eventId ?? null;
     sessions = await applyChange(sessions, { date: u.date, from: null, to, eventId });
   }
@@ -236,7 +239,10 @@ export async function swapToday(
 
 /** How the rides went against their workouts, by activity id. A ride whose power can't be read is judged as a whole. */
 export async function compareRides(
-  rides: { act: { id: string; icu_weighted_avg_watts: number | null }; description: string }[],
+  rides: {
+    act: { id: string; icu_weighted_avg_watts: number | null; icu_average_watts?: number | null };
+    description: string;
+  }[],
   ftp: number | null | undefined,
 ) {
   const out = new Map<string, Execution | null>();
@@ -245,7 +251,13 @@ export async function compareRides(
       const watts = await getRideWatts(act.id).catch(() => null);
       out.set(
         act.id,
-        executionOf({ description, ftp, watts, weightedWatts: act.icu_weighted_avg_watts }),
+        executionOf({
+          description,
+          ftp,
+          watts,
+          weightedWatts: act.icu_weighted_avg_watts,
+          averageWatts: act.icu_average_watts,
+        }),
       );
     }),
   );

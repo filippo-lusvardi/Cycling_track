@@ -124,6 +124,8 @@ export type SessionOutcome = {
   rating: Rating | null;
   /** How the ride compared with the workout, when there's power to tell. */
   execution?: Execution | null;
+  /** A hard ride the plan didn't ask for: it counts as hard work done, and its rating counts too. */
+  extra?: boolean | undefined;
 };
 
 export type ReviewResult = "raise" | "hold" | "lower";
@@ -143,5 +145,7 @@ export type ReviewReason =
   | "under-target"
   | "days-changed"
   | "races-changed"
+  | "extra-ride"
+  | "recompute"
   | "mixed";
 export type Review = { result: ReviewResult; reason: ReviewReason };

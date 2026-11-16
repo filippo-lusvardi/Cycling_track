@@ -73,7 +73,8 @@ export function review(input: ReviewInput): Review {
   if (input.recoveryWeek) return { result: "hold", reason: "recovery-week" };
   if (byDate.filter((o) => o.doneSeconds == null).length >= MISSED_LIMIT)
     return { result: "hold", reason: "missed" };
-  const hard = byDate.filter((o) => o.hard && isNew(o));
+  // A ride the plan didn't ask for has its say when it's rated; unrated, it doesn't hold anything back.
+  const hard = byDate.filter((o) => o.hard && isNew(o) && !(o.extra && !o.rating));
   if (hard.some(wentOver)) return { result: "hold", reason: "went-over" };
   if (!hard.length || hard.some((o) => !o.rating)) return { result: "hold", reason: "no-ratings" };
   if (!hard.every(done)) return { result: "hold", reason: "not-all-done" };

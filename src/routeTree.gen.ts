@@ -13,12 +13,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as ChartRouteImport } from './routes/chart'
-import { Route as CoursesRouteImport } from './routes/courses'
 import { Route as GardenRouteImport } from './routes/garden'
 import { Route as GearRouteImport } from './routes/gear'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecapRouteImport } from './routes/recap'
+import { Route as RoadsRouteImport } from './routes/roads'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SuggestRouteImport } from './routes/suggest'
 import { Route as WorkoutsRouteImport } from './routes/workouts'
@@ -55,11 +55,6 @@ const ChartRoute = ChartRouteImport.update({
   path: '/chart',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CoursesRoute = CoursesRouteImport.update({
-  id: '/courses',
-  path: '/courses',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const GardenRoute = GardenRouteImport.update({
   id: '/garden',
   path: '/garden',
@@ -83,6 +78,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const RecapRoute = RecapRouteImport.update({
   id: '/recap',
   path: '/recap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoadsRoute = RoadsRouteImport.update({
+  id: '/roads',
+  path: '/roads',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -166,12 +166,12 @@ export interface FileRoutesByFullPath {
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
-  '/courses': typeof CoursesRoute
   '/garden': typeof GardenRoute
   '/gear': typeof GearRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
+  '/roads': typeof RoadsRoute
   '/settings': typeof SettingsRoute
   '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
@@ -193,12 +193,12 @@ export interface FileRoutesByTo {
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
-  '/courses': typeof CoursesRoute
   '/garden': typeof GardenRoute
   '/gear': typeof GearRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
+  '/roads': typeof RoadsRoute
   '/settings': typeof SettingsRoute
   '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
@@ -221,12 +221,12 @@ export interface FileRoutesById {
   '/analysis': typeof AnalysisRoute
   '/calendar': typeof CalendarRoute
   '/chart': typeof ChartRoute
-  '/courses': typeof CoursesRoute
   '/garden': typeof GardenRoute
   '/gear': typeof GearRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/recap': typeof RecapRoute
+  '/roads': typeof RoadsRoute
   '/settings': typeof SettingsRoute
   '/suggest': typeof SuggestRoute
   '/workouts': typeof WorkoutsRoute
@@ -250,12 +250,12 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/calendar'
     | '/chart'
-    | '/courses'
     | '/garden'
     | '/gear'
     | '/login'
     | '/privacy'
     | '/recap'
+    | '/roads'
     | '/settings'
     | '/suggest'
     | '/workouts'
@@ -277,12 +277,12 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/calendar'
     | '/chart'
-    | '/courses'
     | '/garden'
     | '/gear'
     | '/login'
     | '/privacy'
     | '/recap'
+    | '/roads'
     | '/settings'
     | '/suggest'
     | '/workouts'
@@ -304,12 +304,12 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/calendar'
     | '/chart'
-    | '/courses'
     | '/garden'
     | '/gear'
     | '/login'
     | '/privacy'
     | '/recap'
+    | '/roads'
     | '/settings'
     | '/suggest'
     | '/workouts'
@@ -332,12 +332,12 @@ export interface RootRouteChildren {
   AnalysisRoute: typeof AnalysisRoute
   CalendarRoute: typeof CalendarRoute
   ChartRoute: typeof ChartRoute
-  CoursesRoute: typeof CoursesRoute
   GardenRoute: typeof GardenRoute
   GearRoute: typeof GearRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   RecapRoute: typeof RecapRoute
+  RoadsRoute: typeof RoadsRoute
   SettingsRoute: typeof SettingsRoute
   SuggestRoute: typeof SuggestRoute
   WorkoutsRoute: typeof WorkoutsRoute
@@ -385,13 +385,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChartRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/courses': {
-      id: '/courses'
-      path: '/courses'
-      fullPath: '/courses'
-      preLoaderRoute: typeof CoursesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/garden': {
       id: '/garden'
       path: '/garden'
@@ -425,6 +418,13 @@ declare module '@tanstack/react-router' {
       path: '/recap'
       fullPath: '/recap'
       preLoaderRoute: typeof RecapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roads': {
+      id: '/roads'
+      path: '/roads'
+      fullPath: '/roads'
+      preLoaderRoute: typeof RoadsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -540,12 +540,12 @@ const rootRouteChildren: RootRouteChildren = {
   AnalysisRoute: AnalysisRoute,
   CalendarRoute: CalendarRoute,
   ChartRoute: ChartRoute,
-  CoursesRoute: CoursesRoute,
   GardenRoute: GardenRoute,
   GearRoute: GearRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   RecapRoute: RecapRoute,
+  RoadsRoute: RoadsRoute,
   SettingsRoute: SettingsRoute,
   SuggestRoute: SuggestRoute,
   WorkoutsRoute: WorkoutsRoute,

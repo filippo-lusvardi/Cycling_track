@@ -14,7 +14,7 @@ Cirmolo is a web app (PWA) in English and Italian. It works with [intervals.icu]
 - **Activities and analysis**: fitness and fatigue, power and pace curves, zones, Durability, recaps of any stretch of time.
 - **Climbs**: found in your own rides, with every pass, your records, and races against your best.
 - **Workouts and a training plan**: a library, suggestions for the day, and weeks built around your races or a whole season.
-- **Routes** on the roads you already ride, sent to your Garmin as a FIT course.
+- **Your roads** as a heat map of everywhere you ride.
 - **Gear**: kilometres on bikes, shoes and components, with washes and services.
 - **Forests**: trees side by side with friends, sharing only what you choose.
 

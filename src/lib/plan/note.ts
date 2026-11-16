@@ -20,6 +20,8 @@ const KEEP_SESSION_DAYS = 28;
 const KEEP_REVIEWS = 30;
 /** Finished weeks in a line each: small enough for the note, long enough to look back on half a year. */
 const KEEP_WEEKS = 26;
+/** Rides already looked at as extras: enough to cover the sessions the note keeps. */
+const KEEP_EXTRAS = 40;
 /** A note this old moves up, since the calendar is only searched so far back. */
 export const NOTE_SEARCH_DAYS = 400;
 const MOVE_AFTER_DAYS = 300;
@@ -70,6 +72,8 @@ export type PlanNote = {
   pastWeeks?: NoteWeek[] | undefined;
   /** A season's races as last taken into account, to notice when they change. */
   seenRaces?: string[] | undefined;
+  /** Rides outside the plan already taken into account, by activity id, so the same one doesn't ask twice. */
+  seenExtras?: string[] | undefined;
 };
 
 const dosesSchema = z.object(
@@ -139,6 +143,7 @@ const noteSchema = z.object({
     )
     .optional(),
   seenRaces: z.array(z.string()).optional(),
+  seenExtras: z.array(z.string()).optional(),
 });
 
 /** A short fingerprint, to notice a changed text. */
@@ -160,9 +165,17 @@ const round = (s: PlanState): PlanState => {
   };
 };
 
+/** intervals.icu takes more, but the app's own check stops at 10,000: some room is left under it. */
+export const NOTE_MAX_CHARS = 9500;
+const SHORT_SESSION_DAYS = 14;
+
 /** The text of the note: a sentence for anyone who finds it on their calendar, then the data. */
 export function writeNote(note: PlanNote, today: string) {
-  const data = {
+  const intro = t(
+    "Cirmolo keeps your training plan here. Deleting this note starts the plan over.",
+    "Cirmolo tiene qui il tuo piano di allenamento. Se elimini questa nota, il piano riparte da zero.",
+  );
+  let data = {
     v: VERSION,
     ...note,
     state: round(note.state),
@@ -170,12 +183,24 @@ export function writeNote(note: PlanNote, today: string) {
     reviews: note.reviews.slice(-KEEP_REVIEWS),
     declined: note.declined?.filter((d) => d >= today),
     pastWeeks: note.pastWeeks?.slice(-KEEP_WEEKS),
+    seenExtras: note.seenExtras?.slice(-KEEP_EXTRAS),
   };
-  const intro = t(
-    "Cirmolo keeps your training plan here. Deleting this note starts the plan over.",
-    "Cirmolo tiene qui il tuo piano di allenamento. Se elimini questa nota, il piano riparte da zero.",
-  );
-  return `${intro}\n\n${MARK}\n${JSON.stringify(data)}`;
+  const text = () => `${intro}\n\n${MARK}\n${JSON.stringify(data)}`;
+  // Too long: the oldest of what matters least goes first, a little at a time.
+  const shorten = [
+    () => data.reviews.length > 4 && (data = { ...data, reviews: data.reviews.slice(2) }),
+    () =>
+      (data.pastWeeks?.length ?? 0) > 4 &&
+      (data = { ...data, pastWeeks: data.pastWeeks!.slice(1) }),
+    () => {
+      const kept = data.sessions.filter((s) => s.date >= addDays(today, -SHORT_SESSION_DAYS));
+      if (kept.length === data.sessions.length) return false;
+      data = { ...data, sessions: kept };
+      return true;
+    },
+  ];
+  for (const step of shorten) while (text().length > NOTE_MAX_CHARS) if (!step()) break;
+  return text();
 }
 
 /** Null for anything that can't be read whole: a plan half understood is worse than none. */

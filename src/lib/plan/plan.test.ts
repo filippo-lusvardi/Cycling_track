@@ -6,7 +6,15 @@ import { addDays } from "../training";
 import { parseWorkout } from "../workout";
 import { applyReview, lowMornings, review, rollWeek, type ReviewInput } from "./evaluate";
 import { ladderFor, pickRung, workSeconds } from "./ladder";
-import { easyRide, layoutWeek, longRide, recoveryRide, type LayoutInput } from "./layout";
+import {
+  easyRide,
+  INDOOR_MAX,
+  layoutWeek,
+  longRide,
+  recoveryRide,
+  type LayoutInput,
+} from "./layout";
+import { executionOf } from "./execution";
 import { diffWeek, matchSessions, outcomesOf } from "./match";
 import { outline } from "./outline";
 import { weekShape } from "./phase";
@@ -402,6 +410,66 @@ describe("a week", () => {
   });
 });
 
+describe("indoors and outdoors", () => {
+  const indoorWeek = [
+    off,
+    day(120, true),
+    day(60),
+    day(120, true),
+    off,
+    day(240, false, true),
+    day(180),
+  ];
+  it("keeps every indoor ride within 75 min, and never one steady block of Z2", () => {
+    for (const s of [state(), state({ cycleStart: addDays(monday, -14) })]) {
+      const days = week({ s, plan: indoorWeek });
+      expectSound(days, settings(indoorWeek));
+      const indoor = days.filter((d, i) => d.workout && indoorWeek[i]!.indoor);
+      expect(indoor.length).toBeGreaterThan(0);
+      for (const d of indoor) {
+        expect(d.workout!.seconds, d.workout!.id).toBeLessThanOrEqual(INDOOR_MAX);
+        if (d.workout!.kind !== "endurance" && d.workout!.kind !== "recovery") continue;
+        const blocks = parseWorkout(d.workout!.description, "ride").blocks;
+        expect(Math.max(...blocks.map((b) => b.seconds)), d.workout!.id).toBeLessThanOrEqual(
+          10 * 60,
+        );
+      }
+    }
+  });
+  it("makes an indoor long day the longest varied ride that fits", () => {
+    const plan = [off, day(60), off, day(60), off, day(180, true, true), off];
+    const long = week({ plan }).find((d) => d.role === "long");
+    expect(long?.workout?.type).toBe("VirtualRide");
+    expect(long!.workout!.seconds).toBe(INDOOR_MAX);
+  });
+  it("gives the outdoor days the time an indoor limit leaves over", () => {
+    const s = state({ weeklySeconds: 9 * 3600, lastBuildSeconds: 9 * 3600 });
+    const sunday = (plan: DayPlan[]) => week({ s, plan })[6]!.workout!.seconds;
+    const outside = indoorWeek.map((d) => ({ ...d, indoor: false }));
+    const capped = week({ s, plan: indoorWeek });
+    expect(capped.some((d, i) => indoorWeek[i]!.indoor && d.role === "easy")).toBe(true);
+    expect(sunday(indoorWeek)).toBeGreaterThan(sunday(outside));
+  });
+  it("asks outdoors only for an average within a range, with the watts written out", () => {
+    for (const w of [longRide(4 * 3600, false, 250), easyRide(90 * 60, false, 250)]) {
+      const { blocks } = parseWorkout(w.description, "ride");
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0]!.power![0]).toBeLessThan(blocks[0]!.power![1]);
+      expect(w.description).toMatch(/≈ 163 W/);
+    }
+    expect(longRide(4 * 3600, false).description).not.toMatch(/ W\)/);
+  });
+  it("judges an outdoor ride on its average: inside the range is full marks, easier never falls short", () => {
+    const description = longRide(4 * 3600, false, 250).description;
+    const judge = (averageWatts: number) =>
+      executionOf({ description, ftp: 250, averageWatts, weightedWatts: averageWatts * 1.2 })!;
+    expect(judge(165)).toMatchObject({ verdict: "on", score: 100 });
+    expect(judge(120).verdict).toBe("on");
+    expect(judge(215).verdict).toBe("over");
+    expect(judge(215).score).toBeLessThan(100);
+  });
+});
+
 describe("the review", () => {
   const hard = (over: Partial<SessionOutcome> = {}): SessionOutcome => ({
     date: monday,
@@ -418,6 +486,12 @@ describe("the review", () => {
     recoveryWeek: false,
     off: false,
     ...over,
+  });
+  it("counts a hard ride the plan didn't ask for once it's rated, and isn't held back by one that isn't", () => {
+    const extra = (rating: SessionOutcome["rating"]) =>
+      hard({ date: addDays(monday, 1), rating, extra: true });
+    expect(review(input({ outcomes: [hard(), extra(null)] })).result).toBe("raise");
+    expect(review(input({ outcomes: [hard(), extra("failed")] })).reason).toBe("failed");
   });
   it("raises only on hard sessions done and rated fine", () => {
     expect(review(input())).toEqual({ result: "raise", reason: "good" });
@@ -581,10 +655,50 @@ describe("matching what was planned with what happened", () => {
     const m = matchSessions([plan(monday)], acts);
     expect(m.get(monday)?.id).toBe("a");
   });
-  it("won't match a ride of a very different length, another day, or another sport", () => {
-    expect(matchSessions([plan(monday)], [ride(monday, 9000)]).size).toBe(0);
+  it("counts any ride that day, whatever its length or name, but not another day's or another sport", () => {
+    expect(matchSessions([plan(monday)], [ride(monday, 9000, { name: "Group ride" })]).size).toBe(
+      1,
+    );
     expect(matchSessions([plan(monday)], [ride(addDays(monday, 1), 3600)]).size).toBe(0);
     expect(matchSessions([plan(monday)], [ride(monday, 3600, { type: "Run" })]).size).toBe(0);
+  });
+  it("takes the closest in length when there are two rides, and leaves the other as an extra", () => {
+    const m = matchSessions(
+      [plan(monday)],
+      [ride(monday, 1200, { id: "commute" }), ride(monday, 4800, { id: "session" })],
+    );
+    expect(m.get(monday)?.id).toBe("session");
+  });
+  it("finds a hard or long session moved by a day, by a ride like it", () => {
+    const hard = (a: Activity) => a.id === "hard";
+    const tue = addDays(monday, 1);
+    const m = matchSessions(
+      [{ ...plan(monday), role: "hard" }],
+      [ride(tue, 3600, { id: "hard" })],
+      hard,
+    );
+    expect(m.get(monday)?.id).toBe("hard");
+    // An easy ride a day off isn't the hard session.
+    expect(
+      matchSessions([{ ...plan(monday), role: "hard" }], [ride(tue, 3600, { id: "easy" })], hard)
+        .size,
+    ).toBe(0);
+    const long = { ...plan(monday), role: "long" as const, workout: w(4 * 3600) };
+    expect(matchSessions([long], [ride(tue, 3.5 * 3600)]).size).toBe(1);
+    expect(matchSessions([long], [ride(tue, 2 * 3600)]).size).toBe(0);
+  });
+  it("never takes a ride from the session of its own day", () => {
+    const tue = addDays(monday, 1);
+    const m = matchSessions(
+      [
+        { ...plan(monday), role: "hard" },
+        { ...plan(tue), role: "easy" },
+      ],
+      [ride(tue, 3600, { id: "tue" })],
+      () => true,
+    );
+    expect(m.get(tue)?.id).toBe("tue");
+    expect(m.has(monday)).toBe(false);
   });
   it("trusts a pairing from intervals.icu first", () => {
     const m = matchSessions(

@@ -36,7 +36,7 @@ export type Page =
   | "recap"
   | "programme"
   | "gear"
-  | "courses"
+  | "roads"
   | "save";
 
 export type LegendTab = "tree" | "garden" | "ask";
@@ -94,7 +94,7 @@ export const PAGE_LABEL: Record<Page, () => string> = {
   recap: () => t("Recap", "Riepilogo"),
   programme: () => t("Plan", "Programma"),
   gear: () => t("Gear", "Attrezzatura"),
-  courses: () => t("Routes", "Percorsi"),
+  roads: () => t("Your roads", "Le tue strade"),
   save: () => t("Save", "Salva"),
 };
 
@@ -129,16 +129,16 @@ export const PAGE_DEST: Record<ListPage, Dest> = {
   legend: { kind: "legend", term: "crown", tab: "tree" },
   zones: route("/analysis", { view: "zones" }),
   gear: route("/gear"),
-  courses: route("/courses"),
+  roads: route("/roads"),
 };
 
 export const INDEX: { when: () => string; pages: ListPage[] }[] = [
   { when: () => t("Today", "Oggi"), pages: ["tree", "garden"] },
   {
     when: () => t("Before", "Prima"),
-    pages: ["rides", "years", "pantry", "analysis", "body", "zones", "segments"],
+    pages: ["rides", "years", "pantry", "analysis", "body", "zones", "segments", "roads"],
   },
-  { when: () => t("Ahead", "Poi"), pages: ["plan", "calendar", "workouts", "courses"] },
+  { when: () => t("Ahead", "Poi"), pages: ["plan", "calendar", "workouts"] },
   { when: () => t("More", "Altro"), pages: ["gear", "legend", "settings", "forest"] },
 ];
 
@@ -323,23 +323,13 @@ function questions(): Entry[] {
       ],
     },
     {
-      id: "courses",
-      q: t("My routes", "I miei percorsi"),
-      also: `${"My routes"} ${"I miei percorsi"}`,
-      page: "courses",
+      id: "roads",
+      q: t("Your roads", "Le tue strade"),
+      also: `${"Your roads"} ${"Le tue strade"} ${"My roads"} ${"Le mie strade"} heatmap ${"Heat map"} ${"Mappa di calore"}`,
+      page: "roads",
       kind: "plan",
-      dest: PAGE_DEST.courses,
-      words: [
-        "percorsi",
-        "percorso",
-        "routes",
-        "route",
-        "garmin",
-        "navigazione",
-        "navigation",
-        "mappa",
-        "map",
-      ],
+      dest: PAGE_DEST.roads,
+      words: ["heatmap", "heat", "calore", "strade", "roads", "mappa", "map", "dove", "where"],
     },
     {
       id: "plan-season",

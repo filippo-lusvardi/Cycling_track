@@ -269,9 +269,15 @@ export function PlanCompare({
   const execution = useMemo(
     () =>
       description
-        ? executionOf({ description, ftp, watts, weightedWatts: a.icu_weighted_avg_watts })
+        ? executionOf({
+            description,
+            ftp,
+            watts,
+            weightedWatts: a.icu_weighted_avg_watts,
+            averageWatts: a.icu_average_watts,
+          })
         : null,
-    [description, ftp, watts, a.icu_weighted_avg_watts],
+    [description, ftp, watts, a.icu_weighted_avg_watts, a.icu_average_watts],
   );
   if (!matched || !description || !execution || !ftp || !watts?.some((w) => w)) return null;
   return (

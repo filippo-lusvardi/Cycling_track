@@ -1,6 +1,7 @@
 // How the plan has gone: its sessions with what happened, and each finished week in a line. Pure.
 import { mondayOf } from "../focus";
 import type { Activity } from "../intervals";
+import { hardActivity } from "../suggest";
 import { addDays } from "../training";
 import { reconcile, workoutOf, type PlanContext } from "./engine";
 import type { Execution } from "./execution";
@@ -38,10 +39,12 @@ export function sessionLines(
   const matches = matchSessions(
     within.map((s) => ({
       date: s.date,
+      role: s.role,
       workout: { seconds: s.seconds } as PlanWorkout,
       pairedActivityId: (s.eventId && byId.get(s.eventId)?.pairedActivityId) || null,
     })),
     ctx.input.acts,
+    (a) => hardActivity(ctx.input, a),
   );
   return within.map((s) => {
     const e = s.eventId ? byId.get(s.eventId) : undefined;

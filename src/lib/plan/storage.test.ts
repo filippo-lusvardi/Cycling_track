@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { startState } from "./start-level";
-import { NOTE_SEARCH_DAYS, noteDate, readNote, textHash, writeNote, type PlanNote } from "./note";
+import {
+  NOTE_MAX_CHARS,
+  NOTE_SEARCH_DAYS,
+  noteDate,
+  readNote,
+  textHash,
+  writeNote,
+  type PlanNote,
+} from "./note";
 import { ratingIn, withRating, withoutRating } from "./rating";
 import { addDays } from "../training";
 import type { PlanSettings } from "./types";
@@ -38,6 +46,42 @@ describe("the plan's note", () => {
       reviews: [{ on: today, result: "hold", reason: "mixed" }],
     });
     expect(readNote(writeNote(n, today))).toEqual(n);
+  });
+  it("stays under the size limit when everything it keeps is full, keeping the newest", () => {
+    const n = note({
+      sessions: Array.from({ length: 36 }, (_, i) => ({
+        ...session(addDays(today, 7 - i)),
+        workoutId: "d-endurance-surges-120",
+        eventId: String(90000000 + i),
+        textHash: -2000000000 + i,
+      })),
+      reviews: Array.from({ length: 30 }, (_, i) => ({
+        on: addDays(today, -i * 3),
+        result: "hold" as const,
+        reason: "not-all-done" as const,
+        accepted: true,
+      })),
+      pastWeeks: Array.from({ length: 26 }, (_, i) => ({
+        monday: addDays("2026-05-11", i * 7),
+        phase: "build" as const,
+        recovery: true,
+        planned: 5,
+        done: 4,
+        seconds: 36000 + i,
+        score: 88,
+      })),
+      undoState: startState({ today, acts: [], settings }),
+      undo: Array.from({ length: 6 }, (_, i) => ({
+        date: addDays(today, i),
+        workoutId: "plan-easy-90",
+      })),
+      seenExtras: Array.from({ length: 40 }, (_, i) => `i${1000000 + i}`),
+    });
+    const text = writeNote(n, today);
+    expect(text.length).toBeLessThanOrEqual(NOTE_MAX_CHARS);
+    const back = readNote(text)!;
+    expect(back.sessions.some((s) => s.date === addDays(today, 7))).toBe(true);
+    expect(back.reviews.at(-1)).toEqual(n.reviews.at(-1));
   });
   it("opens with a sentence for anyone who finds it", () => {
     expect(writeNote(note(), today).split("\n")[0]).toMatch(/plan/i);
