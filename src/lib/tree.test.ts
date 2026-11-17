@@ -173,6 +173,20 @@ describe("tree", () => {
       expect.objectContaining({ id: "gym", kind: "gym", minutes: 45, load: 30 }),
     ]);
   });
+  it("grows a runner's leaves from km-effort: flat road runs too, climbing counts, capped", () => {
+    const run = (id: string, km: number, up: number) =>
+      act(id, "2026-10-31", 50, 50, { type: "Run", distance: km * 1000, total_elevation_gain: up });
+    const days = buildDays(
+      [run("road", 10, 30), run("trail", 18, 950), run("ultra", 70, 3000), run("short", 1.5, 0)],
+      [],
+      "2026-10-31",
+      "2026-10-31",
+      new Map(),
+      "run",
+    );
+    const leaves = Object.fromEntries(days[0]!.branches.map((b) => [b.id, b.leaves]));
+    expect(leaves).toEqual({ road: 5, trail: 13, ultra: 30, short: 0 });
+  });
   it("keeps rides on the tree, counts every sport in chapters and rings", () => {
     const acts = [
       act("ride", "2026-10-26", 60, 50, { distance: 30_000 }),

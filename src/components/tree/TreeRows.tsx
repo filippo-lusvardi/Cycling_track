@@ -190,7 +190,7 @@ const leafColor = (b: TreeBranch) =>
     ? LEVEL_COLOR[b.intensity - 1]!
     : `color-mix(in oklab, ${KINDS[b.kind].color} 55%, var(--muted-foreground))`;
 
-/** Leaves spread over the outer part of a curve, alternating sides; one per 100 m climbed. */
+/** Leaves spread over the outer part of a curve, alternating sides; how many is the sport's (`TREE_SCALE`). */
 export function Leaves({
   b,
   at,

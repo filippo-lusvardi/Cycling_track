@@ -38,18 +38,28 @@ export const FEEL_WORD = [
   t("poor", "scarsa"),
 ];
 
-/** One leaf per this many metres climbed. */
+/** A ride grows one leaf per this many metres climbed. */
 export const CLIMB_PER_LEAF = 100;
+/** A run grows one leaf per this many km-effort (km plus 1 km per 100 m climbed, as trail running counts it). */
+export const KM_EFFORT_PER_LEAF = 2;
 const MAX_LEAVES = 30;
 
 /**
  * How a session of the main sport draws as a branch: a run is shorter, lighter on load and climbs less than a ride,
  * so a usual 50-minute run makes a branch like a usual 90-minute ride's. Length levels off with `minutes`, thickness
- * peaks at `load`.
+ * peaks at `load`. Leaves: a ride's come from climbing; a run's from km-effort, so a flat road run has leaves too,
+ * and a faster run carries them closer together on its shorter branch.
  */
-export const TREE_SCALE: Record<MainSport, { minutes: number; load: number; climbPerLeaf: number }> = {
-  ride: { minutes: 120, load: 250, climbPerLeaf: CLIMB_PER_LEAF },
-  run: { minutes: 60, load: 180, climbPerLeaf: 30 },
+export const TREE_SCALE: Record<
+  MainSport,
+  { minutes: number; load: number; leaves: (metres: number, climb: number) => number }
+> = {
+  ride: { minutes: 120, load: 250, leaves: (_, climb) => climb / CLIMB_PER_LEAF },
+  run: {
+    minutes: 60,
+    load: 180,
+    leaves: (metres, climb) => (metres / 1000 + climb / 100) / KM_EFFORT_PER_LEAF,
+  },
 };
 
 export type TreeBranch = {
@@ -62,7 +72,7 @@ export type TreeBranch = {
   length: number;
   /** Stroke width in px, from load. */
   thickness: number;
-  /** One per 100 m climbed. */
+  /** A ride: one per 100 m climbed. A run: one per 2 km-effort (`TREE_SCALE`). */
   leaves: number;
   /** Leaf colour: how hard it was against FTP; null without power. */
   intensity: Level | null;
@@ -325,7 +335,7 @@ export function buildDays(
           side: turn++ % 2 ? -1 : 1,
           length: 1 - Math.exp(-minutes / scale.minutes),
           thickness: 1.5 + clamp01(load / scale.load) * 6.5,
-          leaves: Math.min(MAX_LEAVES, Math.floor(climb / scale.climbPerLeaf)),
+          leaves: Math.min(MAX_LEAVES, Math.floor(scale.leaves(a.distance ?? 0, climb))),
           intensity: intensityLevel(a.icu_intensity),
           minutes,
           load,
