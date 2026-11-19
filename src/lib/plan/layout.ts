@@ -36,6 +36,11 @@ const SHORTEST_RIDE = 30 * 60;
 const RECOVERY_RIDE = 45 * 60;
 const AFTER_RACE = 45 * 60;
 const QUARTER = 15 * 60;
+/** C: the shortest easy ride worth the trouble, outdoors and on the trainer. */
+const MIN_OUTDOOR = 60 * 60;
+const MIN_INDOOR = 45 * 60;
+/** C: under this, a week keeps two days with nothing in them. */
+const SHORT_WEEK = 4 * 3600;
 
 const floorQuarter = (s: number) => Math.floor(s / QUARTER) * QUARTER;
 
@@ -144,19 +149,50 @@ export function longRide(seconds: number, indoor: boolean, ftp?: number | null) 
   );
 }
 
-export function easyRide(seconds: number, indoor: boolean, ftp?: number | null) {
+/** What an outdoor easy ride pays attention to, in turn through the week: the power range stays the same. */
+export const EASY_FOCUS = ["", "cadence", "seated"] as const;
+export type EasyFocus = (typeof EASY_FOCUS)[number];
+
+const focusLine = (focus: EasyFocus) =>
+  focus === "cadence"
+    ? t(
+        " On the flats spin a little quicker than usual, around 95 rpm, without raising the power.",
+        " In pianura gira un po' più agile del solito, intorno a 95 rpm, senza alzare la potenza.",
+      )
+    : focus === "seated"
+      ? t(
+          " Ride the climbs seated, with a lower cadence you can still turn smoothly.",
+          " Fai le salite da seduto, con una cadenza più bassa ma ancora rotonda.",
+        )
+      : "";
+
+/** The focus in the name too, so days next to each other read differently on the calendar and the device. */
+const focusName = (focus: EasyFocus) =>
+  focus === "cadence"
+    ? t(" · spin", " · agile")
+    : focus === "seated"
+      ? t(" · seated", " · seduto")
+      : "";
+
+export function easyRide(
+  seconds: number,
+  indoor: boolean,
+  ftp?: number | null,
+  focus: EasyFocus = "",
+) {
   const intro = t(
     "Hazel grows at the forest edge, modest and everyday. An easy ride in Z2, at talking pace.",
     "Il nocciolo cresce al margine del bosco, senza pretese. Uscita facile in Z2, a ritmo da chiacchiera.",
   );
   const { low, high } = OUTDOOR.easy;
+  const outdoorFocus = indoor ? "" : focus;
   return made(
-    `plan-easy-${seconds / 60}`,
-    t(`Hazel ${hms(seconds)}`, `Nocciolo ${hms(seconds)}`),
+    `plan-easy-${seconds / 60}${outdoorFocus ? `-${outdoorFocus}` : ""}`,
+    t(`Hazel ${hms(seconds)}`, `Nocciolo ${hms(seconds)}`) + focusName(outdoorFocus),
     "endurance",
     indoor
       ? `${intro}\n\nWarmup\n- 10m Ramp 45-62%\n\n${waves(Math.round(seconds / 60) - 15)}\n\nCooldown\n- 5m Ramp 60-45%`
-      : `${intro} ${outdoorGoal(OUTDOOR.easy, ftp)}\n\nMain set\n- ${Math.round(seconds / 60)}m ${low}-${high}%`,
+      : `${intro} ${outdoorGoal(OUTDOOR.easy, ftp)}${focusLine(outdoorFocus)}\n\nMain set\n- ${Math.round(seconds / 60)}m ${low}-${high}%`,
     indoor,
   );
 }
@@ -186,14 +222,16 @@ const INDOOR_ENDURANCE = /^d-(endurance-surges|cadence-drills|endurance-tempo|en
 const INDOOR_RECOVERY = /^d-recovery-spin-/;
 
 /**
- * The longest library workout of this kind that fits, turning away from what was ridden lately. Null when none fits, and the
- * plan's own ride, in waves, takes its place.
+ * The longest library workout of this kind that fits, turning away from what this week already has, then from what was
+ * ridden lately. Null when none fits, or when all of them are already in the week: the plan's own ride, in waves, takes
+ * its turn before anything repeats (C: a week with the same workout day after day is monotonous, Foster 1998).
  */
 export function indoorPick(
   pool: SuggestWorkout[],
   seconds: number,
   kind: "endurance" | "recovery",
   recentIds: ReadonlySet<string> = new Set(),
+  used: readonly string[] = [],
 ): PlanWorkout | null {
   const like = kind === "recovery" ? INDOOR_RECOVERY : INDOOR_ENDURANCE;
   const fits = pool.filter(
@@ -201,11 +239,13 @@ export function indoorPick(
   );
   if (!fits.length) return null;
   const longest = Math.max(...fits.map((w) => w.seconds));
-  // The longest first; one up to a quarter of an hour shorter takes its turn when the longest was ridden lately.
+  // The longest first; one up to a quarter of an hour shorter takes its turn when the longest is in the week or was ridden lately.
   const near = fits
     .filter((w) => w.seconds >= longest - QUARTER)
     .sort((a, b) => b.seconds - a.seconds || a.id.localeCompare(b.id));
-  const w = near.find((x) => !recentIds.has(x.id)) ?? near[0]!;
+  const fresh = near.filter((x) => !used.includes(x.id));
+  const w = fresh.find((x) => !recentIds.has(x.id)) ?? fresh[0];
+  if (!w) return null;
   return {
     id: w.id,
     name: w.name,
@@ -229,8 +269,15 @@ function kindsFor(phase: Phase, focus: Focus, weekNumber: number): DoseKind[] {
   return swap(["threshold", "vo2"]);
 }
 
-function hardSessions(phase: Phase, recovery: boolean, state: PlanState, availableDays: number) {
-  if (recovery || phase === "base" || phase === "taper" || availableDays < 3) return 1;
+/** E: a taper keeps how often the hard work comes and only shortens it (Bosquet et al. 2007). */
+function hardSessions(
+  phase: Phase,
+  recovery: boolean,
+  state: PlanState,
+  availableDays: number,
+  raceWeek: boolean,
+) {
+  if (recovery || phase === "base" || availableDays < 3 || raceWeek) return 1;
   return state.hardCap;
 }
 
@@ -255,6 +302,48 @@ export function weekSeconds(shape: WeekShape, state: PlanState, settings: PlanSe
 const daysApart = (a: string, b: string) =>
   Math.abs(new Date(`${a}T12:00:00`).getTime() - new Date(`${b}T12:00:00`).getTime()) / 864e5;
 
+/**
+ * The easy time shared out by weight, never past a day's room, in quarters of an hour: what one day can't hold goes to
+ * the others.
+ */
+export function splitEasy(
+  days: string[],
+  seconds: number,
+  room: (d: string) => number,
+  weight: (d: string) => number,
+) {
+  const out = new Map<string, number>();
+  let open = [...days];
+  let left = seconds;
+  while (open.length && left > 0) {
+    const sum = open.reduce((n, d) => n + weight(d), 0);
+    const full = open.filter((d) => (left * weight(d)) / sum >= room(d));
+    if (!full.length) {
+      for (const d of open) out.set(d, (left * weight(d)) / sum);
+      break;
+    }
+    for (const d of full) {
+      out.set(d, room(d));
+      left -= room(d);
+    }
+    open = open.filter((d) => !full.includes(d));
+  }
+  // Down to quarters, then the quarters that rounding lost go back where most was cut, as room allows.
+  const exact = new Map(out);
+  for (const [d, s] of out) out.set(d, floorQuarter(s));
+  let spare = floorQuarter(seconds - [...out.values()].reduce((n, s) => n + s, 0));
+  const byCut = [...days].sort(
+    (a, b) => (exact.get(b) ?? 0) - (out.get(b) ?? 0) - ((exact.get(a) ?? 0) - (out.get(a) ?? 0)),
+  );
+  for (const d of byCut) {
+    if (spare < QUARTER) break;
+    if ((out.get(d) ?? 0) + QUARTER > room(d)) continue;
+    out.set(d, (out.get(d) ?? 0) + QUARTER);
+    spare -= QUARTER;
+  }
+  return out;
+}
+
 export function layoutWeek(input: LayoutInput): PlannedDay[] {
   const { today, shape, settings, state, taken, off, races, pool, focus } = input;
   const dates = Array.from({ length: 7 }, (_, i) => addDays(shape.monday, i));
@@ -266,14 +355,25 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
   /** The time a day can hold: indoors, never more than the trainer's limit. */
   const room = (date: string) =>
     at(date).indoor ? Math.min(at(date).minutes * 60, INDOOR_MAX) : at(date).minutes * 60;
+  const minRide = (date: string) => (at(date).indoor ? MIN_INDOOR : MIN_OUTDOOR);
+  /** The workouts this layout has placed, so the week doesn't repeat itself. */
+  const placedIds: string[] = [];
+  let easyFocus = Math.floor(daysApart(state.cycleStart, shape.monday) / 7);
   const recovery = (date: string, seconds: number) =>
-    (at(date).indoor && indoorPick(pool, seconds, "recovery", input.recentIds)) ||
+    (at(date).indoor && indoorPick(pool, seconds, "recovery", input.recentIds, placedIds)) ||
     recoveryRide(seconds, at(date).indoor);
-  const endurance = (date: string, seconds: number, long: boolean) =>
-    (at(date).indoor && indoorPick(pool, seconds, "endurance", input.recentIds)) ||
-    (long ? longRide : easyRide)(seconds, at(date).indoor, ftp);
-  const set = (date: string, role: PlannedDay["role"], workout: PlanWorkout | null = null) =>
+  const endurance = (date: string, seconds: number, long: boolean) => {
+    const picked =
+      at(date).indoor && indoorPick(pool, seconds, "endurance", input.recentIds, placedIds);
+    if (picked) return picked;
+    if (long) return longRide(seconds, at(date).indoor, ftp);
+    const focus = at(date).indoor ? "" : EASY_FOCUS[easyFocus++ % EASY_FOCUS.length]!;
+    return easyRide(seconds, at(date).indoor, ftp, focus);
+  };
+  const set = (date: string, role: PlannedDay["role"], workout: PlanWorkout | null = null) => {
+    if (workout) placedIds.push(workout.id);
     out.set(date, { date, role, workout });
+  };
   const takenOn = new Map(taken.map((d) => [d.date, d]));
   const hardDays = [
     ...input.recentHard,
@@ -320,20 +420,25 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
   // Hard sessions: as far as possible from each other and from the long rides.
   const weekIndex = Math.floor(daysApart(state.cycleStart, shape.monday) / 7);
   const kinds = kindsFor(shape.phase, focus, weekIndex);
+  const raceWeek = races.some((r) => dates.includes(r.date));
   const wantHard =
-    hardSessions(shape.phase, shape.recovery, state, open.length) -
+    hardSessions(shape.phase, shape.recovery, state, open.length, raceWeek) -
     taken.filter((d) => d.hard && dates.includes(d.date)).length;
   const doses = dosesFor(shape, state.doses);
   const hardPlaced: string[] = [];
+  const anaerobicOn: string[] = [];
   const free = () => open.filter((d) => out.get(d)!.role === "rest");
   // With so few days there's no room to keep a hard session away from the long ride.
   const longMayTouch = open.length <= 2;
   for (let i = 0; i < Math.max(0, wantHard); i++) {
     const kind = kinds[i % kinds.length]!;
     const ladder = ladderFor(pool, kind, raceAhead, input.th ?? {});
+    // I: sprint-type work can leave power down for up to 72 h, so it keeps a day more from other hard work.
+    const gapFrom = (h: string) =>
+      kind === "anaerobic" || anaerobicOn.includes(h) ? Math.max(3, state.hardGap) : state.hardGap;
     const spaced = free().filter(
       (d) =>
-        [...hardDays, ...hardPlaced].every((h) => daysApart(h, d) >= state.hardGap) &&
+        [...hardDays, ...hardPlaced].every((h) => daysApart(h, d) >= gapFrom(h)) &&
         (longMayTouch || longPlaced.every((l) => daysApart(l, d) >= 2)),
     );
     const score = (d: string) => {
@@ -358,31 +463,48 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
     });
     used += w.seconds;
     hardPlaced.push(best);
+    if (kind === "anaerobic") anaerobicOn.push(best);
   }
 
-  // Easy rides with the time that's left. C: a week always has a day with nothing in it.
-  let easy = free();
-  const noRestDay = dates.every((d) => out.get(d)!.role !== "rest" || open.includes(d));
-  if (noRestDay && easy.length) {
-    const shortest = [...easy].sort((a, b) => at(a).minutes - at(b).minutes)[0]!;
-    easy = easy.filter((d) => d !== shortest);
-  }
-  // Indoor days first: what their limit leaves over goes to the days outside.
-  easy = [...easy].sort(
-    (a, b) => Number(at(b).indoor) - Number(at(a).indoor) || a.localeCompare(b),
+  // Easy rides with the time that's left. The time someone has is the most they can ride, not a quota: the easy time goes
+  // into the fewest rides that hold it, and the other free days stay rest (I: with the load matched, how many days it's
+  // spread over matters little, Sylta et al. 2016). C: a week always has a day with nothing in it, two when it's short.
+  const free0 = free();
+  const restDays = dates.filter((d) => out.get(d)!.role === "rest" && !free0.includes(d)).length;
+  const restWanted = target < SHORT_WEEK ? 2 : 1;
+  const mayUse = Math.max(0, free0.length - Math.max(0, restWanted - restDays));
+  // An easy ride is never longer than a long ride could be: it grows from your own longest too.
+  const easyRoom = (d: string) => Math.min(room(d), floorQuarter(longest));
+  const afterHard = (d: string) =>
+    [...hardDays, ...hardPlaced].includes(addDays(d, -1)) || longPlaced.includes(addDays(d, -1));
+  const ranked = [...free0].sort(
+    (a, b) =>
+      Number(afterHard(a)) - Number(afterHard(b)) ||
+      easyRoom(b) - easyRoom(a) ||
+      a.localeCompare(b),
   );
-  easy.forEach((date, i) => {
-    const left = target - used;
-    const each = left / (easy.length - i);
-    const seconds = floorQuarter(Math.min(room(date), Math.max(each, SHORTEST_RIDE)));
-    if (seconds < SHORTEST_RIDE || left < SHORTEST_RIDE) return;
-    const afterHard = hardPlaced.includes(addDays(date, -1));
+  const left = target - used;
+  // E: a taper keeps how often you ride, so it rides on as many days as a full week would (Bosquet et al. 2007).
+  const countFor =
+    shape.phase === "taper" ? Math.max(left, state.weeklySeconds - (target - left)) : left;
+  let count = 0;
+  for (let held = 0; count < Math.min(ranked.length, mayUse) && held < countFor; count++)
+    held += easyRoom(ranked[count]!);
+  // No ride shorter than is worth getting changed for: fewer, longer rides instead.
+  while (count > 1 && left / count < minRide(ranked[count - 1]!)) count--;
+  const chosen = ranked.slice(0, count);
+  const lengths = splitEasy(chosen, left, easyRoom, (d) =>
+    afterHard(d) ? 0.6 : d === chosen[0] ? 1 : 0.8,
+  );
+  for (const date of [...chosen].sort()) {
+    const seconds = lengths.get(date) ?? 0;
+    if (seconds < SHORTEST_RIDE) continue;
     const w =
-      afterHard && seconds <= RECOVERY_RIDE
+      afterHard(date) && seconds <= RECOVERY_RIDE
         ? recovery(date, seconds)
         : endurance(date, seconds, false);
     set(date, "easy", w);
     used += w.seconds;
-  });
+  }
   return dates.map((d) => out.get(d)!);
 }

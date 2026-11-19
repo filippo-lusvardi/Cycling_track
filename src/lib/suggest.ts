@@ -114,7 +114,7 @@ const FOCUS_NEXT: Partial<Record<Focus, WorkoutKind[]>> = {
   vo2: ["threshold", "vo2"],
 };
 const AEROBIC_HARD: WorkoutKind[] = ["vo2", "threshold"];
-const HARD_KINDS = new Set<WorkoutKind>(["threshold", "vo2", "anaerobic", "extreme"]);
+export const HARD_KINDS = new Set<WorkoutKind>(["threshold", "vo2", "anaerobic", "extreme"]);
 /** Intensity (% of threshold) from which an activity or a planned workout counts as a hard day. */
 const HARD_INTENSITY = 85;
 /** Hard sessions in any 7 days. I: two is the best-supported default, three adds little. */

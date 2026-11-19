@@ -36,6 +36,8 @@ export type NoteSession = {
   eventId: string | null;
   /** The text as sent, to see whether someone has changed it since. */
   textHash: number;
+  /** Chosen by hand in the app: the plan works around it and never changes it. */
+  manual?: boolean | undefined;
 };
 
 export type NoteReview = Review & { on: string; accepted?: boolean | undefined };
@@ -65,6 +67,8 @@ export type PlanNote = {
   weekOverride?: { monday: string; week: PlanSettings["week"] } | null | undefined;
   /** The days changed, so the week may want redrawing. */
   replan?: boolean | undefined;
+  /** What changed them: a day set by hand rather than the settings. */
+  replanBy?: "hand" | undefined;
   /** The last check that wrote the next seven days to the calendar. */
   lastFill?: string | null | undefined;
   /** Days someone cleared by hand: a check doesn't fill them again. */
@@ -110,6 +114,7 @@ const noteSchema = z.object({
       seconds: z.number(),
       eventId: z.string().nullable(),
       textHash: z.number(),
+      manual: z.boolean().optional(),
     }),
   ),
   reviews: z.array(
@@ -127,6 +132,7 @@ const noteSchema = z.object({
     .nullable()
     .optional(),
   replan: z.boolean().optional(),
+  replanBy: z.literal("hand").optional(),
   lastFill: z.string().nullable().optional(),
   declined: z.array(z.string()).optional(),
   pastWeeks: z

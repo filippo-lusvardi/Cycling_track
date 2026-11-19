@@ -444,11 +444,13 @@ describe("indoors and outdoors", () => {
   });
   it("gives the outdoor days the time an indoor limit leaves over", () => {
     const s = state({ weeklySeconds: 9 * 3600, lastBuildSeconds: 9 * 3600 });
-    const sunday = (plan: DayPlan[]) => week({ s, plan })[6]!.workout!.seconds;
+    const total = (plan: DayPlan[]) =>
+      week({ s, plan }).reduce((n, d) => n + (d.workout?.seconds ?? 0), 0);
     const outside = indoorWeek.map((d) => ({ ...d, indoor: false }));
     const capped = week({ s, plan: indoorWeek });
     expect(capped.some((d, i) => indoorWeek[i]!.indoor && d.role === "easy")).toBe(true);
-    expect(sunday(indoorWeek)).toBeGreaterThan(sunday(outside));
+    // The trainer's limit costs the week no time: what it can't hold goes outdoors.
+    expect(total(indoorWeek)).toBeGreaterThanOrEqual(total(outside) - 15 * 60);
   });
   it("asks outdoors only for an average within a range, with the watts written out", () => {
     for (const w of [longRide(4 * 3600, false, 250), easyRide(90 * 60, false, 250)]) {
@@ -467,6 +469,89 @@ describe("indoors and outdoors", () => {
     expect(judge(120).verdict).toBe("on");
     expect(judge(215).verdict).toBe("over");
     expect(judge(215).score).toBeLessThan(100);
+  });
+});
+
+describe("time free is the most, not a quota", () => {
+  const build = (over: Partial<PlanState> = {}) =>
+    state({ cycleStart: addDays(monday, -28), ...over });
+  const everyDay = Array.from({ length: 7 }, (_, i) => day(90, false, i === 5));
+  const monotony = (days: ReturnType<typeof week>) => {
+    const loads = days.map((d) => d.workout?.load ?? 0);
+    const mean = loads.reduce((a, b) => a + b, 0) / loads.length;
+    const sd = Math.sqrt(loads.reduce((a, b) => a + (b - mean) ** 2, 0) / loads.length);
+    return mean / sd;
+  };
+
+  it("leaves free days as rest when the week is smaller than the time", () => {
+    const s = build({ weeklySeconds: 5 * 3600, lastBuildSeconds: 5 * 3600 });
+    const days = week({ s, plan: everyDay });
+    expectSound(days, settings(everyDay));
+    expect(days.filter((d) => d.workout).length).toBeLessThan(7);
+    for (const d of days)
+      if (d.role === "easy" && d.workout!.kind === "endurance")
+        expect(d.workout!.seconds, d.date).toBeGreaterThanOrEqual(60 * 60);
+  });
+  it("keeps two rest days in a short week", () => {
+    const s = build({ weeklySeconds: 3 * 3600, lastBuildSeconds: 3 * 3600 });
+    const days = week({ s, plan: everyDay });
+    expect(days.filter((d) => !d.workout).length).toBeGreaterThanOrEqual(2);
+  });
+  it("never puts the same indoor workout on days next to each other", () => {
+    const plan = [
+      day(60, true),
+      day(60, true),
+      day(60, true),
+      day(60, true),
+      off,
+      day(240, false, true),
+      off,
+    ];
+    for (const s of [state(), build({ weeklySeconds: 9 * 3600, lastBuildSeconds: 9 * 3600 })]) {
+      const days = week({ s, plan });
+      const ids = days.map((d) => d.workout?.id ?? null);
+      for (let i = 1; i < ids.length; i++)
+        if (ids[i]) expect(ids[i], days[i]!.date).not.toBe(ids[i - 1]);
+      const indoor = days.filter((d, i) => d.workout && plan[i]!.indoor && d.role !== "hard");
+      expect(new Set(indoor.map((d) => d.workout!.id)).size).toBe(indoor.length);
+    }
+  });
+  it("turns the outdoor easy rides' focus, in one range", () => {
+    const s = build({ weeklySeconds: 10 * 3600, lastBuildSeconds: 10 * 3600 });
+    const plan = [day(90), day(90), day(120), day(90), off, day(300, false, true), day(180)];
+    const easy = week({ s, plan }).filter(
+      (d) => d.role === "easy" && d.workout!.kind === "endurance",
+    );
+    expect(easy.length).toBeGreaterThan(1);
+    expect(
+      new Set(easy.map((d) => d.workout!.id.replace(/^plan-easy-\d+/, ""))).size,
+    ).toBeGreaterThan(1);
+    for (const d of easy)
+      expect(parseWorkout(d.workout!.description, "ride").blocks).toHaveLength(1);
+  });
+  it("keeps the week's load from being monotonous", () => {
+    // C: Foster's monotony under 2. A week that fills nearly all the time there is (10 h in 7 × 90 min) can't vary, so it isn't asked to.
+    const weeks = [
+      ...[state(), build(), build({ weeklySeconds: 10 * 3600 })].map((s) => week({ s })),
+      ...[state(), build()].map((s) => week({ s, plan: everyDay })),
+    ];
+    for (const w of weeks) expect(monotony(w)).toBeLessThan(2);
+  });
+  it("keeps sprint-type work three days from other hard work", () => {
+    const s = build({ hardCap: 2, hardGap: 2 });
+    const days = week({ s, plan: everyDay, focus: "anaerobic", goal: "fitter" });
+    const hard = days.flatMap((d, i) => (d.role === "hard" ? [{ i, kind: d.workout!.kind }] : []));
+    if (hard.some((h) => h.kind === "anaerobic"))
+      for (let k = 1; k < hard.length; k++)
+        expect(hard[k]!.i - hard[k - 1]!.i).toBeGreaterThanOrEqual(3);
+  });
+  it("keeps the hard sessions in a taper, only shorter", () => {
+    const s = build({ hardCap: 2 });
+    const races = [race(addDays(monday, 12))];
+    const shape = weekShape(monday, settings(typical, "race"), races, s);
+    expect(shape.phase).toBe("taper");
+    const days = week({ s, goal: "race", races });
+    expect(days.filter((d) => d.role === "hard").length).toBe(2);
   });
 });
 

@@ -178,6 +178,16 @@ describe("the next seven days", () => {
     expect(days.filter((d) => d.date <= addDays(today, 4)).every((d) => !d.upcoming)).toBe(true);
     expect(days.some((d) => d.upcoming)).toBe(true);
   });
+  it("don't start a week with what the last one ended on", () => {
+    const indoorDaily: PlanSettings = {
+      goal: "fitter",
+      week: Array.from({ length: 7 }, () => d(60, true)),
+    };
+    const from = "2026-11-13";
+    const days = windowFor(ctx(note([], { settings: indoorDaily }), [], { today: from }), state());
+    const ids = days.map((x) => x.workout?.id ?? null);
+    for (let i = 1; i < ids.length; i++) if (ids[i]) expect(ids[i]).not.toBe(ids[i - 1]);
+  });
   it("are due at each check, once", () => {
     expect(lastReviewDay("2026-11-11")).toBe("2026-11-09");
     expect(lastReviewDay("2026-11-12")).toBe("2026-11-12");
@@ -363,6 +373,10 @@ describe("swapping and going back", () => {
     expect(workoutById("plan-easy-75", pool, true)!.type).toBe("VirtualRide");
     expect(workoutById("c-threshold-4x10", pool, false)!.name).toBeTruthy();
     expect(workoutById("gone", pool, false)).toBeNull();
+    const cadence = workoutById("plan-easy-60-cadence", pool, false, 250)!;
+    expect(cadence.id).toBe("plan-easy-60-cadence");
+    expect(cadence.description).toMatch(/95 rpm/);
+    expect(workoutById("plan-easy-60-odd", pool, false)!.id).toBe("plan-easy-60");
   });
 });
 

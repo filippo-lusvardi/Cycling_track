@@ -1,7 +1,7 @@
 // What the plan page does to the calendar and the note. Calendar first, note after: a failure part way leaves the
 // calendar right and the note catches up from it on the next reconcile.
 import { deleteEvent, getRideWatts, replacePlanned, scheduleWorkout } from "../source";
-import type { SuggestInput } from "../suggest";
+import { HARD_KINDS, type SuggestInput } from "../suggest";
 import { executionOf, type Execution } from "./execution";
 import {
   catchUp,
@@ -18,7 +18,7 @@ import {
 import { textHash, type NoteSession, type PlanNote } from "./note";
 import { sessionLines, weekLine, weeksDue } from "./progress";
 import { loadPlan, savePlan, type StoredPlan } from "./store";
-import type { PlanWorkout, PlannedDay } from "./types";
+import { DOSE_KINDS, type PlanWorkout, type PlannedDay } from "./types";
 import { addDays } from "../training";
 
 const entry = (w: PlanWorkout) => ({ name: w.name, type: w.type, description: w.description });
@@ -84,6 +84,7 @@ export async function runCheck(
     ...(settle
       ? {
           replan: false,
+          replanBy: undefined,
           reviews: [...fresh.note.reviews, { ...settle.review, on: today }],
           ...(settle.seenRaces ? { seenRaces: settle.seenRaces } : {}),
           ...(settle.seenExtras ? { seenExtras: settle.seenExtras } : {}),
@@ -175,6 +176,7 @@ export async function acceptProposal(
     undo,
     undoState: stored.note.state,
     replan: false,
+    replanBy: undefined,
     reviews: [...stored.note.reviews, { ...p.review, on: today, accepted: true }],
     ...(p.seenRaces ? { seenRaces: p.seenRaces } : {}),
     ...(p.seenExtras ? { seenExtras: p.seenExtras } : {}),
@@ -193,6 +195,7 @@ export async function keepPlan(
     ...stored.note,
     state: { ...state, lastReview: today },
     replan: false,
+    replanBy: undefined,
     reviews: [...stored.note.reviews, { ...p.review, on: today, accepted: false }],
     ...(p.seenRaces ? { seenRaces: p.seenRaces } : {}),
     ...(p.seenExtras ? { seenExtras: p.seenExtras } : {}),
@@ -262,4 +265,51 @@ export async function compareRides(
     }),
   );
   return out;
+}
+
+/** C: from this long, a ride on the day chosen for the long one plays that part. */
+const LONG_FROM = 60 * 60;
+
+/** The part a workout chosen by hand plays in the week, so hard ones and long ones keep their distance from the rest. */
+export function roleOf(w: PlanWorkout, longDay: boolean): NoteSession["role"] {
+  if (HARD_KINDS.has(w.kind) || (DOSE_KINDS as readonly string[]).includes(w.kind)) return "hard";
+  return longDay && w.seconds >= LONG_FROM ? "long" : "easy";
+}
+
+/**
+ * A day set by hand: a workout put in, changed or taken away. The plan never touches it again, and the other days are
+ * drawn again around it as a proposal (Accept or Leave it). Undo puts back what was there.
+ */
+export async function setDay(
+  stored: StoredPlan,
+  ctx: PlanContext,
+  c: { date: string; to: PlanWorkout | null; role?: NoteSession["role"] | undefined },
+  today: string,
+) {
+  const { sessions } = reconcile(stored.note, ctx.calendar, addDays(today, -14));
+  const was = sessions.find((s) => s.date === c.date);
+  const index = (new Date(`${c.date}T12:00:00`).getDay() + 6) % 7;
+  const longDay = stored.note.settings.week[index]?.long ?? false;
+  const role = c.role ?? (c.to ? roleOf(c.to, longDay) : "easy");
+  const eventId = was?.eventId ?? null;
+  let next = sessions.filter((s) => s.date !== c.date);
+  if (c.to) {
+    const id = eventId
+      ? (await replacePlanned(eventId, entry(c.to)), eventId)
+      : await scheduleWorkout(entry(c.to), c.date);
+    next = [...next, { ...sessionOf(c.date, role, c.to, id), manual: true }];
+  } else if (eventId) await deleteEvent(eventId);
+  const note: PlanNote = {
+    ...stored.note,
+    sessions: next,
+    // Emptied by hand: the next check leaves it empty.
+    declined: c.to
+      ? (stored.note.declined ?? []).filter((d) => d !== c.date)
+      : [...new Set([...(stored.note.declined ?? []), c.date])],
+    undo: [{ date: c.date, workoutId: was?.workoutId ?? null }],
+    undoState: stored.note.state,
+    replan: true,
+    replanBy: "hand",
+  };
+  await savePlan(note, today, stored);
 }

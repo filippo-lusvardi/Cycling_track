@@ -212,6 +212,13 @@ describe("the plan page", () => {
     // The long day gone, so another has to take its place.
     const less = host.querySelector<HTMLButtonElement>('[aria-label="Sat: less time"]')!;
     while (!less.disabled) await act(async () => less.click());
+    // Thursday takes the long ride instead, so a session already there changes.
+    const more = host.querySelector<HTMLButtonElement>('[aria-label="Thu: more time"]')!;
+    for (let i = 0; i < 4; i++) await act(async () => more.click());
+    let row: HTMLElement | null = more;
+    while (row && !row.querySelector("button[aria-pressed]")) row = row.parentElement;
+    const long = row!.querySelector<HTMLButtonElement>("button[aria-pressed]")!;
+    await act(async () => long.click());
     await act(async () => button("From now on")!.click());
     await settle();
     await act(async () => link("Plan")!.click());

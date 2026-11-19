@@ -147,5 +147,6 @@ export type ReviewReason =
   | "races-changed"
   | "extra-ride"
   | "recompute"
+  | "hand-changed"
   | "mixed";
 export type Review = { result: ReviewResult; reason: ReviewReason };

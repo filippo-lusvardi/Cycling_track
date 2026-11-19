@@ -16,9 +16,7 @@ export const DURABILITY_DAYS = 90;
 const MIN_SECS = 2 * 3600;
 
 const isLongPowerRide = (a: Activity) =>
-  isSport(a, "ride") &&
-  a.icu_average_watts != null &&
-  (a.moving_time ?? 0) >= MIN_SECS;
+  isSport(a, "ride") && a.icu_average_watts != null && (a.moving_time ?? 0) >= MIN_SECS;
 
 async function rideDurability(a: Activity, kg: number): Promise<RideDurability> {
   // The weight is part of the key: a corrected weigh-in recomputes the ride.
@@ -28,6 +26,26 @@ async function rideDurability(a: Activity, kg: number): Promise<RideDurability> 
   const d = durabilityOf(await getRideWatts(a.id), kg);
   await set(key, d).catch(() => {});
   return d;
+}
+
+/** Each long ride of the last 90 days with its durability and its day, for a trend. Rides without a weight are left out. */
+export async function getDurabilityRides(): Promise<
+  { date: string; durability: RideDurability }[]
+> {
+  const newest = isoDate(new Date());
+  const oldest = addDays(newest, -DURABILITY_DAYS);
+  const [acts, wellness, athlete] = await Promise.all([
+    getActivities({ oldest, newest }),
+    getWellness({ oldest: addDays(oldest, -3), newest }),
+    getAthlete().catch(() => null),
+  ]);
+  const out: { date: string; durability: RideDurability }[] = [];
+  for (const a of acts.filter(isLongPowerRide)) {
+    const kg = weightFor(wellness, a.start_date_local, athlete?.weight ?? null);
+    if (kg)
+      out.push({ date: a.start_date_local.slice(0, 10), durability: await rideDurability(a, kg) });
+  }
+  return out;
 }
 
 export async function getDurability(): Promise<DurabilityProfile & { missingWeight: number }> {

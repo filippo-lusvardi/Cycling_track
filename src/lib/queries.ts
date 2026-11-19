@@ -17,7 +17,7 @@ import {
   getWellness,
 } from "./source";
 import type { Range } from "./intervals";
-import { getDurability } from "./durability-data";
+import { getDurability, getDurabilityRides } from "./durability-data";
 import { getRunData } from "./run-data";
 import type { MainSport } from "./sport";
 import { addDays, isoDate } from "./training";
@@ -196,6 +196,14 @@ export const hrCurveRangeQuery = (from: string, to: string, sport: MainSport) =>
   });
 
 /** Power after 15/30/45 kJ/kg over the last 90 days of long rides (each ride's power is downloaded once). */
+/** Each long ride's durability with its day, for the plan's trend. Rides already worked out come from IndexedDB. */
+export const durabilityRidesQuery = () =>
+  queryOptions({
+    queryKey: ["durability-rides", 1],
+    queryFn: () => getDurabilityRides(),
+    staleTime: 60 * 60_000,
+  });
+
 export const durabilityQuery = () =>
   queryOptions({
     // Versioned: the offline cache keeps results across releases, so a changed shape needs a new key.

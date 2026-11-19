@@ -221,6 +221,14 @@ const ATL_DAYS = 7;
 
 export type FitnessDay = { ctl: number; atl: number; rampRate: number };
 
+/** One day of fitness (CTL) and fatigue (ATL) after a day with this load, as intervals.icu computes them. */
+export function stepFitness(ctl: number, atl: number, load: number) {
+  return {
+    ctl: ctl + (load - ctl) * (1 - Math.exp(-1 / CTL_DAYS)),
+    atl: atl + (load - atl) * (1 - Math.exp(-1 / ATL_DAYS)),
+  };
+}
+
 /**
  * Fitness (CTL) and fatigue (ATL) for each day from `from` to `to`, as intervals.icu computes them: exponentially
  * weighted averages of daily load over 42 and 7 days, starting from zero on the first day with any load.

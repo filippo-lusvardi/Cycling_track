@@ -2,7 +2,7 @@ import { WorkoutIcon } from "@/components/WorkoutIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
-import { Check, Minus, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Check, ChevronRight, Hand, Minus, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -16,6 +16,9 @@ import {
   usePlanAction,
   WorkoutTap,
 } from "@/components/plan/parts";
+import { DaySheet } from "@/components/plan/day-sheet";
+import { DoingSection } from "@/components/plan/doing";
+import { ForecastPanel } from "@/components/plan/forecast";
 import {
   SeasonEditor,
   SeasonPanel,
@@ -106,6 +109,11 @@ const WHY: Partial<Record<ReviewReason, () => string>> = {
     t(
       "The next days worked out again from where you are now.",
       "I prossimi giorni ricalcolati da dove sei adesso.",
+    ),
+  "hand-changed": () =>
+    t(
+      "You changed a day by hand. Here's the rest of the week around it.",
+      "Hai cambiato un giorno a mano. Ecco il resto della settimana adattato.",
     ),
   "extra-ride": () =>
     t(
@@ -313,7 +321,19 @@ type DayLine = {
   score?: number | null;
 };
 
-function Row({ day, today }: { day: DayLine; today: string }) {
+function Row({
+  day,
+  today,
+  hand,
+  onOpen,
+}: {
+  day: DayLine;
+  today: string;
+  /** Set by hand in the app. */
+  hand?: boolean;
+  /** A day that can still change: tapping opens its sheet, with Change and Remove, or Add when empty. */
+  onOpen?: (() => void) | undefined;
+}) {
   const when = parseISO(day.date);
   const w = day.workout;
   const own = w?.id.startsWith("plan-");
@@ -352,16 +372,31 @@ function Row({ day, today }: { day: DayLine; today: string }) {
                     ? null
                     : formatDuration(w.seconds),
                 place,
+                hand ? t("by hand", "a mano") : null,
                 day.upcoming ? t("at the next check", "al prossimo controllo") : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
             </span>
           </>
+        ) : onOpen ? (
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            {empty}
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs">
+              <Plus className="h-3.5 w-3.5" /> {t("Add", "Aggiungi")}
+            </span>
+          </span>
         ) : (
           <span className="text-sm text-muted-foreground">{empty}</span>
         )}
       </span>
+      {hand && (
+        <Hand
+          role="img"
+          aria-label={t("By hand", "A mano")}
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+        />
+      )}
       {day.role === "hard" && (
         <span
           role="img"
@@ -393,6 +428,15 @@ function Row({ day, today }: { day: DayLine; today: string }) {
     <Link to="/rides/$id" params={{ id: day.actId }} className={cn(cls, "hover:bg-secondary/60")}>
       {inner}
     </Link>
+  ) : onOpen ? (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(cls, "w-full text-left hover:bg-secondary/60")}
+    >
+      {inner}
+      {w && <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+    </button>
   ) : w ? (
     <WorkoutTap date={day.date} workout={w} className={cls}>
       {inner}
@@ -630,6 +674,21 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
   const planned = week.reduce((n, r) => n + r.workout!.seconds, 0);
   const rode = week.reduce((n, r) => n + (r.rode ?? 0), 0);
 
+  // The sheet of the day tapped, and the days as the forecast sees them: a proposal on screen shows what it would make.
+  const [opened, setOpened] = useState<DayLine | null>(null);
+  const handDays = new Set(note.sessions.filter((x) => x.manual).map((x) => x.date));
+  const canChange = (d: DayLine) =>
+    online && d.date >= today && !d.done && d.role !== "race" && d.role !== "taken";
+  const forecastDays =
+    proposal && !proposal.silent
+      ? days.map((d) => {
+          const c = proposal.changes.find((x) => x.date === d.date);
+          return c
+            ? { ...d, workout: c.to, role: c.to ? (c.role ?? d.role) : ("rest" as const) }
+            : d;
+        })
+      : days;
+
   const todayDay = days.find((d) => d.date === today);
   const swap = todayDay && easierToday(todayDay);
   const lowToday = morningGate(input, "quality") !== "quality";
@@ -741,13 +800,37 @@ function PlanPage({ stored, ctx }: { stored: StoredPlan; ctx: PlanContext }) {
           </Button>
         </div>
       )}
-      <Panel title={t("These days", "Questi giorni")}>
-        <div className="-mx-3 -my-1">
-          {rows.map((d) => (
-            <Row key={d.date} day={d} today={today} />
-          ))}
-        </div>
-      </Panel>
+      {/* On a wide screen the days and where they lead sit side by side. */}
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <Panel title={t("These days", "Questi giorni")}>
+          <div className="-mx-3 -my-1">
+            {rows.map((d) => (
+              <Row
+                key={d.date}
+                day={d}
+                today={today}
+                hand={handDays.has(d.date)}
+                onOpen={canChange(d) ? () => setOpened(d) : undefined}
+              />
+            ))}
+          </div>
+        </Panel>
+        {opened && (
+          <DaySheet
+            open
+            onOpenChange={(o) => !o && setOpened(null)}
+            date={opened.date}
+            role={opened.role}
+            workout={opened.workout}
+            editable={!busy}
+            stored={stored}
+            ctx={ctx}
+            state={state}
+          />
+        )}
+        <ForecastPanel ctx={ctx} days={forecastDays} ahead={ahead} />
+      </div>
+      <DoingSection input={input} />
       {note.undo.length > 0 && (
         <Button
           className="w-full"

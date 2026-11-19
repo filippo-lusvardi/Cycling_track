@@ -6,9 +6,22 @@ import { isSport } from "../sport";
 import type { Race } from "../races";
 import { comingBack, hardActivity, hardEvent, hrvLowWeek, type SuggestInput } from "../suggest";
 import { addDays } from "../training";
+import { estimateLoad, parseWorkout } from "../workout";
 import type { Execution } from "./execution";
 import { applyReview, lowMornings, review, rollWeek } from "./evaluate";
-import { easyRide, layoutWeek, longRide, recoveryRide, weekSeconds, type TakenDay } from "./layout";
+import { ladderFor, pickRung } from "./ladder";
+import {
+  EASY_FOCUS,
+  easyRide,
+  INDOOR_MAX,
+  indoorPick,
+  layoutWeek,
+  longRide,
+  recoveryRide,
+  weekSeconds,
+  type EasyFocus,
+  type TakenDay,
+} from "./layout";
 import { matchSessions } from "./match";
 import { textHash, type NoteSession, type PlanNote } from "./note";
 import { weekShape } from "./phase";
@@ -22,6 +35,7 @@ import {
 } from "./season";
 import { history } from "./start-level";
 import { riddenEnough, steppedVolume } from "./volume";
+import { DOSE_KINDS } from "./types";
 import type {
   PlanSettings,
   PlanState,
@@ -54,7 +68,8 @@ export function reconcile(note: PlanNote, calendar: PlannedEvent[], oldest: stri
       return [];
     }
     if (e.date !== s.date) cleared.add(s.date);
-    if (textHash(e.description ?? "") !== s.textHash) edited.add(e.date);
+    // Rewritten on the calendar, or chosen by hand in the app: either way the plan leaves it as it is.
+    if (s.manual || textHash(e.description ?? "") !== s.textHash) edited.add(e.date);
     return [{ ...s, date: e.date }];
   });
   return { sessions, edited, cleared };
@@ -135,7 +150,17 @@ function takenIn(ctx: PlanContext, monday: string, ownEvents: Set<string>, froze
  * A layout of this week with this state. Today stays as it is, and so does anything rewritten by hand; with `keepPlaced`,
  * so does everything already on the calendar, and only the days still empty are worked out around it.
  */
-export function layoutFor(ctx: PlanContext, monday: string, state: PlanState, keepPlaced = false) {
+export function layoutFor(
+  ctx: PlanContext,
+  monday: string,
+  state: PlanState,
+  keepPlaced = false,
+  /**
+   * What the week before will have, when it's still only a layout: its workouts, so a new week doesn't start with what the
+   * last one ended on, and its hard days, so the next hard one keeps its distance.
+   */
+  before: { ids: readonly string[]; hard: readonly string[] } = { ids: [], hard: [] },
+) {
   const { note, input } = ctx;
   const { sessions, edited } = reconcile(note, ctx.calendar, addDays(input.today, -14));
   const dates = weekDates(monday);
@@ -157,12 +182,14 @@ export function layoutFor(ctx: PlanContext, monday: string, state: PlanState, ke
         (s) => s.role === "hard" && s.date < monday && s.date >= lookBack && s.date >= input.today,
       )
       .map((s) => s.date),
+    ...before.hard.filter((d) => d < monday && d >= lookBack),
   ];
-  const recentIds = new Set(
-    sessions
+  const recentIds = new Set([
+    ...sessions
       .filter((s) => s.date >= addDays(monday, -14) && s.date < monday)
       .map((s) => s.workoutId),
-  );
+    ...before.ids,
+  ]);
   const shape = weekShape(monday, settings, input.races, state);
   const season = settings.goal === "season" ? settings.season : undefined;
   const profile = season ? seasonProfile(season, input.races, input.today) : null;
@@ -192,7 +219,8 @@ export const workoutOf = (e: PlannedEvent, s: NoteSession): PlanWorkout => ({
   type: e.type ?? "Ride",
   description: e.description ?? "",
   seconds: s.seconds,
-  load: e.icu_training_load ?? 0,
+  // intervals.icu works the load out itself; until it has, the text says it.
+  load: e.icu_training_load || estimateLoad(parseWorkout(e.description ?? "", "ride").blocks),
   kind: s.role === "hard" ? "threshold" : "endurance",
 });
 
@@ -204,11 +232,17 @@ const windowDates = (from: string) =>
 /** The days from today, in a layout, with the week each one belongs to worked out once. */
 function layoutDays(ctx: PlanContext, state: PlanState, keepPlaced: boolean) {
   const out = new Map<string, PlannedDay>();
+  let before = { ids: [] as string[], hard: [] as string[] };
   for (const date of windowDates(ctx.input.today)) {
     const monday = mondayOf(date);
     if (!out.has(monday + "*")) {
-      for (const d of layoutFor(ctx, monday, state, keepPlaced)) out.set(d.date, d);
+      const week = layoutFor(ctx, monday, state, keepPlaced, before);
+      for (const d of week) out.set(d.date, d);
       out.set(monday + "*", { date: monday, role: "rest", workout: null });
+      before = {
+        ids: week.flatMap((d) => (d.workout ? [d.workout.id] : [])),
+        hard: week.flatMap((d) => (d.role === "hard" ? [d.date] : [])),
+      };
     }
   }
   return out;
@@ -444,7 +478,14 @@ export function proposalFor(
   if (note.replan || changedRaces) {
     const changes = changesFor(ctx, state);
     return {
-      review: { result: "hold", reason: note.replan ? "days-changed" : "races-changed" },
+      review: {
+        result: "hold",
+        reason: note.replan
+          ? note.replanBy === "hand"
+            ? "hand-changed"
+            : "days-changed"
+          : "races-changed",
+      },
       state,
       changes,
       silent: !changes.length,
@@ -524,11 +565,15 @@ export function workoutById(
   indoor: boolean,
   ftp?: number | null,
 ): PlanWorkout | null {
-  const made = /^plan-(long|easy|recovery)-(\d+)$/.exec(id);
+  const made = /^plan-(long|easy|recovery)-(\d+)(?:-([a-z]+))?$/.exec(id);
   if (made) {
     const seconds = Number(made[2]) * 60;
     if (made[1] === "recovery") return recoveryRide(seconds, indoor);
-    return (made[1] === "long" ? longRide : easyRide)(seconds, indoor, ftp);
+    if (made[1] === "long") return longRide(seconds, indoor, ftp);
+    const focus = (EASY_FOCUS as readonly string[]).includes(made[3] ?? "")
+      ? ((made[3] ?? "") as EasyFocus)
+      : "";
+    return easyRide(seconds, indoor, ftp, focus);
   }
   const w = pool.find((p) => p.id === id);
   return w
@@ -542,4 +587,90 @@ export function workoutById(
         kind: w.kind,
       }
     : null;
+}
+
+/** A workout the rider may put on a day by hand, with the part of the week it would play. */
+export type Alternative = { workout: PlanWorkout; role: "hard" | "long" | "easy" };
+
+/** With no time set for the day, what a hand-picked workout may take. */
+const UNSET_ROOM = { indoor: INDOOR_MAX, outdoor: 2 * 3600 };
+
+/**
+ * What fits a day, for choosing by hand: the kind of day it already is first, then the others. Hard sessions come at the
+ * plan's own doses, so a swap doesn't jump a step; easy and long rides at the time the day has.
+ */
+export function alternativesFor(
+  ctx: PlanContext,
+  date: string,
+  state: PlanState,
+  current: PlannedDay["role"] = "easy",
+): Alternative[] {
+  const { input, note } = ctx;
+  const monday = mondayOf(date);
+  const plan = settingsFor(note, monday).week[weekDates(monday).indexOf(date)]!;
+  const indoor = plan.indoor;
+  const room = plan.minutes
+    ? Math.min(plan.minutes * 60, indoor ? INDOOR_MAX : Infinity)
+    : indoor
+      ? UNSET_ROOM.indoor
+      : UNSET_ROOM.outdoor;
+  const ftp = input.th.ftp;
+  const quarter = (s: number) => Math.floor(s / 900) * 900;
+  const type = indoor ? "VirtualRide" : "Ride";
+
+  const hard = DOSE_KINDS.flatMap((kind): Alternative[] => {
+    const rung = pickRung(ladderFor(input.pool, kind, false, input.th), state.doses[kind], room);
+    if (!rung) return [];
+    const w = rung.workout;
+    return [
+      {
+        role: "hard",
+        workout: {
+          id: w.id,
+          name: w.name,
+          type,
+          description: w.description,
+          seconds: w.seconds,
+          load: w.load,
+          kind: w.kind,
+        },
+      },
+    ];
+  });
+
+  const easy: Alternative[] = [];
+  const easyLength = quarter(Math.min(room, 90 * 60));
+  if (indoor) {
+    const used: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const w = indoorPick(input.pool, easyLength, "endurance", new Set(), used);
+      if (!w) break;
+      used.push(w.id);
+      easy.push({ role: "easy", workout: w });
+    }
+    if (!easy.length) easy.push({ role: "easy", workout: easyRide(easyLength, true, ftp) });
+  } else
+    for (const focus of EASY_FOCUS)
+      easy.push({ role: "easy", workout: easyRide(easyLength, false, ftp, focus) });
+  const recovery = Math.min(45 * 60, quarter(room));
+  if (recovery >= 30 * 60)
+    easy.push({
+      role: "easy",
+      workout:
+        (indoor && indoorPick(input.pool, recovery, "recovery")) || recoveryRide(recovery, indoor),
+    });
+
+  const longest = quarter(
+    Math.min(room, Math.max(history(input.acts, input.today).longestSeconds * 1.15, 90 * 60)),
+  );
+  const long: Alternative[] =
+    longest >= 60 * 60 ? [{ role: "long", workout: longRide(longest, indoor, ftp) }] : [];
+
+  const groups = { hard, easy, long };
+  const first: keyof typeof groups = current === "hard" || current === "long" ? current : "easy";
+  const order = [first, ...(["easy", "hard", "long"] as const).filter((g) => g !== first)];
+  const seen = new Set<string>();
+  return order
+    .flatMap((g) => groups[g])
+    .filter((a) => !seen.has(a.workout.id) && !!seen.add(a.workout.id));
 }
