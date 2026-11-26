@@ -48,7 +48,16 @@ import {
 } from "react";
 import { get as idbGet } from "idb-keyval";
 import { isCheckedIn, useCheckInState } from "@/components/CheckIn";
-import { Bird, Owl, Squirrel } from "@/components/tree/Critters";
+import {
+  BaldEagle,
+  Bird,
+  Dormouse,
+  Hummingbird,
+  Leopard,
+  Owl,
+  Sloth,
+  Squirrel,
+} from "@/components/tree/Critters";
 import { useLocalStore } from "@/hooks/use-local-store";
 import { useNow } from "@/hooks/use-now";
 import { MAX_PINS, usePins } from "@/hooks/use-pins";
@@ -290,6 +299,31 @@ const LEGEND_ART: Record<string, ReactNode> = {
   "legend-squirrel": (
     <svg viewBox="-11.5 -20 23 21" width={26} height={24} aria-hidden>
       <Squirrel x={0} y={0} side={1} />
+    </svg>
+  ),
+  "legend-eagle": (
+    <svg viewBox="-6 -20 16 21" width={20} height={26} aria-hidden>
+      <BaldEagle x={0} y={0} />
+    </svg>
+  ),
+  "legend-sloth": (
+    <svg viewBox="-6 -2 12 22" width={16} height={26} aria-hidden>
+      <Sloth x={0} y={0} />
+    </svg>
+  ),
+  "legend-hummingbird": (
+    <svg viewBox="-6 -19 15 18" width={22} height={26} aria-hidden>
+      <Hummingbird x={0} y={0} />
+    </svg>
+  ),
+  "legend-leopard": (
+    <svg viewBox="-12 -6 28 18" width={34} height={22} aria-hidden>
+      <Leopard x={0} y={0} />
+    </svg>
+  ),
+  "legend-dormouse": (
+    <svg viewBox="-5 -5 11 18" width={18} height={26} aria-hidden>
+      <Dormouse x={0} y={0} />
     </svg>
   ),
   "legend-birds": (

@@ -184,6 +184,7 @@ function SettingsPage() {
         <TabsContent value="data" className={cn("mt-6", GRID)}>
           {source === "native" && <RideFiles />}
           <IntervalsKey />
+          {source !== "native" && hasSource() && <RideFiles />}
           {source !== "native" && <WithoutIntervals />}
           <SegmentAnalysis />
           <Storage />

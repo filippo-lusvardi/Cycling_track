@@ -80,3 +80,60 @@ export function hrAxis(
     if (v - from >= step / 2) ticks.push(v);
   return { domain: [from, to], ticks };
 }
+
+export type StretchStats = {
+  speed: { avg: number | null; max: number | null };
+  watts: { avg: number | null; max: number | null };
+  hr: { avg: number | null; max: number | null };
+  cadence: { avg: number | null; max: number | null };
+};
+
+/** C: slower than this between two samples is standing still, and stays out of the average speed. */
+const MOVING = 0.5;
+/** C: the top speed is held over this many seconds, so one GPS jump doesn't make it. */
+const SPEED_HELD = 5;
+
+/**
+ * Average and top values over one stretch of the ride (from `fromKm` to `toKm`), from the full samples rather than the
+ * chart's buckets, which would smooth the peaks away. Speeds in km/h, the average over moving time. A 0 heart rate or
+ * cadence is a missing reading or freewheeling, as in the ride's own averages; power keeps its zeros.
+ */
+export function stretchStats(s: Streams, fromKm: number, toKm: number): StretchStats {
+  const n = Math.min(s.time.length, s.distance.length);
+  const from = fromKm * 1000;
+  const to = toKm * 1000;
+  const inside: number[] = [];
+  for (let i = 0; i < n; i++) if (s.distance[i]! >= from && s.distance[i]! <= to) inside.push(i);
+  const pick = (xs: (number | null)[] | undefined, zeros: boolean) =>
+    inside.map((i) => xs?.[i] ?? null).filter((x): x is number => x != null && (zeros || x > 0));
+  const stat = (xs: number[]) => ({
+    avg: xs.length ? xs.reduce((t, x) => t + x, 0) / xs.length : null,
+    max: xs.reduce<number | null>((m, x) => (m == null || x > m ? x : m), null),
+  });
+
+  let moved = 0;
+  let movingTime = 0;
+  let top: number | null = null;
+  for (let k = 1; k < inside.length; k++) {
+    const i = inside[k - 1]!;
+    const j = inside[k]!;
+    const dt = s.time[j]! - s.time[i]!;
+    const dd = s.distance[j]! - s.distance[i]!;
+    if (dt > 0 && dd / dt >= MOVING) {
+      moved += dd;
+      movingTime += dt;
+    }
+    const back = inside[Math.max(0, k - SPEED_HELD)]!;
+    const span = s.time[j]! - s.time[back]!;
+    if (span >= SPEED_HELD) {
+      const v = ((s.distance[j]! - s.distance[back]!) / span) * 3.6;
+      if (top == null || v > top) top = v;
+    }
+  }
+  return {
+    speed: { avg: movingTime > 0 ? (moved / movingTime) * 3.6 : null, max: top },
+    watts: stat(pick(s.watts, true)),
+    hr: stat(pick(s.heartrate, false)),
+    cadence: stat(pick(s.cadence, false)),
+  };
+}

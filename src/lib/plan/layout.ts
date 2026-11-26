@@ -450,7 +450,12 @@ export function layoutWeek(input: LayoutInput): PlannedDay[] {
       .filter((d) => pickRung(ladder, doses[kind], room(d)))
       .sort((a, b) => score(b) - score(a))[0];
     if (!best) continue;
-    const rung = pickRung(ladder, doses[kind], room(best), input.recentIds)!;
+    const rung = pickRung(
+      ladder,
+      doses[kind],
+      room(best),
+      new Set([...(input.recentIds ?? []), ...placedIds]),
+    )!;
     const w = rung.workout;
     set(best, "hard", {
       id: w.id,

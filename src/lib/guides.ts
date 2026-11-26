@@ -190,6 +190,46 @@ export const TREE_GUIDE: GuideItem[] = [
     ),
   },
   {
+    id: "eagle",
+    term: t("Bald eagle", "Aquila calva"),
+    text: t(
+      "Perches on the branch of the ride with your highest power ever.",
+      "Si posa sul ramo dell'uscita con la tua potenza più alta di sempre.",
+    ),
+  },
+  {
+    id: "sloth",
+    term: t("Sloth", "Bradipo"),
+    text: t(
+      "Hangs under the branch of the ride with your best minute of power.",
+      "Sta appeso sotto il ramo dell'uscita con il tuo miglior minuto di potenza.",
+    ),
+  },
+  {
+    id: "hummingbird",
+    term: t("Hummingbird", "Colibrì"),
+    text: t(
+      "Hovers past the tip of the branch of the ride with your best 5 minutes of power.",
+      "Vola oltre la punta del ramo dell'uscita con i tuoi migliori 5 minuti di potenza.",
+    ),
+  },
+  {
+    id: "leopard",
+    term: t("Leopard", "Leopardo"),
+    text: t(
+      "Sleeps along the branch of the ride with your best 20 minutes of power.",
+      "Dorme lungo il ramo dell'uscita con i tuoi migliori 20 minuti di potenza.",
+    ),
+  },
+  {
+    id: "dormouse",
+    term: t("Dormouse", "Ghiro"),
+    text: t(
+      "Lives in a hole in the trunk, beside the branch of the ride with your best hour of power.",
+      "Vive in un buco nel tronco, accanto al ramo dell'uscita con la tua miglior ora di potenza.",
+    ),
+  },
+  {
     id: "rest",
     term: t("Small green dots", "Puntini verdi"),
     text: t("Rest days on the bark.", "Giorni di riposo sulla corteccia."),

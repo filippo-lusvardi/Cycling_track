@@ -2,6 +2,9 @@
 // the ride, so a branch keeps its birds across renders and devices). Two branches get a guardian instead: a red
 // squirrel on the longest ride ever, an owl on the ride with the most climbing.
 //
+// Five more live on the branches of the power records (the bald eagle, sloth, hummingbird, leopard and dormouse at
+// the bottom of this file).
+//
 // Every drawing faces right with its feet at the origin and is mirrored for branches growing left. Birds share one
 // sparrow-sized box (about 16 × 10 units); colours are mixed from the theme so they read on the dark sky and on
 // the wood alike.
@@ -461,6 +464,443 @@ export function Owl({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
         strokeWidth={0.6}
         strokeLinecap="round"
       />
+    </g>
+  );
+}
+
+// The keepers of the power records (lib/tree KEEPERS), each living on the tree in its own way. Same box rules as the
+// others: facing right, mirrored by `side`; the origin is where each one meets the wood (see the *_BOX notes).
+const PINE = "var(--pine)";
+const RIM = mix(FG, 28, BG);
+const CREAM = mix(FG, 85, BIRCH);
+const GOLD = mix(BIRCH, 80, AUTUMN);
+
+type KeeperProps = { x: number; y: number; side?: -1 | 1; s?: number };
+const keeperAt = ({ x, y, side = 1, s = 1 }: KeeperProps) =>
+  `translate(${x} ${y}) scale(${side * s} ${s})`;
+
+/** Feet on the branch; the white tail hangs about 6 units below it. */
+export const EAGLE_BOX = { w: 15, h: 20 };
+/** Body on top of the branch (origin on its top edge), legs and tail hanging below. */
+export const LEOPARD_BOX = { w: 28, h: 6 };
+/** Claws over the branch at the origin, the rest hanging below: `h` is how far down it reaches. */
+export const SLOTH_BOX = { w: 10, h: 19.6 };
+/** In the air, the origin under its body: the tail reaches 5.8 units behind, the beak 8.8 ahead, the wing 18.6 up. */
+export const HUMMINGBIRD_BOX = { back: 5.8, ahead: 8.8, up: 18.6, down: 2.4 };
+/** The hole's centre at the origin: ears 3.6 units above, the tail hanging 12 below, 7.4 wide. */
+export const DORMOUSE_BOX = { w: 7.4, up: 3.6, down: 12 };
+
+/** Bald eagle perched upright, wing folded, a heavy brow over a yellow eye: max power. */
+export function BaldEagle(p: KeeperProps) {
+  const brown = mix(BARK, 72, "black");
+  const wing = mix(brown, 80, "black");
+  const feather = mix(brown, 60, FG);
+  return (
+    <g transform={keeperAt(p)}>
+      <path
+        d="M-2.6,-1.4 C-3.6,1 -4.4,3.4 -4.8,5.4 C-3.6,5.9 -1.8,6 -0.6,5.6 C-0.8,3.4 -0.8,1 -0.6,-0.8 Z"
+        fill={SNOW}
+        stroke={mix(FG, 45, BG)}
+        strokeWidth={0.2}
+      />
+      <path
+        d="M-3.2,4.6 L-1.9,-0.6 M-1.8,5.2 L-1.2,-0.6"
+        stroke={mix(SNOW, 75, BG)}
+        strokeWidth={0.25}
+      />
+      <path
+        d="M-3.8,-2.2 C-5.2,-6.4 -4.8,-11 -2.6,-13.8 C-1.2,-15.4 1.4,-15.8 3,-14.6 C4.8,-13 5.4,-9.6 4.6,-6.2 C4,-3.8 2.6,-1.8 0.8,-1 C-0.8,-0.6 -2.6,-1 -3.8,-2.2 Z"
+        fill={brown}
+        stroke={RIM}
+        strokeWidth={0.25}
+      />
+      <path
+        d="M2.6,-12.4 C4.2,-10.4 4.4,-7 3.4,-4.4 C2.8,-3 1.8,-1.8 0.8,-1.2 C2,-4 2.4,-8 2.6,-12.4 Z"
+        fill={mix(brown, 82, FG)}
+      />
+      <path
+        d="M-3.2,-12.8 C-0.6,-13.6 1.6,-12 1.8,-9 C2,-6 0.8,-2.6 -1.4,0.6 C-2.2,1.8 -3.2,2.8 -4,3.2 C-4.6,0 -4.8,-3.4 -4.8,-6.6 C-4.8,-9.6 -4.4,-11.8 -3.2,-12.8 Z"
+        fill={wing}
+        stroke={RIM}
+        strokeWidth={0.25}
+      />
+      <path
+        d="M-4.5,-9 C-3,-8.3 -1.2,-8.5 1,-9.6 M-4.7,-6 C-3,-5.3 -1.2,-5.5 1,-6.8 M-4.5,-3 C-3.2,-2.4 -1.8,-2.6 0,-3.8 M-4.2,0 C-3.4,0.4 -2.6,0.2 -1.6,-0.6"
+        stroke={feather}
+        strokeWidth={0.3}
+        fill="none"
+        opacity={0.55}
+        strokeLinecap="round"
+      />
+      <path
+        d="M-1.4,-13.4 C-1.8,-15.8 -0.6,-18.2 2,-18.8 C4.2,-19.3 6,-18.5 6.7,-17 C7,-16.3 6.9,-15.6 6.4,-15.1 C5.6,-14.3 4.6,-13.6 3.4,-13 L2.6,-12.2 L1.9,-12.9 L1,-12.1 L0.4,-12.9 L-0.4,-12.3 Z"
+        fill={SNOW}
+        stroke={mix(FG, 40, BG)}
+        strokeWidth={0.2}
+      />
+      <path
+        d="M-0.9,-14.2 C0.2,-13.4 1.6,-13.2 3,-13.4"
+        stroke={mix(SNOW, 82, BG)}
+        strokeWidth={0.3}
+        fill="none"
+      />
+      <path
+        d="M5.9,-16.9 C7.1,-17.1 8.3,-16.5 8.5,-15.3 C8.6,-14.7 8.3,-14.2 7.9,-14.1 C7.8,-14.7 7.5,-15 7,-15 C6.5,-14.9 6.1,-15 5.8,-15.3 Z"
+        fill={GOLD}
+        stroke={mix(GOLD, 55, BARK)}
+        strokeWidth={0.18}
+      />
+      <circle cx={4.5} cy={-16.3} r={0.55} fill={mix(GOLD, 60, FG)} />
+      <circle cx={4.6} cy={-16.3} r={0.27} fill="black" />
+      <circle cx={4.72} cy={-16.45} r={0.1} fill={FG} />
+      <path
+        d="M3.4,-17 C4.3,-17.5 5.4,-17.4 6.2,-16.8 C5.3,-16.75 4.3,-16.75 3.5,-16.5 Z"
+        fill={mix(SNOW, 80, BG)}
+      />
+      <path
+        d="M-1.4,-1.1 C-1.6,-0.2 -1.3,0.4 -0.7,0.6 M0.1,-1.1 C0.1,-0.2 0.4,0.4 1,0.6 M1.4,-1.3 C1.8,-0.4 2.3,0.1 2.9,0.2"
+        stroke={GOLD}
+        strokeWidth={0.75}
+        fill="none"
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
+
+/** Sloth hanging under the branch by its long arms, big round face, smiling: cute first. */
+export function Sloth(p: KeeperProps) {
+  const fur = mix(FG, 40, mix(BARK, 85, BG));
+  const dark = mix(fur, 50, "black");
+  const light = mix(fur, 45, CREAM);
+  const claw = mix(BIRCH, 45, BARK);
+  return (
+    <g transform={keeperAt(p)}>
+      <path
+        d="M-3.4,16.2 C-4.6,17.2 -4.6,18.6 -3.6,19.2 M3.4,16.2 C4.6,17.2 4.6,18.6 3.6,19.2"
+        stroke={fur}
+        strokeWidth={1.5}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path
+        d="M-4.2,11 C-4.8,13.8 -4,16.8 -2,17.8 C-0.8,18.4 0.8,18.4 2,17.8 C4,16.8 4.8,13.8 4.2,11 Z"
+        fill={fur}
+        stroke={RIM}
+        strokeWidth={0.22}
+      />
+      <path
+        d="M-2.6,14.2 L-2.2,15 M2.6,14.2 L2.2,15 M0,15.4 L0,16.2"
+        stroke={dark}
+        strokeWidth={0.28}
+        strokeLinecap="round"
+        opacity={0.6}
+      />
+      {[-1, 1].map((k) => (
+        <g key={k} transform={`scale(${k} 1)`}>
+          <path
+            d="M-4.9,12 C-5.6,8.6 -5.2,4.6 -3.6,1.2 C-3.2,0.4 -1.8,0.4 -1.6,1.2 C-2,4.2 -2.4,7.6 -2.1,10.6 Z"
+            fill={fur}
+            stroke={RIM}
+            strokeWidth={0.2}
+          />
+          <path
+            d="M-4.4,4.4 C-4.8,6 -4.9,7.6 -4.8,9.4"
+            stroke={mix(fur, 80, "black")}
+            strokeWidth={0.3}
+            fill="none"
+            opacity={0.5}
+            strokeLinecap="round"
+          />
+          <path
+            d="M-2.4,3 C-2.6,5 -2.8,7 -2.7,9"
+            stroke={light}
+            strokeWidth={0.35}
+            fill="none"
+            opacity={0.6}
+            strokeLinecap="round"
+          />
+          <ellipse cx={-2.6} cy={0.9} rx={1.15} ry={0.85} fill={fur} />
+          <path
+            d="M-3.4,0.6 C-3.7,-0.6 -3,-1.4 -2.1,-1.1 M-2.7,0.5 C-2.8,-0.7 -2,-1.2 -1.3,-0.8 M-2,0.6 C-1.9,-0.4 -1.2,-0.8 -0.7,-0.4"
+            stroke={claw}
+            strokeWidth={0.42}
+            fill="none"
+            strokeLinecap="round"
+          />
+        </g>
+      ))}
+      <circle cx={0} cy={9.8} r={3.9} fill={fur} stroke={RIM} strokeWidth={0.22} />
+      <path
+        d="M-1.8,6.4 L-1.4,7.2 M0,6.1 L0,7 M1.8,6.4 L1.4,7.2"
+        stroke={light}
+        strokeWidth={0.35}
+        strokeLinecap="round"
+      />
+      <path
+        d="M0,7.6 C2.4,7.6 3.4,9 3.3,10.6 C3.2,12.4 1.8,13.4 0,13.4 C-1.8,13.4 -3.2,12.4 -3.3,10.6 C-3.4,9 -2.4,7.6 0,7.6 Z"
+        fill={light}
+      />
+      <path
+        d="M-0.7,9.5 C-1.4,8.8 -2.6,9 -3,10.1 C-2.6,10.7 -1.4,10.5 -0.7,9.5 Z M0.7,9.5 C1.4,8.8 2.6,9 3,10.1 C2.6,10.7 1.4,10.5 0.7,9.5 Z"
+        fill={dark}
+        opacity={0.85}
+      />
+      <circle cx={-1.55} cy={9.7} r={0.46} fill="black" />
+      <circle cx={1.55} cy={9.7} r={0.46} fill="black" />
+      <circle cx={-1.4} cy={9.55} r={0.16} fill={FG} />
+      <circle cx={1.7} cy={9.55} r={0.16} fill={FG} />
+      <circle cx={-2.2} cy={11.4} r={0.6} fill={BLOSSOM} opacity={0.45} />
+      <circle cx={2.2} cy={11.4} r={0.6} fill={BLOSSOM} opacity={0.45} />
+      <ellipse cx={0} cy={10.9} rx={0.6} ry={0.42} fill={dark} />
+      <path
+        d="M-0.9,11.8 C-0.4,12.3 0.4,12.3 0.9,11.8"
+        stroke={dark}
+        strokeWidth={0.3}
+        fill="none"
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
+
+/** Hummingbird hovering in the air, drawn facing right; on the tree it sits past the branch's tip, turned to the tree. */
+export function Hummingbird(p: KeeperProps) {
+  const green = mix(PINE, 65, "var(--fitness)");
+  const dark = mix(green, 55, "black");
+  return (
+    <g transform={keeperAt(p)}>
+      <path
+        d="M0,-10 C-1.6,-13 -2.2,-16.4 -1.4,-18.6 C-0.2,-17 0.6,-13.6 0.6,-10.4 Z"
+        fill={FG}
+        opacity={0.16}
+        transform="rotate(-32 0 -10)"
+      />
+      <path
+        d="M0,-10 C-1.6,-13 -2.2,-16.4 -1.4,-18.6 C-0.2,-17 0.6,-13.6 0.6,-10.4 Z"
+        fill={mix(FG, 60, green)}
+        opacity={0.45}
+      />
+      <path
+        d="M-2.8,-15.6 C-3.6,-14 -3.6,-12.4 -2.8,-11 M-4,-16.4 C-5,-14.4 -5,-12.2 -4,-10.4"
+        stroke={FG}
+        strokeWidth={0.22}
+        fill="none"
+        opacity={0.35}
+        strokeLinecap="round"
+      />
+      <path d="M-3.4,-5.6 L-5.8,-3.4 L-4.4,-4.9 L-5.4,-2.4 L-3,-4.8 Z" fill={dark} />
+      <path
+        d="M-3.6,-5.4 C-3,-7.6 -1,-9.6 1.2,-10.4 C2.6,-11 3.8,-10.4 3.8,-9.2 C3.8,-8 2.6,-7.4 1.4,-6.8 C-0.2,-6 -2,-5.4 -3.6,-5.4 Z"
+        fill={green}
+        stroke={RIM}
+        strokeWidth={0.18}
+      />
+      <path
+        d="M-2.8,-5.6 C-1.6,-6 0,-6.4 1.6,-7.1 C0.6,-6.2 -1,-5.6 -2.8,-5.6 Z"
+        fill={mix(FG, 70, green)}
+      />
+      <circle cx={2.6} cy={-9.8} r={1.4} fill={green} />
+      <path
+        d="M1.4,-10.6 C2,-11.4 3.2,-11.4 3.8,-10.6"
+        stroke={dark}
+        strokeWidth={0.45}
+        fill="none"
+      />
+      <path d="M1.8,-8.9 C2.8,-8.4 3.8,-8.6 4.1,-9.3 C3.9,-8 2.6,-7.3 1.5,-7.8 Z" fill={LINGON} />
+      <path d="M2.4,-8.6 L3.4,-8.6" stroke={mix(LINGON, 60, FG)} strokeWidth={0.2} />
+      <path
+        d="M3.8,-10.2 C5.6,-10.6 7.2,-10.8 8.8,-10.6"
+        stroke={mix(BG, 60, "black")}
+        strokeWidth={0.38}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <circle cx={3.05} cy={-10.15} r={0.33} fill="black" />
+      <circle cx={3.15} cy={-10.25} r={0.11} fill={FG} />
+    </g>
+  );
+}
+
+const ROSETTE = (cx: number, cy: number, r = 0.75) =>
+  `M${cx - r},${cy} A${r},${r} 0 0 1 ${cx - r * 0.2},${cy - r} M${cx + r * 0.3},${cy - r * 0.95} A${r},${r} 0 0 1 ${cx + r},${cy + r * 0.1} M${cx + r * 0.6},${cy + r * 0.8} A${r},${r} 0 0 1 ${cx - r * 0.5},${cy + r * 0.86}`;
+
+/** Leopard asleep, draped over the branch: chin resting on it, a front and a hind leg hanging loose, the tail down. */
+export function Leopard(p: KeeperProps) {
+  const fur = mix(AUTUMN, 32, mix(BIRCH, 62, BARK));
+  const far = mix(fur, 80, "black");
+  const spot = mix(BARK, 55, "black");
+  const centre = mix(fur, 78, BARK);
+  const spots = [
+    [-6.4, -2.9],
+    [-4, -4],
+    [-1.5, -4.2],
+    [1.1, -4.3],
+    [3.6, -3.6],
+    [5.9, -2.7],
+    [-5.1, -1.3],
+    [-2.7, -2.2],
+    [-0.2, -2.5],
+    [2.4, -2.1],
+    [4.6, -1.4],
+    [-7.5, -1.2],
+    [0.9, -1],
+  ];
+  return (
+    <g transform={keeperAt(p)}>
+      <path
+        d="M6.2,-0.6 C6.4,1.2 6.2,3 5.8,4.4 C5.6,5.1 6.4,5.4 6.8,4.8 C7.4,3.2 7.6,1.4 7.6,-0.6 Z"
+        fill={far}
+      />
+      <path
+        d="M-7.8,-1.4 C-9.6,-0.6 -10.2,1.6 -10,4 C-9.8,6.4 -9.4,8.2 -9.8,9.8 C-10,10.6 -9.6,11.2 -9,11"
+        stroke={fur}
+        strokeWidth={1.15}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path
+        d="M-9.8,9.8 C-10,10.6 -9.6,11.2 -9,11"
+        stroke={spot}
+        strokeWidth={1.15}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path
+        d="M-10.3,3 L-9.5,3.2 M-10,5.4 L-9.3,5.6 M-9.8,7.6 L-9.2,7.8"
+        stroke={spot}
+        strokeWidth={0.4}
+        strokeLinecap="round"
+      />
+      <path
+        d="M-8.4,-0.2 C-9,-2.6 -7.4,-4.6 -4.6,-5 C-1.6,-5.4 2,-5.2 4.6,-4.4 C6.2,-3.9 7.4,-3.2 8,-2 C8.3,-1.4 8.4,-0.7 8.4,-0.2 Z"
+        fill={fur}
+        stroke={RIM}
+        strokeWidth={0.2}
+      />
+      {spots.map(([x, y], i) => {
+        const r = 0.42 + ((i * 37) % 5) * 0.05;
+        const turn = (i * 53) % 90;
+        return (
+          <g key={`${x}${y}`} transform={`rotate(${turn} ${x} ${y})`}>
+            <circle cx={x} cy={y} r={r * 0.75} fill={centre} />
+            {[0, 1, 2, 3].map((k) => (
+              <circle
+                key={k}
+                cx={x! + Math.cos((k * Math.PI) / 2 + 0.4) * r}
+                cy={y! + Math.sin((k * Math.PI) / 2 + 0.4) * r}
+                r={0.2}
+                fill={spot}
+              />
+            ))}
+          </g>
+        );
+      })}
+      <path
+        d="M-3.8,-0.6 C-4.4,1.4 -5.2,3 -6,4.2 C-6.5,5 -5.7,5.7 -5,5.1 C-4,3.6 -3,1.8 -2.4,-0.4 Z"
+        fill={fur}
+        stroke={RIM}
+        strokeWidth={0.15}
+      />
+      <ellipse cx={-5.5} cy={4.9} rx={0.85} ry={0.6} fill={fur} transform="rotate(-30 -5.5 4.9)" />
+      <path
+        d="M4.4,-0.6 C4.8,1.4 5.4,3.2 6.2,4.6 C6.6,5.4 7.6,5.2 7.6,4.4 C7.1,2.8 6.4,1 5.9,-0.7 Z"
+        fill={fur}
+        stroke={RIM}
+        strokeWidth={0.15}
+      />
+      <ellipse cx={6.9} cy={4.9} rx={0.85} ry={0.6} fill={fur} transform="rotate(25 6.9 4.9)" />
+      <circle cx={-4.2} cy={1.6} r={0.28} fill={spot} />
+      <circle cx={5.4} cy={1.8} r={0.28} fill={spot} />
+      <path
+        d="M7,-0.8 C7,-3 8.6,-4.4 10.6,-4.4 C12,-4.4 12.8,-3.8 13.4,-3 C13.8,-2.4 14.6,-2 15,-1.6 C15.3,-1.2 15.1,-0.6 14.6,-0.4 C13,0 9.4,0.1 7,-0.8 Z"
+        fill={fur}
+        stroke={RIM}
+        strokeWidth={0.2}
+      />
+      <path
+        d="M8.4,-3.6 C8.1,-5.1 9.4,-5.6 9.9,-4.3 Z"
+        fill={fur}
+        stroke={RIM}
+        strokeWidth={0.15}
+      />
+      <path d="M8.7,-3.9 C8.6,-4.6 9.2,-4.9 9.5,-4.3 Z" fill={far} />
+      <path
+        d="M12.2,-0.3 C13.2,-0.2 14,-0.2 14.6,-0.4 C13.8,0 12.9,0.1 12.2,-0.3 Z"
+        fill={CREAM}
+        opacity={0.9}
+      />
+      <path d="M11.2,-2.9 L12.6,-2.5" stroke={spot} strokeWidth={0.32} strokeLinecap="round" />
+      <path
+        d="M12.6,-2.5 C13.2,-2 13.6,-1.4 13.8,-0.9"
+        stroke={spot}
+        strokeWidth={0.18}
+        fill="none"
+        opacity={0.7}
+      />
+      <path d="M14.6,-1.7 L15.2,-1.5 L14.8,-1.1 Z" fill={mix(LINGON, 30, BARK)} />
+      <path
+        d="M14.8,-1.1 C14.5,-0.8 14,-0.8 13.6,-0.9"
+        stroke={spot}
+        strokeWidth={0.18}
+        fill="none"
+      />
+      {[
+        [9.4, -3.2],
+        [10.2, -3.8],
+        [11, -3.6],
+        [9.8, -2.2],
+        [10.6, -1.4],
+      ].map(([cx, cy]) => (
+        <circle key={`${cx}${cy}`} cx={cx} cy={cy} r={0.17} fill={spot} />
+      ))}
+    </g>
+  );
+}
+
+/** Edible dormouse peeking out of a hole in the trunk, paws on the rim, its bushy tail hanging down the bark; the origin is the hole's centre. */
+export function Dormouse(p: KeeperProps) {
+  const grey = mix(FG, 48, BARK);
+  const light = mix(FG, 80, grey);
+  return (
+    <g transform={keeperAt(p)}>
+      <ellipse cx={0} cy={0} rx={3.5} ry={3.8} fill={mix(BARK, 70, FG)} opacity={0.7} />
+      <ellipse cx={0} cy={0} rx={3.1} ry={3.4} fill={mix(BG, 55, "black")} />
+      <path
+        d="M1.4,2.6 C3.4,3 4.6,4.8 4.4,7.4 C4.2,9.6 3,11.4 1.6,12 C1.2,12.2 0.8,11.8 1,11.4 C1.8,9.8 1.8,7.8 1.2,6.4 C0.8,5.4 0.2,4.6 -0.6,4.2 Z"
+        fill={grey}
+        stroke={RIM}
+        strokeWidth={0.18}
+      />
+      <path
+        d="M3,4.6 C3.6,6.2 3.6,8.4 2.8,10.2 M2,4 C2.4,5.4 2.6,7 2.2,8.4"
+        stroke={light}
+        strokeWidth={0.3}
+        fill="none"
+        opacity={0.55}
+        strokeLinecap="round"
+      />
+      <circle cx={-2.1} cy={-2.5} r={1.15} fill={grey} />
+      <circle cx={2.1} cy={-2.5} r={1.15} fill={grey} />
+      <circle cx={-2.05} cy={-2.45} r={0.6} fill={mix(BLOSSOM, 55, grey)} />
+      <circle cx={2.05} cy={-2.45} r={0.6} fill={mix(BLOSSOM, 55, grey)} />
+      <ellipse cx={0} cy={-0.5} rx={2.7} ry={2.35} fill={grey} />
+      <ellipse cx={0} cy={0.7} rx={1.35} ry={0.85} fill={light} />
+      <ellipse cx={-1.05} cy={-0.85} rx={0.8} ry={0.82} fill={mix(grey, 75, "black")} />
+      <ellipse cx={1.05} cy={-0.85} rx={0.8} ry={0.82} fill={mix(grey, 75, "black")} />
+      <ellipse cx={-1.05} cy={-0.85} rx={0.55} ry={0.62} fill="black" />
+      <ellipse cx={1.05} cy={-0.85} rx={0.55} ry={0.62} fill="black" />
+      <circle cx={-0.85} cy={-1.1} r={0.17} fill={FG} />
+      <circle cx={1.25} cy={-1.1} r={0.17} fill={FG} />
+      <ellipse cx={0} cy={0.35} rx={0.32} ry={0.24} fill={mix(BLOSSOM, 70, LINGON)} />
+      <path
+        d="M-0.6,0.6 L-2.4,0.2 M-0.6,0.8 L-2.4,1.1 M0.6,0.6 L2.4,0.2 M0.6,0.8 L2.4,1.1"
+        stroke={light}
+        strokeWidth={0.12}
+        opacity={0.8}
+      />
+      <ellipse cx={-1.4} cy={2.4} rx={0.75} ry={0.45} fill={light} />
+      <ellipse cx={1.2} cy={2.4} rx={0.75} ry={0.45} fill={light} />
     </g>
   );
 }

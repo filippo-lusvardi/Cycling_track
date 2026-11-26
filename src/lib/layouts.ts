@@ -1,17 +1,15 @@
 // How each person arranges a page: which sections and numbers show, in what order, what's closed. Saved layouts hold
 // only what's been chosen, so sections added in later versions simply appear where they belong.
+import { activityKind, type Kind } from "./activity-kind";
 import { t } from "./i18n";
 import type { Activity } from "./intervals";
 import { isSport } from "./sport";
 
+/** Before each kind of activity had a page of its own: one for rides, one for runs, one for the rest. */
+export type SportLayoutKind = "activity-ride" | "activity-run" | "activity-other";
+
 export type LayoutKind =
-  | "recap-day"
-  | "recap-week"
-  | "recap-month"
-  | "recap-long"
-  | "activity-ride"
-  | "activity-run"
-  | "activity-other";
+  "recap-day" | "recap-week" | "recap-month" | "recap-long" | SportLayoutKind | `activity-${Kind}`;
 
 export type NumberDef = { id: string; label: () => string; hidden?: boolean };
 
@@ -137,12 +135,17 @@ export const setNumberHidden = (
 export const recapKind = (days: number): LayoutKind =>
   days <= 1 ? "recap-day" : days <= 14 ? "recap-week" : days <= 62 ? "recap-month" : "recap-long";
 
-export const activityLayoutKind = (a: Pick<Activity, "type">): LayoutKind =>
+/** Which sport's page an activity has: what sections it offers, and what a kind not yet arranged starts from. */
+export const sportLayoutKind = (a: Pick<Activity, "type">): SportLayoutKind =>
   isSport(a as Activity, "run")
     ? "activity-run"
     : isSport(a as Activity, "ride")
       ? "activity-ride"
       : "activity-other";
+
+/** Each kind of activity (road, gravel, indoor, walk…) is arranged on its own. */
+export const activityLayoutKind = (a: Pick<Activity, "type"> & { trainer?: boolean }): LayoutKind =>
+  `activity-${activityKind(a)}`;
 
 /** What a layout applies to, said plainly where it's edited. */
 export const KIND_SCOPE: Record<LayoutKind, () => string> = {
@@ -167,6 +170,24 @@ export const KIND_SCOPE: Record<LayoutKind, () => string> = {
   "activity-run": () => t("This applies to all your runs.", "Questo vale per tutte le corse."),
   "activity-other": () =>
     t("This applies to your other sports.", "Questo vale per le attività degli altri sport."),
+  "activity-road": () =>
+    t("This applies to all your road rides.", "Questo vale per tutte le uscite su strada."),
+  "activity-gravel": () =>
+    t("This applies to all your gravel rides.", "Questo vale per tutte le uscite gravel."),
+  "activity-mtb": () =>
+    t("This applies to all your MTB rides.", "Questo vale per tutte le uscite in MTB."),
+  "activity-indoor": () =>
+    t("This applies to all your indoor rides.", "Questo vale per tutte le uscite sui rulli."),
+  "activity-ebike": () =>
+    t("This applies to all your e-bike rides.", "Questo vale per tutte le uscite in e-bike."),
+  "activity-walk": () =>
+    t(
+      "This applies to all your walks and hikes.",
+      "Questo vale per tutte le camminate ed escursioni.",
+    ),
+  "activity-gym": () =>
+    t("This applies to all your gym sessions.", "Questo vale per tutte le sessioni in palestra."),
+  "activity-swim": () => t("This applies to all your swims.", "Questo vale per tutte le nuotate."),
 };
 
 const RECAP_NUMBERS: NumberDef[] = [

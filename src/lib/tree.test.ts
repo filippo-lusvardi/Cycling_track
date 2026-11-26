@@ -14,6 +14,7 @@ import {
   returningFromBreak,
   leafSpots,
   perchSpots,
+  powerRecords,
   rideRecords,
   seasonLabel,
   seasonOf,
@@ -529,5 +530,43 @@ describe("all-time ride records (squirrel and owl)", () => {
       longest: false,
       mostClimbing: true,
     });
+  });
+});
+
+describe("power records' keepers", () => {
+  const today = "2026-10-20";
+  // intervals.icu's all-time curve: a value and the ride that set it, per length.
+  const curve = {
+    id: "all",
+    label: "All time",
+    secs: [1, 5, 60, 300, 1200, 3600],
+    watts: [1100, 950, 520, 360, 300, 270],
+    activityIds: ["sprint", "sprint", "crit", "climb", "climb", "gf"],
+  };
+  it("finds who holds each record on the all-time curve", () => {
+    expect(powerRecords(curve)).toEqual({
+      eagle: "sprint",
+      sloth: "crit",
+      hummingbird: "climb",
+      leopard: "climb",
+      dormouse: "gf",
+    });
+  });
+  it("has none when the curve doesn't say which ride set its values", () => {
+    const { activityIds: _ids, ...unnamed } = curve;
+    expect(powerRecords(unnamed)).toEqual({});
+    expect(powerRecords(undefined)).toEqual({});
+  });
+  it("puts each keeper on its ride's branch, two on one ride when it holds both", () => {
+    const acts = [
+      act("crit", "2026-10-18", 60, 80),
+      act("climb", "2026-10-19", 90, 120),
+      act("easy", "2026-10-20", 60, 30),
+    ];
+    const days = buildDays(acts, [], "2026-10-18", today, new Map(), "ride", powerRecords(curve));
+    const keepers = Object.fromEntries(
+      days.flatMap((d) => d.branches).map((b) => [b.id, b.keepers]),
+    );
+    expect(keepers).toEqual({ crit: ["sloth"], climb: ["hummingbird", "leopard"], easy: [] });
   });
 });

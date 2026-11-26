@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { DUR } from "./analysis";
 import type { RideStreams } from "./intervals";
 import {
   bestCurve,
+  bestCurveSetBy,
   estimateFtp,
   fitnessSeries,
   normalizedPower,
@@ -164,5 +166,18 @@ describe("curves", () => {
       1, 2, 3, 5, 8, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1200,
     ];
     expect(estimateFtp(DURS.map(cp))).toBe(250);
+  });
+});
+
+describe("who set the best of each length", () => {
+  it("names the ride with the best value, the first one on a tie, nobody where none has one", () => {
+    const n = (v: number | null) => DUR.map(() => v);
+    const old = { id: "old", curve: n(300) };
+    const same = { id: "same", curve: n(300) };
+    const better = { id: "better", curve: DUR.map((d) => (d === 60 ? 500 : 200)) };
+    const ids = bestCurveSetBy([old, same, better]);
+    expect(ids[DUR.indexOf(60)]).toBe("better");
+    expect(ids[DUR.indexOf(300)]).toBe("old");
+    expect(bestCurveSetBy([{ id: "empty", curve: n(null) }, { id: "none" }])[0]).toBe("");
   });
 });

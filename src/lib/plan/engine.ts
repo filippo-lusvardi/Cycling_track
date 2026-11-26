@@ -122,13 +122,27 @@ function offDates(input: SuggestInput) {
 }
 
 /** What the plan must work around: rides done, and what's on the calendar that isn't the plan's or still to be changed. */
-function takenIn(ctx: PlanContext, monday: string, ownEvents: Set<string>, frozen: NoteSession[]) {
+function takenIn(
+  ctx: PlanContext,
+  monday: string,
+  ownEvents: Set<string>,
+  frozen: NoteSession[],
+  /** The plan's hard and long sessions of this week already ridden: the ride took their role, however it rode. */
+  ridden: ReadonlyMap<string, NoteSession["role"]> = new Map(),
+) {
   const { input, calendar } = ctx;
   const dates = weekDates(monday);
   const taken: TakenDay[] = [];
   for (const a of input.acts) {
     if (!dates.includes(dayOf(a)) || dayOf(a) > input.today) continue;
     taken.push({ date: dayOf(a), seconds: a.moving_time ?? 0, hard: hardActivity(input, a) });
+  }
+  // A tempo session ridden as asked is too gentle for hardActivity, but it was the week's hard work all the same.
+  for (const [date, role] of ridden) {
+    const t = taken.find((x) => x.date === date);
+    if (!t) continue;
+    if (role === "hard") t.hard = true;
+    if (role === "long") t.long = true;
   }
   for (const e of calendar) {
     if (!isPlanned(e) || ownEvents.has(e.id) || !dates.includes(e.date)) continue;
@@ -184,12 +198,39 @@ export function layoutFor(
       .map((s) => s.date),
     ...before.hard.filter((d) => d < monday && d >= lookBack),
   ];
+  // What was on the days already gone, this week's too: the days ahead are the layout's own to choose.
   const recentIds = new Set([
     ...sessions
-      .filter((s) => s.date >= addDays(monday, -14) && s.date < monday)
+      .filter((s) => s.date >= addDays(monday, -14) && (s.date < monday || s.date < input.today))
       .map((s) => s.workoutId),
     ...before.ids,
   ]);
+  const byId = new Map(ctx.calendar.map((e) => [e.id, e]));
+  const gone = sessions.filter(
+    (s) =>
+      s.date >= lookBack &&
+      s.date <= dates[6]! &&
+      s.date < input.today &&
+      (s.role === "hard" || s.role === "long"),
+  );
+  const matched = matchSessions(
+    gone.map((s) => ({
+      date: s.date,
+      role: s.role,
+      workout: { seconds: s.seconds } as PlanWorkout,
+      pairedActivityId: (s.eventId && byId.get(s.eventId)?.pairedActivityId) || null,
+    })),
+    input.acts,
+    (a) => hardActivity(input, a),
+  );
+  // Each ride on the day it was done: a session found a day off lends its role to that day.
+  const ridden = new Map<string, NoteSession["role"]>();
+  for (const s of gone) {
+    const a = matched.get(s.date);
+    if (!a) continue;
+    if (dates.includes(dayOf(a))) ridden.set(dayOf(a), s.role);
+    else if (s.role === "hard" && dayOf(a) < monday) hardBefore.push(dayOf(a));
+  }
   const shape = weekShape(monday, settings, input.races, state);
   const season = settings.goal === "season" ? settings.season : undefined;
   const profile = season ? seasonProfile(season, input.races, input.today) : null;
@@ -204,7 +245,7 @@ export function layoutFor(
     focus: profile && !input.focusPinned ? seasonFocus(profile) : input.focus,
     pool: input.pool,
     races: input.races,
-    taken: takenIn(ctx, monday, own, frozen),
+    taken: takenIn(ctx, monday, own, frozen, ridden),
     off: offDates(input),
     recentHard: hardBefore,
     recentIds,

@@ -4,18 +4,28 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
+import { ACTIVITY_FILE, uploadActivityFile } from "@/lib/intervals";
 import { segmentEngine } from "@/lib/segment-app";
+import { sourceKind } from "@/lib/source";
 import { cn } from "@/lib/utils";
 import { byMain } from "@/lib/sport";
 
-/** Drop or pick .fit files (Garmin, Wahoo, Zwift…); each becomes a ride in the account. */
+/** intervals.icu takes a few seconds to read an uploaded file: the list is asked again once it has. */
+const READ_DELAY = 8000;
+
+/**
+ * Drop or pick activity files; each becomes an activity in the account. Cirmolo's own accounts read .fit files on the
+ * device; intervals.icu accounts send .fit, .gpx or .tcx (OpenTracks saves .gpx) to intervals.icu, which reads them.
+ */
 export function UploadRides({ onDone }: { onDone?: () => void }) {
   const qc = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [over, setOver] = useState(false);
+  const native = sourceKind() === "native";
 
   async function upload(list: FileList | null) {
+    if (!native) return toIntervals(list);
     const files = [...(list ?? [])].filter((f) => /\.fit$/i.test(f.name));
     if (!files.length) {
       toast.error(t("Choose .fit files", "Scegli file .fit"));
@@ -41,6 +51,38 @@ export function UploadRides({ onDone }: { onDone?: () => void }) {
     if (r.added.length || r.updated.length) onDone?.();
   }
 
+  async function toIntervals(list: FileList | null) {
+    const files = [...(list ?? [])].filter((f) => ACTIVITY_FILE.test(f.name));
+    if (!files.length) {
+      toast.error(t("Choose .gpx or .fit files", "Scegli file .gpx o .fit"));
+      return;
+    }
+    let added = 0;
+    let there = 0;
+    let failed = 0;
+    setProgress([0, files.length]);
+    for (const [i, f] of files.entries()) {
+      try {
+        if ((await uploadActivityFile(f)) === "added") added++;
+        else there++;
+      } catch (e) {
+        console.warn("Couldn't upload", f.name, e);
+        failed++;
+      }
+      setProgress([i + 1, files.length]);
+    }
+    setProgress(null);
+    await qc.invalidateQueries();
+    if (added) setTimeout(() => void qc.invalidateQueries(), READ_DELAY);
+    const parts = [
+      added && t(`${added} added`, `${added} aggiunte`),
+      there && t(`${there} already there`, `${there} già presenti`),
+      failed && t(`${failed} not sent`, `${failed} non inviate`),
+    ].filter(Boolean);
+    (failed && !added ? toast.error : toast.success)(parts.join(" · "));
+    if (added) onDone?.();
+  }
+
   return (
     <div
       onDragOver={(e) => {
@@ -59,21 +101,32 @@ export function UploadRides({ onDone }: { onDone?: () => void }) {
       )}
     >
       <p className="text-muted-foreground">
-        {t(
-          byMain(
-            "Ride files (.fit) from a Garmin, Wahoo, Zwift (Documents/Zwift/Activities)… Drop them here or",
-            "Run files (.fit) from a Garmin, Coros, Suunto, Strava… Drop them here or",
-          ),
-          byMain(
-            "File delle uscite (.fit) da Garmin, Wahoo, Zwift (Documenti/Zwift/Activities)… Trascinali qui oppure",
-            "File delle corse (.fit) da Garmin, Coros, Suunto, Strava… Trascinali qui oppure",
-          ),
-        )}
+        {native
+          ? t(
+              byMain(
+                "Ride files (.fit) from a Garmin, Wahoo, Zwift (Documents/Zwift/Activities)… Drop them here or",
+                "Run files (.fit) from a Garmin, Coros, Suunto, Strava… Drop them here or",
+              ),
+              byMain(
+                "File delle uscite (.fit) da Garmin, Wahoo, Zwift (Documenti/Zwift/Activities)… Trascinali qui oppure",
+                "File delle corse (.fit) da Garmin, Coros, Suunto, Strava… Trascinali qui oppure",
+              ),
+            )
+          : t(
+              byMain(
+                "Ride files (.gpx, .fit) from OpenTracks, a Garmin, Wahoo, Zwift… They go to intervals.icu. Drop them here or",
+                "Run files (.gpx, .fit) from OpenTracks, a Garmin, Coros, Suunto… They go to intervals.icu. Drop them here or",
+              ),
+              byMain(
+                "File delle uscite (.gpx, .fit) da OpenTracks, Garmin, Wahoo, Zwift… Vanno su intervals.icu. Trascinali qui oppure",
+                "File delle corse (.gpx, .fit) da OpenTracks, Garmin, Coros, Suunto… Vanno su intervals.icu. Trascinali qui oppure",
+              ),
+            )}
       </p>
       <input
         ref={input}
         type="file"
-        accept=".fit"
+        accept={native ? ".fit" : ".fit,.gpx,.tcx,.gz"}
         multiple
         className="hidden"
         onChange={(e) => {

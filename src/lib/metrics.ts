@@ -275,6 +275,27 @@ export function bestCurve(curves: (number | null)[][]): (number | null)[] {
   });
 }
 
+/**
+ * For each length of `bestCurve`, the ride whose curve set the best: the first one on a tie, so pass them oldest first
+ * and a record moves only when it's beaten. "" where no ride has a value.
+ */
+export function bestCurveSetBy(
+  rides: { id: string; curve?: (number | null)[] | undefined }[],
+): string[] {
+  return DUR.map((_, i) => {
+    let best: number | null = null;
+    let id = "";
+    for (const r of rides) {
+      const w = r.curve?.[i];
+      if (w != null && (best == null || w > best)) {
+        best = w;
+        id = r.id;
+      }
+    }
+    return id;
+  });
+}
+
 /** Estimated FTP from a power curve: critical power from the 3–20 minute efforts. */
 export function estimateFtp(curve: (number | null)[]): number | null {
   const fit = fitCriticalPower(DUR.map((secs, i) => ({ secs, watts: curve[i] ?? 0 })));

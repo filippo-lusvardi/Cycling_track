@@ -88,3 +88,33 @@ describe("choosing the charts", () => {
     expect(pills()).toHaveLength(4);
   });
 });
+
+describe("the numbers over a part of the ride", () => {
+  let root: Root;
+  let host: HTMLDivElement;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  it("are that part's own, not the whole ride's", () => {
+    // 400 W between 1.1 and 1.6 km; the ride's top, 900 W, comes later at 4.5 km.
+    const bumpy = {
+      ...streams,
+      watts: Array.from({ length: n }, (_, i) =>
+        i >= 120 && i < 180 ? 400 : i === 500 ? 900 : 200,
+      ),
+    } as unknown as RideStreams;
+    const header = () =>
+      [...host.querySelectorAll("span.stat-num")].map((x) => x.textContent ?? "");
+    act(() => root.render(<RideCharts a={ride} streams={bumpy} />));
+    expect(header().some((h) => h.includes("max 900 W"))).toBe(true);
+    act(() => root.render(<RideCharts a={ride} streams={bumpy} work={{ startKm: 1, endKm: 2 }} />));
+    expect(header().some((h) => h.includes("max 400 W"))).toBe(true);
+    expect(header().some((h) => h.includes("900"))).toBe(false);
+  });
+});

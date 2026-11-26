@@ -62,6 +62,7 @@ import {
 } from "../intervals";
 import {
   bestCurve,
+  bestCurveSetBy,
   estimateFtp,
   fitnessSeries,
   hrZoneTops,
@@ -499,6 +500,8 @@ export async function getPowerCurves(): Promise<PowerCurve[]> {
       label: t("All time", "Di sempre"),
       secs: DUR,
       watts: bestCurve(rides.map((a) => a.curve)).map((w) => w ?? 0),
+      // Oldest first, so on a tie the record stays where it was.
+      activityIds: bestCurveSetBy([...rides].sort((a, b) => dayOf(a).localeCompare(dayOf(b)))),
     },
   ];
 }

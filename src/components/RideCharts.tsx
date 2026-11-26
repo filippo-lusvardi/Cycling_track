@@ -16,7 +16,7 @@ import { wbal } from "@/lib/analysis";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { gapStreams } from "@/lib/gap";
 import { formatPace, stepsPerMinute } from "@/lib/pace";
-import { hrAxis, rideSeries, type SeriesPoint } from "@/lib/ride-series";
+import { hrAxis, rideSeries, stretchStats, type SeriesPoint } from "@/lib/ride-series";
 import { isSport } from "@/lib/sport";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -51,6 +51,7 @@ const avgOf = (xs: (number | null)[]) => {
  * Speed, power, heart rate and cadence along the ride, stacked on one distance axis; hovering one shows the same spot on all.
  * With a `work` selected, the charts zoom to that stretch and the averages are the work's own.
  * They also zoom along distance together (drag, or pinch on a phone), and heart rate's y axis fits what's shown; the others keep their start.
+ * Zoomed in, the averages and tops in the headers are those of the stretch shown, worked out from the full samples.
  * With `cp` (critical power and W′ from the power curve), a fourth chart shows W′ balance: the anaerobic reserve left.
  */
 export function RideCharts({
@@ -122,6 +123,11 @@ export function RideCharts({
       zoom.zoomed ? [shown[0]!.km, shown.at(-1)!.km] : work ? [work.startKm, work.endKm] : null,
     [zoom.zoomed, shown, work],
   );
+  // The stretch's own numbers, from the full samples: the chart's buckets would smooth the peaks away.
+  const stretch = useMemo(
+    () => (domain ? stretchStats({ ...streams, cadence }, domain[0], domain[1]) : null),
+    [domain, streams, cadence],
+  );
   const sel = zoom.selection
     ? ([shown[zoom.selection[0]]!.km, shown[zoom.selection[1]]!.km] as [number, number])
     : null;
@@ -190,18 +196,15 @@ export function RideCharts({
         ] satisfies Metric[]
       )
         .filter((m) => data.some((p) => p[m.key] != null))
-        .map((m) =>
-          work
-            ? {
-                ...m,
-                avg: avgOf(data.map((p) => p[m.key] ?? null)),
-                max: peak(data.map((p) => p[m.key] ?? null)),
-              }
-            : m,
-        )
+        .map((m): Metric => {
+          if (!stretch) return m;
+          if (m.key === "speed" || m.key === "watts" || m.key === "hr" || m.key === "cadence")
+            return { ...m, ...stretch[m.key] };
+          return { ...m, avg: m.avg == null ? null : avgOf(shown.map((p) => p[m.key] ?? null)) };
+        })
         .map((m): Metric => {
           if (m.key !== "wbal" || !cp) return m;
-          const low = Math.min(...data.map((p) => p.wbal ?? Infinity));
+          const low = Math.min(...shown.map((p) => p.wbal ?? Infinity));
           const kj = (low * cp.wPrime) / 100000;
           // Under 0 means the CP/W′ from your curve underrate you: the ride beat the model.
           const lowest = t(
@@ -214,7 +217,7 @@ export function RideCharts({
             yDomain: [Math.min(0, Math.floor(low / 10) * 10), 100] as [number, number],
           };
         }),
-    [a, streams, data, work, cp, isRun, cadence],
+    [a, streams, data, shown, stretch, cp, isRun, cadence],
   );
 
   const place = (key: string) => {

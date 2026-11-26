@@ -371,11 +371,9 @@ function CalendarPage() {
           "Per le sedute che l'orologio non ha registrato.",
         )}
       >
-        {sourceKind() === "native" && (
-          <div className="mb-4">
-            <UploadRides onDone={() => setLogging(false)} />
-          </div>
-        )}
+        <div className="mb-4">
+          <UploadRides onDone={() => setLogging(false)} />
+        </div>
         <LogWorkoutForm date={today} onSaved={() => setLogging(false)} />
       </ResponsiveDialog>
     </div>

@@ -1,3 +1,4 @@
+import { KINDS } from "./activity-kind";
 import { describe, expect, it } from "vitest";
 import {
   activitySections,
@@ -12,6 +13,8 @@ import {
   setHidden,
   setNumberHidden,
   activityLayoutKind,
+  KIND_SCOPE,
+  sportLayoutKind,
   type SectionDef,
 } from "./layouts";
 
@@ -85,10 +88,19 @@ describe("kinds", () => {
     ]);
   });
 
-  it("picks by sport", () => {
-    expect(activityLayoutKind({ type: "Ride" })).toBe("activity-ride");
+  it("gives each kind of activity its own page, starting from its sport's", () => {
+    expect(activityLayoutKind({ type: "Ride" })).toBe("activity-road");
+    expect(activityLayoutKind({ type: "Ride", trainer: true })).toBe("activity-indoor");
+    expect(activityLayoutKind({ type: "VirtualRide" })).toBe("activity-indoor");
+    expect(activityLayoutKind({ type: "GravelRide" })).toBe("activity-gravel");
     expect(activityLayoutKind({ type: "Run" })).toBe("activity-run");
-    expect(activityLayoutKind({ type: "Swim" })).toBe("activity-other");
+    expect(activityLayoutKind({ type: "Hike" })).toBe("activity-walk");
+    expect(activityLayoutKind({ type: "Swim" })).toBe("activity-swim");
+    expect(sportLayoutKind({ type: "GravelRide" })).toBe("activity-ride");
+    expect(sportLayoutKind({ type: "Run" })).toBe("activity-run");
+    expect(sportLayoutKind({ type: "Swim" })).toBe("activity-other");
+    for (const kind of Object.keys(KINDS))
+      expect(KIND_SCOPE[`activity-${kind}` as keyof typeof KIND_SCOPE]).toBeDefined();
   });
 
   it("offers weeks only where they mean something", () => {

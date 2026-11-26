@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hrAxis, rideSeries } from "./ride-series";
+import { hrAxis, rideSeries, stretchStats } from "./ride-series";
 
 const ride = (
   secs: number,
@@ -76,5 +76,33 @@ describe("hrAxis", () => {
   });
   it("thins the ticks out over a wide range", () => {
     expect(hrAxis([85, 195], 195).ticks).toEqual([80, 120, 160, 200]);
+  });
+});
+
+describe("a stretch of the ride", () => {
+  // 10 m/s for an hour; between 10 and 20 km a 2-minute effort at 400 W and a short sprint.
+  const s = {
+    ...ride(3600, 10, (i) => (i >= 1500 && i < 1620 ? 400 : i === 2500 ? 900 : 200), 140),
+    cadence: Array.from({ length: 3600 }, (_, i) => (i % 100 === 0 ? 0 : 90)),
+  };
+  it("has its own average and top, from the full samples", () => {
+    const st = stretchStats(s, 10, 20);
+    expect(st.watts.max).toBe(400);
+    expect(st.watts.avg).toBeCloseTo((120 * 400 + 881 * 200) / 1001, 1);
+    expect(st.speed.avg).toBeCloseTo(36);
+    expect(st.speed.max).toBeCloseTo(36);
+    expect(st.hr).toEqual({ avg: 140, max: 140 });
+    expect(st.cadence.avg).toBe(90);
+  });
+  it("finds a peak the chart's buckets would smooth away", () => {
+    expect(stretchStats(s, 20, 30).watts.max).toBe(900);
+    expect(Math.max(...rideSeries(s).map((p) => p.watts ?? 0))).toBeLessThan(900);
+  });
+  it("leaves stops out of the average speed", () => {
+    const stop = {
+      ...s,
+      distance: s.distance.map((d, i) => (i < 600 ? d : i < 900 ? 6000 : d - 3000)),
+    };
+    expect(stretchStats(stop, 0, 20).speed.avg).toBeCloseTo(36);
   });
 });

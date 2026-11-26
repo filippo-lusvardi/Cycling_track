@@ -19,11 +19,12 @@ import {
   offEventsQuery,
   rideZonesQuery,
   wellnessRangeQuery,
+  powerCurvesQuery,
 } from "@/lib/queries";
 import { ceiling } from "@/lib/readiness";
 import { CHECK_IN, GARDEN, gardenOn, QUIET_TREE, zoneTops } from "@/lib/settings";
 import { addDays, isoDate } from "@/lib/training";
-import { buildDays, buildYears, crownFor, offDays, onlySprouts } from "@/lib/tree";
+import { buildDays, buildYears, crownFor, offDays, onlySprouts, powerRecords } from "@/lib/tree";
 import { sportOf } from "@/lib/garden";
 import { useCropMap } from "@/hooks/use-crop-map";
 import { t } from "@/lib/i18n";
@@ -59,6 +60,8 @@ function TreePage() {
   const { data: events } = useQuery(eventsQuery({ oldest: today, newest: addDays(today, 3) }));
   const { data: offEvents } = useQuery(offEventsQuery({ oldest, newest: today }));
   const { data: zones } = useQuery(rideZonesQuery(mainSport()));
+  // The power records' keepers live on the branches of the rides that set them: cycling only.
+  const { data: curves } = useQuery({ ...powerCurvesQuery(), enabled: mainSport() === "ride" });
   const [quiet] = useLocalStore(QUIET_TREE, false);
   const [checkIn] = useLocalStore(CHECK_IN, true);
   const [garden] = useLocalStore(GARDEN, gardenOn());
@@ -80,11 +83,12 @@ function TreePage() {
   const [crops] = useCropMap(garden ? acts : undefined);
   const days = useMemo(() => {
     const sport = mainSport();
-    const all = buildDays(acts, wellness, oldest, today, offDays(offEvents ?? []), sport);
+    const power = sport === "ride" ? powerRecords(curves?.find((c) => c.id.includes("all"))) : {};
+    const all = buildDays(acts, wellness, oldest, today, offDays(offEvents ?? []), sport, power);
     // A sprout says "this grows in the garden": only for what does.
     const grows = garden ? acts.filter((a) => sportOf(a, crops, sport)).map((a) => a.id) : [];
     return onlySprouts(all, new Set(grows));
-  }, [acts, wellness, oldest, today, offEvents, garden, crops]);
+  }, [acts, wellness, oldest, today, offEvents, garden, crops, curves]);
   const crown = useMemo(
     () => crownFor(wellness, acts, today, offEvents ?? [], checkIn),
     [wellness, acts, today, offEvents, checkIn],

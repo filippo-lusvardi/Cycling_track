@@ -16,6 +16,7 @@ import { wellnessQuery } from "@/lib/queries";
 import type { Wellness } from "@/lib/intervals";
 import { saveWellnessEntry } from "@/lib/source";
 import { isoDate } from "@/lib/training";
+import { fitTrend } from "@/lib/trend";
 import { Panel, StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,13 +82,25 @@ export function BodySection({ only }: { only?: "weight" | "fat" | undefined } = 
   if (only === "weight")
     return (
       <Panel title={t("Weight", "Peso")}>
-        <TrendChart data={weights} dataKey="weight" name={t("Weight", "Peso")} color="var(--weight)" />
+        <TrendChart
+          data={weights}
+          dataKey="weight"
+          name={t("Weight", "Peso")}
+          color="var(--weight)"
+          trend
+        />
       </Panel>
     );
   if (only === "fat")
     return (
       <Panel title={t("Body fat", "Grasso corporeo")}>
-        <TrendChart data={fat} dataKey="bodyFat" name={t("Body fat", "Grasso corporeo")} color="var(--form)" />
+        <TrendChart
+          data={fat}
+          dataKey="bodyFat"
+          name={t("Body fat", "Grasso corporeo")}
+          color="var(--form)"
+          trend
+        />
       </Panel>
     );
 
@@ -132,6 +145,7 @@ export function BodySection({ only }: { only?: "weight" | "fat" | undefined } = 
               dataKey="weight"
               name={t("Weight", "Peso")}
               color="var(--weight)"
+              trend
             />
           </Panel>
           <Panel title={t("Body fat", "Grasso corporeo")}>
@@ -140,6 +154,7 @@ export function BodySection({ only }: { only?: "weight" | "fat" | undefined } = 
               dataKey="bodyFat"
               name={t("Body fat", "Grasso corporeo")}
               color="var(--form)"
+              trend
             />
           </Panel>
         </div>
@@ -152,17 +167,36 @@ export function BodySection({ only }: { only?: "weight" | "fat" | undefined } = 
   );
 }
 
-function TrendChart({
+/** Where the trend line's values go in each row. */
+const FIT = "fit";
+
+export function TrendChart({
   data,
   dataKey,
   name,
   color,
+  trend = false,
 }: {
   data: { date: string }[];
   dataKey: string;
   name: string;
   color: string;
+  /** A dashed trend through the points, as on a segment's progression: fitted on real days, so gaps count as long. */
+  trend?: boolean;
 }) {
+  const fitted = useMemo(() => {
+    if (!trend) return null;
+    const day = (d: string) => Date.parse(d) / 86_400_000;
+    const value = (r: { date: string }) => (r as Record<string, unknown>)[dataKey];
+    const pts = data.filter((r) => typeof value(r) === "number");
+    const fit = fitTrend(
+      pts.map((r) => day(r.date)),
+      pts.map((r) => value(r) as number),
+    );
+    return fit
+      ? { degree: fit.degree, rows: data.map((r) => ({ ...r, [FIT]: fit.at(day(r.date)) })) }
+      : null;
+  }, [data, dataKey, trend]);
   if (data.length === 0)
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
@@ -170,44 +204,69 @@ function TrendChart({
       </p>
     );
   return (
-    <div className="h-56">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ left: -20, right: 4, top: 8 }}>
-          <CartesianGrid stroke="var(--border)" vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickFormatter={(d) => format(parseISO(d), "d MMM")}
-            stroke="var(--muted-foreground)"
-            fontSize={11}
-            minTickGap={40}
-          />
-          <YAxis
-            domain={["dataMin - 1", "dataMax + 1"]}
-            stroke="var(--muted-foreground)"
-            fontSize={11}
-            allowDecimals={false}
-            // The domain ends sit 1 off the data (e.g. 71.38), so cap every tick at one decimal.
-            tickFormatter={(v: number) => String(Math.round(v * 10) / 10)}
-          />
-          <Tooltip
-            contentStyle={{
-              background: "var(--popover)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-            }}
-            labelFormatter={(d) => format(parseISO(String(d)), "EEE d MMM yyyy")}
-          />
-          <Line
-            type="monotone"
-            dataKey={dataKey}
-            name={name}
-            stroke={color}
-            strokeWidth={2}
-            dot={{ r: 2 }}
-            isAnimationActive={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+    <div>
+      <div className="h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={fitted?.rows ?? data} margin={{ left: -20, right: 4, top: 8 }}>
+            <CartesianGrid stroke="var(--border)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickFormatter={(d) => format(parseISO(d), "d MMM")}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
+              minTickGap={40}
+            />
+            <YAxis
+              domain={["dataMin - 1", "dataMax + 1"]}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
+              allowDecimals={false}
+              // The domain ends sit 1 off the data (e.g. 71.38), so cap every tick at one decimal.
+              tickFormatter={(v: number) => String(Math.round(v * 10) / 10)}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "var(--popover)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+              }}
+              labelFormatter={(d) => format(parseISO(String(d)), "EEE d MMM yyyy")}
+              formatter={(v, label) => [Number(v).toFixed(1), label]}
+            />
+            <Line
+              type="monotone"
+              dataKey={dataKey}
+              name={name}
+              stroke={color}
+              strokeWidth={2}
+              dot={{ r: 2 }}
+              isAnimationActive={false}
+            />
+            {fitted && (
+              <Line
+                type="monotone"
+                dataKey={FIT}
+                name={t("Trend", "Trend")}
+                stroke="var(--muted-foreground)"
+                strokeWidth={2}
+                strokeDasharray="5 4"
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      {fitted && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("Dashed: trend", "Tratteggio: trend")} (
+          {fitted.degree === 1
+            ? t("linear", "lineare")
+            : t(`polynomial, degree ${fitted.degree}`, `polinomiale, grado ${fitted.degree}`)}
+          ).
+        </p>
+      )}
     </div>
   );
 }

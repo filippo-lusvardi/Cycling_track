@@ -4,7 +4,8 @@ import { recentFeel } from "./felt";
 import { parseISO } from "date-fns";
 import { format, t } from "./i18n";
 import { activityKind, type Kind } from "./activity-kind";
-import type { Activity, OffKind, PlannedEvent, Wellness } from "./intervals";
+import { whoSet } from "./analysis";
+import type { Activity, OffKind, PlannedEvent, PowerCurve, Wellness } from "./intervals";
 import {
   advice,
   capForLoad,
@@ -89,7 +90,37 @@ export type TreeBranch = {
   longest: boolean;
   /** The ride with the most climbing of all time: an owl keeps watch on its branch. */
   mostClimbing: boolean;
+  /** The power records this ride holds, each with its keeper (`KEEPER_SECS`). */
+  keepers: Keeper[];
 };
+
+/**
+ * The keepers of the power records, each living on the tree in its own way: the bald eagle on top of the branch (max
+ * power), the sloth hanging under it (1 min), the hummingbird hovering past its tip (5 min), the leopard asleep along
+ * it (20 min), the dormouse in a hole in the trunk beside it (1 h).
+ */
+export type Keeper = "eagle" | "sloth" | "hummingbird" | "leopard" | "dormouse";
+export const KEEPERS: readonly Keeper[] = ["eagle", "sloth", "hummingbird", "leopard", "dormouse"];
+/** The record each keeper keeps: the best power held for this many seconds. */
+export const KEEPER_SECS: Record<Keeper, number> = {
+  eagle: 1,
+  sloth: 60,
+  hummingbird: 300,
+  leopard: 1200,
+  dormouse: 3600,
+};
+/** Keeper → the ride that holds its record. */
+export type PowerRecords = Partial<Record<Keeper, string>>;
+
+/** Who holds each power record, from the all-time power curve, when it says which ride set each value. */
+export function powerRecords(allTime: PowerCurve | undefined): PowerRecords {
+  const out: PowerRecords = {};
+  for (const k of KEEPERS) {
+    const id = whoSet(allTime, KEEPER_SECS[k]);
+    if (id) out[k] = id;
+  }
+  return out;
+}
 
 /** A non-cycling activity: no branch on the tree (it lives in the garden), a sprout on the bark instead. */
 export type TreeSprout = { id: string; kind: Kind; name: string; minutes: number; load: number };
@@ -294,6 +325,8 @@ export function buildDays(
   today: string,
   off: Map<string, OffKind> = new Map(),
   sport: MainSport = "ride",
+  /** Who holds each power record (cycling): their keepers live on those rides' branches. */
+  power: PowerRecords = {},
 ): TreeDay[] {
   const scale = TREE_SCALE[sport];
   const byDay = new Map<string, Activity[]>();
@@ -345,6 +378,7 @@ export function buildDays(
           brioches: a.brioches ?? 0, // older cached rows have no count
           longest: a.id === records.longest,
           mostClimbing: a.id === records.mostClimbing,
+          keepers: KEEPERS.filter((k) => power[k] === a.id),
         };
       });
     days.push({

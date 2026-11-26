@@ -2,7 +2,25 @@
 // never has to hit a twig. Drawing stays inside each slice, so off-screen slices can skip painting.
 import { parseISO } from "date-fns";
 import { useId, type CSSProperties, type ReactNode } from "react";
-import { Bird, BIRD_KINDS, Blossom, Owl, OWL_BOX, Squirrel, SQUIRREL_BOX } from "./Critters";
+import {
+  BaldEagle,
+  Bird,
+  BIRD_KINDS,
+  Blossom,
+  Dormouse,
+  DORMOUSE_BOX,
+  EAGLE_BOX,
+  Hummingbird,
+  HUMMINGBIRD_BOX,
+  Leopard,
+  LEOPARD_BOX,
+  Owl,
+  OWL_BOX,
+  Sloth,
+  SLOTH_BOX,
+  Squirrel,
+  SQUIRREL_BOX,
+} from "./Critters";
 import { dayHeight, LANE, MONTH_H, REST_STEP, restHeight, WEEK_H } from "./geometry";
 import { KINDS } from "@/lib/activity-kind";
 import type { OffKind } from "@/lib/intervals";
@@ -239,12 +257,20 @@ const MAX_BIRDS = 8;
 /** Size of a bird on a daily branch with room to spare (the drawing is about 16 units wide). */
 const BIRD_SCALE = 1.6;
 
-/** A branch's guardians: the squirrel on the longest ride ever, the owl on the ride with the most climbing. */
+/**
+ * A branch's guardians that sit on top of it: the squirrel on the longest ride ever, the owl on the ride with the most
+ * climbing, and two keepers of power records, the bald eagle (max power) and the leopard asleep along it (20 min).
+ * The other keepers live elsewhere on the tree: see `Keepers`.
+ */
 const guardiansOf = (b: TreeBranch) =>
   [
     b.longest && ({ kind: "squirrel", box: SQUIRREL_BOX } as const),
     b.mostClimbing && ({ kind: "owl", box: OWL_BOX } as const),
+    b.keepers.includes("eagle") && ({ kind: "eagle", box: EAGLE_BOX } as const),
+    b.keepers.includes("leopard") && ({ kind: "leopard", box: LEOPARD_BOX } as const),
   ].filter((g) => !!g);
+
+type GuardianKind = ReturnType<typeof guardiansOf>[number]["kind"];
 
 function Guardian({
   kind,
@@ -253,17 +279,82 @@ function Guardian({
   side,
   s,
 }: {
-  kind: "squirrel" | "owl";
+  kind: GuardianKind;
   x: number;
   y: number;
   side: -1 | 1;
   s: number;
 }) {
-  return kind === "squirrel" ? (
-    <Squirrel x={x} y={y} side={side} s={s} />
-  ) : (
-    <Owl x={x} y={y} s={s} />
-  );
+  switch (kind) {
+    case "squirrel":
+      return <Squirrel x={x} y={y} side={side} s={s} />;
+    case "owl":
+      return <Owl x={x} y={y} s={s} />;
+    case "eagle":
+      return <BaldEagle x={x} y={y} side={side} s={s} />;
+    case "leopard":
+      return <Leopard x={x} y={y} side={side} s={s} />;
+  }
+}
+
+/** Where along the branch the sloth may hang, best first: out where the branch has risen most. */
+const SLOTH_SPOTS = [0.8, 0.68, 0.56, 0.44];
+
+/** Smallest a keeper gets to fit its room, as a share of its drawing. */
+const KEEPER_MIN = 0.55;
+const clampScale = (s: number) => Math.max(KEEPER_MIN, Math.min(GUARDIAN_SCALE, s));
+
+/** The sloth hanging under the branch by its claws, as big as the room left below in the row. */
+function HangingSloth({ x, y, side, rowH }: { x: number; y: number; side: -1 | 1; rowH: number }) {
+  return <Sloth x={x} y={y} side={side} s={clampScale((rowH - y - 1) / SLOTH_BOX.h)} />;
+}
+
+/** Room between a branch's tip and the hummingbird's beak, in px. */
+const HOVER_GAP = 3;
+
+/**
+ * The hummingbird hovering just past the tip of the branch, turned to the tree. On a narrow screen it shrinks, and
+ * when even that doesn't fit it comes in over the tip so it stays on screen.
+ */
+function HoveringHummingbird({
+  tip,
+  side,
+  w,
+  rowH,
+}: {
+  tip: readonly [number, number];
+  side: -1 | 1;
+  w: number;
+  rowH: number;
+}) {
+  const [tx, ty] = tip;
+  const { ahead, back, up, down } = HUMMINGBIRD_BOX;
+  // Its body at the tip's height: the origin sits 6 units under the body.
+  const lift = 6;
+  const room = (side > 0 ? w - tx : tx) - 1;
+  const fitsHigh = (ty - 1) / (up - lift);
+  const fitsLow = (rowH - 1 - ty) / (lift + down);
+  const s = clampScale(Math.min((room - HOVER_GAP) / (ahead + back), fitsHigh, fitsLow));
+  const wanted = tx + side * (HOVER_GAP + ahead * s);
+  const x = side > 0 ? Math.min(wanted, w - 1 - back * s) : Math.max(wanted, 1 + back * s);
+  return <Hummingbird x={x} y={ty + lift * s} side={-side as -1 | 1} s={s} />;
+}
+
+/** The dormouse in a hole in the trunk, just above where its ride's branch leaves it. */
+function TrunkDormouse({
+  cx,
+  trunk,
+  y,
+  side,
+}: {
+  cx: number;
+  trunk: number;
+  y: number;
+  side: -1 | 1;
+}) {
+  const s = clampScale((trunk * 0.8) / DORMOUSE_BOX.w);
+  const top = Math.max(y, DORMOUSE_BOX.up * s + 1);
+  return <Dormouse x={cx + side * trunk * 0.12} y={top} s={s} />;
 }
 
 /** A bird species for each of a branch's brioches, at random but the same on every render and device. */
@@ -286,6 +377,7 @@ export function Birds({
   length,
   from,
   away = 0,
+  rowH,
 }: {
   b: TreeBranch;
   at: (t: number) => readonly [number, number];
@@ -293,10 +385,13 @@ export function Birds({
   from: number;
   /** The latest birds, still on their way here. */
   away?: number;
+  /** The row's height, for the room under the branch; without it, the sloth stays out. */
+  rowH?: number | undefined;
 }) {
-  const { guardians, seats } = seatsOf(b, at, length, from);
+  const { guardians, seats, sloth } = seatsOf(b, at, length, from);
   return (
     <>
+      {sloth && rowH != null && <HangingSloth x={sloth.x} y={sloth.y} side={b.side} rowH={rowH} />}
       {guardians}
       {seats.slice(0, Math.max(0, seats.length - away)).map((s, i) => (
         <Bird key={i} x={s.x} y={s.y} side={b.side} s={s.scale} kind={s.kind} />
@@ -331,10 +426,25 @@ export function seatsOf(
     if (t == null) continue;
     const [x, y] = at(t);
     const feet = y - b.thickness / 2;
-    // Never taller than the room above the branch in this row (rows clip what sticks out).
-    const s = Math.max(0.6, Math.min(GUARDIAN_SCALE, (feet - 1) / g.box.h));
+    // Never taller than the room above the branch in this row (rows clip what sticks out), nor longer than the branch.
+    const s = Math.max(
+      0.6,
+      Math.min(GUARDIAN_SCALE, (feet - 1) / g.box.h, (length * 0.8) / g.box.w),
+    );
     taken.push({ t, w: g.box.w * s });
     guardians.push(<Guardian key={g.kind} kind={g.kind} x={x} y={feet} side={b.side} s={s} />);
+  }
+  // The sloth hangs underneath, out where the branch has risen and leaves it the most room below; its claws over the
+  // top keep that stretch clear of birds. Leaves don't matter to it: it hangs among them.
+  let sloth: { x: number; y: number } | null = null;
+  if (b.keepers.includes("sloth")) {
+    const w = SLOTH_BOX.w * GUARDIAN_SCALE;
+    const t =
+      SLOTH_SPOTS.find((c) => taken.every((o) => Math.abs(o.t - c) * length > (o.w + w) / 2)) ??
+      SLOTH_SPOTS[0]!;
+    const [x, y] = at(t);
+    taken.push({ t, w });
+    sloth = { x, y: y - b.thickness / 2 + 0.8 };
   }
   const spots = perchOrder(n, b.leaves, from, length, 16 * scale, { taken });
   const kinds = birdKinds(b, spots.length);
@@ -342,7 +452,7 @@ export function seatsOf(
     const [x, y] = at(t);
     return { x, y: y - b.thickness / 2, scale, kind: kinds[i]! };
   });
-  return { guardians, seats };
+  return { guardians, seats, sloth };
 }
 
 /** The flowers a ride ridden during a bloom keeps on its branch. */
@@ -457,11 +567,16 @@ export const BRANCH_LEAF = 4.2;
 export const BRANCH_BLOSSOMS = { count: 7, size: 1.7, from: 0.3 };
 export { YOUNG_WOOD };
 
+/** Above the branch's start, the dormouse's hole in the trunk: px. */
+const HOLE_ABOVE = 15;
+
 function Branch({
   b,
   cx,
   trunk,
   y0,
+  w,
+  rowH,
   away,
   bloomed,
 }: {
@@ -469,16 +584,24 @@ function Branch({
   cx: number;
   trunk: number;
   y0: number;
+  w: number;
+  rowH: number;
   away: number;
   bloomed: boolean;
 }) {
   const { d, at, length } = branchCurve(b, cx, trunk, y0);
   return (
     <g>
+      {b.keepers.includes("dormouse") && (
+        <TrunkDormouse cx={cx} trunk={trunk} y={y0 - HOLE_ABOVE} side={b.side} />
+      )}
       <path d={d} fill="none" stroke={YOUNG_WOOD} strokeWidth={b.thickness} strokeLinecap="round" />
       <Leaves b={b} at={at} from={BRANCH_LEAVES_FROM} size={BRANCH_LEAF} />
       {bloomed && <BranchBlossoms b={b} at={at} {...BRANCH_BLOSSOMS} />}
-      <Birds b={b} at={at} length={length} from={BRANCH_LEAVES_FROM} away={away} />
+      <Birds b={b} at={at} length={length} from={BRANCH_LEAVES_FROM} away={away} rowH={rowH} />
+      {b.keepers.includes("hummingbird") && (
+        <HoveringHummingbird tip={at(1)} side={b.side} w={w} rowH={rowH} />
+      )}
     </g>
   );
 }
@@ -577,6 +700,8 @@ export function DayRow({
                 cx={cx}
                 trunk={day.trunk}
                 y0={y0}
+                w={w}
+                rowH={h}
                 away={held?.birds[b.id] ?? 0}
                 bloomed={!!bloomed?.has(b.id)}
               />
@@ -938,14 +1063,31 @@ function Bough({
     );
     along += w / 2 + 2;
   }
+  // The other keepers of the week's rides: the sloth under the bare stretch, the hummingbird past the tip, the dormouse
+  // in the trunk.
+  const keepers = new Set(week.twigs.flatMap((t) => t.keepers));
   return (
     <g>
+      {keepers.has("dormouse") && (
+        <TrunkDormouse cx={cx} trunk={week.trunk} y={y0 - HOLE_ABOVE + 2} side={side} />
+      )}
       <path
         d={`M${x0},${y0} L${x1},${y0 - 3}`}
         stroke={OLD_WOOD}
         strokeWidth={thickness}
         strokeLinecap="round"
       />
+      {keepers.has("sloth") && (
+        <HangingSloth
+          x={x0 + side * Math.max(12, reach * 0.18)}
+          y={y0 - thickness / 2 + 0.8}
+          side={side}
+          rowH={WEEK_H}
+        />
+      )}
+      {keepers.has("hummingbird") && (
+        <HoveringHummingbird tip={[x1, y0 - 3]} side={side} w={cx * 2} rowH={WEEK_H} />
+      )}
       {guardians}
       {week.twigs.map((t, j) => {
         // Twigs spread along the outer part of the bough; alternate up (long) and down (short).

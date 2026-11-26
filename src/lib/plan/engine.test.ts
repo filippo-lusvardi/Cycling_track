@@ -202,6 +202,49 @@ describe("the next seven days", () => {
   });
 });
 
+describe("a hard session already ridden this week", () => {
+  // Tuesday's tempo, ridden as asked: too gentle for a hard ride by intensity, but the week's hard work all the same.
+  const tue = addDays(monday, 1);
+  const wed = addDays(monday, 2);
+  const tempo = (over: Partial<NoteSession> = {}) => ({
+    ...session("t", tue),
+    workoutId: "d-tempo-steady-75",
+    seconds: 4500,
+    ...over,
+  });
+  const gentle = ride(tue, 4500, { icu_intensity: 78 });
+  const daysBetween = (a: string, b: string) =>
+    Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 864e5;
+  const layoutOn = (s: ReturnType<typeof state>, acts: Activity[]) =>
+    layoutFor(
+      ctx(note([tempo()], { state: s }), [event("t", tue)], {
+        today: wed,
+        acts: [...history, ...acts],
+      }),
+      monday,
+      s,
+    );
+
+  it("keeps the next hard session away, and isn't repeated", () => {
+    for (const s of [state(), state({ hardCap: 2, hardGap: 2 })]) {
+      const hard = layoutOn(s, [gentle]).filter((x) => x.role === "hard" && x.date > tue);
+      expect(hard.length).toBeLessThanOrEqual(s.hardCap - 1);
+      for (const h of hard) {
+        expect(daysBetween(h.date, tue)).toBeGreaterThanOrEqual(s.hardGap);
+        expect(h.workout!.id).not.toBe("d-tempo-steady-75");
+      }
+    }
+  });
+  it("counts once: with one hard session a week, none is added", () => {
+    const s = state({ hardCap: 1 });
+    expect(layoutOn(s, [gentle]).some((x) => x.role === "hard" && x.date > tue)).toBe(false);
+  });
+  it("can still come later in the week when it wasn't ridden", () => {
+    const s = state({ hardCap: 1 });
+    expect(layoutOn(s, []).some((x) => x.role === "hard" && x.date > tue)).toBe(true);
+  });
+});
+
 describe("when a review comes round", () => {
   it("is on Mondays and Thursdays, once", () => {
     expect(reviewDue(state({ lastReview: "2026-11-09" }), today)).toBe(true);

@@ -36,7 +36,12 @@ import { BRIOCHE_G, rideFuel, runKcal } from "@/lib/fuel";
 import type { ActivityDetail, RideStreams } from "@/lib/intervals";
 import { LayoutEditor, Sections, TuneButton } from "@/components/layout/Customizable";
 import { useLayout } from "@/hooks/use-layout";
-import { activityLayoutKind, activitySections, setNumberHidden } from "@/lib/layouts";
+import {
+  activityLayoutKind,
+  activitySections,
+  setNumberHidden,
+  sportLayoutKind,
+} from "@/lib/layouts";
 import { FEEL_LABEL } from "@/lib/felt";
 import {
   deleteActivity,
@@ -108,8 +113,9 @@ function RideDetail() {
   const intervals = (a.icu_intervals ?? []).filter((i) => i.type === "WORK" || i.label);
   // Collapsed by default: long and only occasionally needed.
   const kind = activityLayoutKind(a);
-  const defs = useMemo(() => activitySections(kind), [kind]);
-  const layout = useLayout(kind, defs);
+  const sport = sportLayoutKind(a);
+  const defs = useMemo(() => activitySections(sport), [sport]);
+  const layout = useLayout(kind, defs, sport);
   const [editing, setEditing] = useState(false);
   // Choosing a work opens the charts for now, without changing how the page is arranged.
   const [chartsNow, setChartsNow] = useState(false);

@@ -17,14 +17,20 @@ function pushLater(all: All) {
   }, 1000);
 }
 
-export function useLayout(kind: LayoutKind, defs: SectionDef[]) {
+/**
+ * With `startFrom`, a page not arranged yet looks like that one (a gravel ride like the rides before kinds had their own
+ * pages), and the first change makes it its own.
+ */
+export function useLayout(kind: LayoutKind, defs: SectionDef[], startFrom?: LayoutKind) {
   const [all, setAll] = useLocalStore<All>(LAYOUTS, readSetting<All>(LAYOUTS) ?? {});
-  const saved = all[kind];
+  const saved = all[kind] ?? (startFrom ? all[startFrom] : undefined);
   const sections = useMemo(() => resolveLayout(saved, defs), [saved, defs]);
   const change = (next: Layout | undefined) => {
     setAll((prev) => {
       const out = { ...prev };
       if (next) out[kind] = next;
+      // Back to the defaults, not to what it started from.
+      else if (startFrom && startFrom !== kind) out[kind] = {};
       else delete out[kind];
       pushLater(out);
       return out;

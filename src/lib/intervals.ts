@@ -643,6 +643,32 @@ export const manualSchema = z.object({
 
 export type ManualActivity = z.infer<typeof manualSchema>;
 
+/** Activity files intervals.icu reads itself: what OpenTracks (.gpx), a Garmin (.fit) or Zwift saves, also gzipped. */
+export const ACTIVITY_FILE = /\.(fit|gpx|tcx)(\.gz)?$/i;
+
+/**
+ * One recorded activity sent to intervals.icu, which reads the file itself (streams, load, curves). "added" when it made a
+ * new activity, "duplicate" when it had this file already (it de-dupes by the file's hash).
+ */
+export async function uploadActivityFile(file: File): Promise<"added" | "duplicate"> {
+  const key = readSetting<string>(API_KEY);
+  if (!key) throw new AuthError();
+  const body = new FormData();
+  body.append("file", file, file.name);
+  // No Content-Type of our own: the browser writes the multipart one, with its boundary.
+  const res = await fetch("https://intervals.icu/api/v1/athlete/0/activities", {
+    method: "POST",
+    headers: { Authorization: `Basic ${btoa(`API_KEY:${key}`)}` },
+    body,
+  });
+  if (res.status === 401 || res.status === 403) throw new AuthError();
+  if (!res.ok) {
+    console.error("intervals.icu upload error", res.status, await res.text());
+    throw new Error(`upload ${res.status}`);
+  }
+  return res.status === 201 ? "added" : "duplicate";
+}
+
 export async function createManualActivity(input: ManualActivity) {
   const data = manualSchema.parse(input);
   const made = await icu<{ id?: string | number } | null>(`/athlete/0/activities/manual`, {
