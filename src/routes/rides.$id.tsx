@@ -29,6 +29,8 @@ import { useSegmentLibrary } from "@/hooks/use-segments";
 import { curveFit, decoupling } from "@/lib/analysis";
 import { detectClimbs } from "@/lib/climbs";
 import { briochesIn, withBrioches, withoutBrioches } from "@/lib/brioches";
+import { monkeyIn, withMonkey, withoutMonkey } from "@/lib/monkey";
+import { Switch } from "@/components/ui/switch";
 import { PlanRating } from "@/components/PlanRating";
 import { PlanCompare } from "@/components/PlanVsRide";
 import { withoutRating } from "@/lib/plan/rating";
@@ -277,9 +279,9 @@ function RideDetail() {
         </h1>
         {a.garmin && <p className="mt-1 text-sm text-muted-foreground">{a.garmin}</p>}
         <RideGear a={a} />
-        {withoutRating(withoutBrioches(a.description)) && (
+        {withoutRating(withoutBrioches(withoutMonkey(a.description))) && (
           <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">
-            {withoutRating(withoutBrioches(a.description))}
+            {withoutRating(withoutBrioches(withoutMonkey(a.description)))}
           </p>
         )}
       </div>
@@ -447,6 +449,8 @@ function RideDetail() {
                   ) : null;
                 case "brioche":
                   return <Brioches a={a} />;
+                case "monkey":
+                  return <Monkey a={a} />;
                 case "visibility":
                   return (
                     <RideVisibility
@@ -651,6 +655,50 @@ function Brioches({ a }: { a: ActivityDetail }) {
           </p>
         </div>
       )}
+    </Panel>
+  );
+}
+
+/**
+ * A monkey on your back on this ride, saved as a "Monkey: yes" line in its intervals.icu description. It hangs from
+ * the tip of the ride's branch in the tree and bends it.
+ */
+function Monkey({ a }: { a: ActivityDetail }) {
+  const qc = useQueryClient();
+  const saved = monkeyIn(a.description);
+  const [on, setOn] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setOn(saved), [saved]);
+
+  async function set(next: boolean) {
+    setOn(next);
+    setBusy(true);
+    try {
+      await setActivityDescription(a.id, withMonkey(a.description, next));
+      await qc.invalidateQueries({ queryKey: ["activity", a.id] });
+      await qc.invalidateQueries({ queryKey: ["activities"] });
+    } catch {
+      setOn(!next);
+      toast.error(t("Couldn't save", "Impossibile salvare"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel title={t("Monkey", "Scimmia")}>
+      <label className="flex min-h-11 items-center justify-between gap-3">
+        <span className="text-sm">
+          {t("I had a monkey on my back", "Avevo la scimmia sulla schiena")}
+        </span>
+        <Switch checked={on} disabled={busy} onCheckedChange={(v) => void set(v)} />
+      </label>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {t(
+          "A monkey hangs from this activity's branch, and the branch bends.",
+          "Una scimmia si appende al ramo di questa attività, e il ramo si piega.",
+        )}
+      </p>
     </Panel>
   );
 }

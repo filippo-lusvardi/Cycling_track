@@ -174,6 +174,14 @@ export const TREE_GUIDE: GuideItem[] = [
     ),
   },
   {
+    id: "monkey",
+    term: t("Monkey", "Scimmia"),
+    text: t(
+      "Hangs from the tip of an activity where you had a monkey on your back, and bends its branch (mark it at the bottom of its page). A capuchin, spider monkey, gibbon, orangutan, golden lion tamarin, Japanese macaque, proboscis monkey, howler or squirrel monkey, at random.",
+      "È appesa alla punta del ramo di un'attività in cui avevi la scimmia sulla schiena, e lo piega (segnala in fondo alla sua pagina). Un cappuccino, una scimmia ragno, un gibbone, un orango, un tamarino leone dorato, un macaco giapponese, una nasica, un'urlatrice o un saimiri, a caso.",
+    ),
+  },
+  {
     id: "squirrel",
     term: t("Squirrel", "Scoiattolo"),
     text: t(

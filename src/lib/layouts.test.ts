@@ -125,6 +125,7 @@ describe("kinds", () => {
       "charts",
       "intervals",
       "brioche",
+      "monkey",
       "visibility",
     ]);
     expect(r.filter((s) => s.closed).map((s) => s.id)).toEqual(["charts", "intervals"]);

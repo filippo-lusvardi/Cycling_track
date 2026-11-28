@@ -28,6 +28,7 @@ import { get as idbGet, set as idbSet } from "idb-keyval";
 import { DUR, mmp } from "../analysis";
 import { streamBuckets } from "../distribution";
 import { briochesIn } from "../brioches";
+import { monkeyIn } from "../monkey";
 import { ratingIn } from "../plan/rating";
 import { readProfile, saveProfile } from "../cloud";
 import { auth, uid } from "../firebase";
@@ -165,7 +166,12 @@ const inRange = (d: string, r: Range) => d >= r.oldest && d <= r.newest;
 
 function toDetail(s: Stored): ActivityDetail {
   const { curve: _c, origin: _o, outdoor: _d, hasStreams: _h, totals: _t, parser: _p, ...a } = s;
-  return { ...a, brioches: briochesIn(a.description), planRating: ratingIn(a.description) };
+  return {
+    ...a,
+    brioches: briochesIn(a.description),
+    monkey: monkeyIn(a.description),
+    planRating: ratingIn(a.description),
+  };
 }
 
 function toActivity(s: Stored): Activity {

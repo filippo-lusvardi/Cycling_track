@@ -41,6 +41,7 @@ import {
   weekRange,
 } from "@/lib/tree";
 import { format, t } from "@/lib/i18n";
+import { HangingMonkey, monkeyOf } from "./Monkeys";
 
 const slice = (h: number): CSSProperties => ({
   height: h,
@@ -48,15 +49,22 @@ const slice = (h: number): CSSProperties => ({
   containIntrinsicSize: `auto ${h}px`,
 });
 
+const SPILL = (h: number): CSSProperties => ({ height: h, position: "relative", zIndex: 1 });
+/** An svg that may draw past its box. */
+const SPILL_SVG: CSSProperties = { overflow: "visible" };
+
 function Slice({
   h,
   label,
   onOpen,
+  spill,
   children,
 }: {
   h: number;
   label: string;
   onOpen: () => void;
+  /** Something hangs out of the row (a monkey): no paint clipping, and drawn over the row below. */
+  spill?: boolean | undefined;
   children: ReactNode;
 }) {
   return (
@@ -65,7 +73,7 @@ function Slice({
       onClick={onOpen}
       aria-label={label}
       className="block w-full rounded-lg transition-colors hover:bg-secondary/30 focus-visible:bg-secondary/40 focus-visible:outline-none"
-      style={slice(h)}
+      style={spill ? SPILL(h) : slice(h)}
     >
       {children}
     </button>
@@ -548,11 +556,41 @@ const quad =
       (1 - t) ** 2 * y0 + 2 * (1 - t) * t * qy + t * t * y1,
     ] as const;
 
-/** A daily branch's curve, shared by the row that draws it and the sap that grows it. */
+const cubic = (pts: readonly (readonly [number, number])[]) => (t: number) => {
+  const u = 1 - t;
+  const w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+  return [
+    w.reduce((a, k, i) => a + k * pts[i]![0], 0),
+    w.reduce((a, k, i) => a + k * pts[i]![1], 0),
+  ] as const;
+};
+
+/**
+ * A daily branch's curve, shared by the row that draws it and the sap that grows it. A branch with a monkey on it is
+ * bowed by the weight: it leaves the trunk the same way, arches over and droops to the tip the monkey hangs from.
+ */
 export function branchCurve(b: TreeBranch, cx: number, trunk: number, y0: number) {
   const reach = Math.max(18, Math.min(cx - trunk / 2 - 14, 200) * b.length);
   const rise = Math.min(y0 - 10, reach * (0.2 + b.seed * 0.2));
   const x0 = cx + b.side * (trunk / 2 - 1);
+  if (b.monkey) {
+    const X = (f: number) => x0 + b.side * reach * f;
+    const Y = (f: number) => y0 - rise * f;
+    const pts = [
+      [x0, y0],
+      [X(0.4), Y(1.1)],
+      [X(0.8), Y(1.05)],
+      [X(0.94), Y(0.45)],
+    ] as const;
+    return {
+      d: `M${x0},${y0} C${pts
+        .slice(1)
+        .map((p) => p.join(","))
+        .join(" ")}`,
+      at: cubic(pts),
+      length: reach,
+    };
+  }
   const [qx, qy] = [x0 + b.side * reach * 0.55, y0 - rise * 0.1];
   const [x1, y1] = [x0 + b.side * reach, y0 - rise];
   return {
@@ -561,6 +599,11 @@ export function branchCurve(b: TreeBranch, cx: number, trunk: number, y0: number
     length: Math.hypot(x1 - x0, y1 - y0),
   };
 }
+
+/** The monkey's size on a ride's branch; it hangs into the row below (`Slice`'s `spill`). */
+const MONKEY_SCALE = 1.2;
+/** On a week's twig there is less wood to hang from. */
+const TWIG_MONKEY_SCALE = 0.75;
 
 export const BRANCH_LEAVES_FROM = 0.4;
 export const BRANCH_LEAF = 4.2;
@@ -602,8 +645,14 @@ function Branch({
       {b.keepers.includes("hummingbird") && (
         <HoveringHummingbird tip={at(1)} side={b.side} w={w} rowH={rowH} />
       )}
+      {b.monkey && <BranchMonkey b={b} tip={at(1)} s={MONKEY_SCALE} />}
     </g>
   );
+}
+
+/** The ride's monkey, hanging from the tip and turned to the trunk. */
+function BranchMonkey({ b, tip, s }: { b: TreeBranch; tip: readonly [number, number]; s: number }) {
+  return <HangingMonkey sp={monkeyOf(b)} x={tip[0]} y={tip[1]} side={-b.side as -1 | 1} s={s} />;
 }
 
 /** Text on the side opposite the branch, so labels and leaves never collide. */
@@ -681,13 +730,15 @@ export function DayRow({
 }) {
   const cx = w / 2;
   const h = dayHeight(day.branches.length);
+  const spill = day.branches.some((b) => b.monkey);
   return (
     <Slice
       h={h}
       label={`${format(parseISO(day.date), "EEEE d MMMM")}: ${day.branches.map((b) => b.name).join(", ")}`}
       onOpen={onOpen}
+      spill={spill}
     >
-      <svg className="block" width={w} height={h} aria-hidden>
+      <svg className="block" width={w} height={h} aria-hidden style={spill ? SPILL_SVG : undefined}>
         <Bark cx={cx} edge={edge} />
         {day.off && <Knot cx={cx} trunk={day.trunk} y={h / 2} side={day.budSide} room={h} />}
         {day.branches.map((b, i) => {
@@ -955,6 +1006,7 @@ export function WeekRow({
 }) {
   const cx = w / 2;
   const chapterStart = olderChapter !== week.chapter;
+  const weekSpill = week.twigs.some((t) => t.monkey);
   const sub = [
     // First, so it's the last part dropped when the line is too long.
     block ? t(`${FOCUS_LABEL[block]} block`, `blocco ${FOCUS_LABEL[block]}`) : null,
@@ -975,8 +1027,15 @@ export function WeekRow({
         `Settimana ${weekRange(week.start, week.end)}: ${week.count} attività`,
       )}
       onOpen={onOpen}
+      spill={weekSpill}
     >
-      <svg className="block" width={w} height={WEEK_H} aria-hidden>
+      <svg
+        className="block"
+        width={w}
+        height={WEEK_H}
+        aria-hidden
+        style={weekSpill ? SPILL_SVG : undefined}
+      >
         <Bark
           cx={cx}
           edge={edge}
@@ -1095,12 +1154,21 @@ function Bough({
         const [bx, by] = [x0 + side * reach * along, y0 - 3 * along];
         const up = j % 2 === 0;
         const len = (up ? 22 : 11) * (0.45 + 0.55 * t.length);
-        const [tx, ty] = [bx + side * len * 0.6, by + (up ? -len * 0.8 : len * 0.8)];
-        const at = (k: number) => [bx + (tx - bx) * k, by + (ty - by) * k] as const;
+        // A monkey's twig bows under it: out and up, then down to the tip it hangs from.
+        const [tx, ty] = t.monkey
+          ? [bx + side * len * 0.75, by - len * 0.15]
+          : [bx + side * len * 0.6, by + (up ? -len * 0.8 : len * 0.8)];
+        const [qx, qy] = t.monkey ? [bx + side * len * 0.45, by - len * 0.75] : [bx, by];
+        const at = (k: number) =>
+          [
+            (1 - k) ** 2 * bx + 2 * (1 - k) * k * qx + k * k * tx,
+            (1 - k) ** 2 * by + 2 * (1 - k) * k * qy + k * k * ty,
+          ] as const;
         return (
           <g key={t.id}>
             <path
-              d={`M${bx},${by} L${tx},${ty}`}
+              d={`M${bx},${by} Q${qx},${qy} ${tx},${ty}`}
+              fill="none"
               stroke={OLD_WOOD}
               strokeWidth={1.6}
               strokeLinecap="round"
@@ -1110,6 +1178,7 @@ function Bough({
             {t.brioches > 0 && (
               <Bird x={bx + side * 4} y={by - 1} side={side} s={1.1} kind={birdKinds(t, 1)[0]!} />
             )}
+            {t.monkey && <BranchMonkey b={{ ...t, side }} tip={[tx, ty]} s={TWIG_MONKEY_SCALE} />}
           </g>
         );
       })}

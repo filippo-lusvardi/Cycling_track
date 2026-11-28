@@ -294,6 +294,7 @@ export function activitySections(kind: LayoutKind): SectionDef[] {
     },
     { id: "intervals", label: () => t("Intervals", "Intervalli"), closed: true },
     { id: "brioche", label: () => t("Brioches", "Brioche") },
+    { id: "monkey", label: () => t("Monkey", "Scimmia") },
     { id: "visibility", label: () => t("Visible in forests", "Visibile nei boschi"), fixed: true },
   ];
 }

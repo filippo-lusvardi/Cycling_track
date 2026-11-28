@@ -3,6 +3,7 @@ import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { toast } from "sonner";
 import { z } from "zod";
 import { briochesIn } from "./brioches";
+import { monkeyIn } from "./monkey";
 import { garminAttribution } from "./garmin";
 import { t } from "./i18n";
 import { API_KEY, GARMIN, readSetting, RUN_THRESHOLD_ICU, writeSetting } from "./settings";
@@ -99,6 +100,8 @@ export type Activity = {
   feel: number | null;
   /** Brioches eaten on the way, from the "Brioches: n" line in the description: birds on its branch. */
   brioches: number;
+  /** A monkey on your back on this ride, from the "Monkey: yes" line in the description: it hangs from its branch. */
+  monkey?: boolean;
   /** How a planned session went against the plan, from the "Plan: harder" line in the description. */
   planRating?: Rating | null;
   /** "Garmin <device>" when recorded on a Garmin, shown with the activity's data (see lib/garmin). */
@@ -193,6 +196,7 @@ const pickRawActivity = (a: Record<string, unknown>): Activity => ({
   trainer: !!a["trainer"],
   feel: (a["feel"] as number) ?? null,
   brioches: briochesIn((a["description"] as string) ?? null),
+  monkey: monkeyIn((a["description"] as string) ?? null),
   planRating: ratingIn((a["description"] as string) ?? null),
   garmin: garminAttribution(a["source"], a["device_name"]),
 });

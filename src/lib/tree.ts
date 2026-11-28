@@ -86,6 +86,8 @@ export type TreeBranch = {
   seed: number;
   /** Brioches eaten on the way: one bird each on the branch. */
   brioches: number;
+  /** A monkey on your back on this ride: it hangs from the tip and bends the branch down. */
+  monkey?: boolean;
   /** The longest ride of all time (by distance): a squirrel lives on its branch. */
   longest: boolean;
   /** The ride with the most climbing of all time: an owl keeps watch on its branch. */
@@ -376,6 +378,7 @@ export function buildDays(
           climb,
           seed: seedOf(a.id),
           brioches: a.brioches ?? 0, // older cached rows have no count
+          ...(a.monkey ? { monkey: true } : {}), // only when there is one: older snapshots stay as they were
           longest: a.id === records.longest,
           mostClimbing: a.id === records.mostClimbing,
           keepers: KEEPERS.filter((k) => power[k] === a.id),
